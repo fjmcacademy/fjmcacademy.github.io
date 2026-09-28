@@ -179,7 +179,7 @@ const COURSES = {
                 type: "video",
                 title: "Lecture 1",
                 url:
-                    "https://www.youtube.com/embed/hhjuLjGMxgw?rel=0&modestbranding=1"
+                    "https://www.youtube.com/embed/hhjuLjGMxgw"
             },
 
             {
@@ -244,7 +244,7 @@ const COURSES = {
                 type: "video",
                 title: "Lecture 1",
                 url:
-                    "https://www.youtube.com/embed/EnLKN-6ocsE?rel=0&modestbranding=1"
+                    "https://www.youtube.com/embed/EnLKN-6ocsE"
             },
 
             {
@@ -328,14 +328,14 @@ const COURSES = {
                 type: "video",
                 title: "Batch 2 - Lecture 1",
                 url:
-                    "https://www.youtube.com/embed/EnLKN-6ocsE?rel=0&modestbranding=1"
+                    "https://www.youtube.com/embed/EnLKN-6ocsE"
             },
 
             {
                 type: "video",
                 title: "Batch 2 - Lecture 2",
                 url:
-                    "https://www.youtube.com/embed/EnLKN-6ocsE?rel=0&modestbranding=1"
+                    "https://www.youtube.com/embed/EnLKN-6ocsE"
             },
 
             {
@@ -393,7 +393,7 @@ const COURSES = {
                 type: "video",
                 title: "Batch 2 - Lecture 1",
                 url:
-                    "https://www.youtube.com/embed/hhjuLjGMxgw?rel=0&modestbranding=1"
+                    "https://www.youtube.com/embed/hhjuLjGMxgw"
             },
 
             {
@@ -451,7 +451,7 @@ const COURSES = {
                 type: "video",
                 title: "IIT JAM Lecture 1",
                 url:
-                    "https://www.youtube.com/embed/EnLKN-6ocsE?rel=0&modestbranding=1"
+                    "https://www.youtube.com/embed/EnLKN-6ocsE"
             },
 
             {
