@@ -179,7 +179,7 @@ const COURSES = {
                 type: "video",
                 title: "Lecture 1",
                 url:
-                    "https://www.youtube.com/embed/hhjuLjGMxgw"
+                    "https://res.cloudinary.com/l2fd7dwa/video/upload/v1790603659/file_example_MP4_640_3MG.mp4"
             },
 
             {
