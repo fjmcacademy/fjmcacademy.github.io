@@ -272,7 +272,7 @@ const COURSES = {
                 type: "pdf",
                 title: "Lecture 2 PDF",
                 url:
-                    "ch03.pdf"
+                    "pdf/JAILOR.pdf"
             },
 
             {
