@@ -68,7 +68,7 @@ const TESTS = {
                         title:
                             "Real Analysis - Lecture 1 Test - 1",
 
-                        duration: 30,
+                        duration: 15,
 
                         questions: [
 
