@@ -2131,11 +2131,11 @@ function openYouTubeVideo(
                 allow="
                     accelerometer;
                     autoplay;
-                    clipboard-write;
+                    
                     encrypted-media;
                     gyroscope;
-                    picture-in-picture;
-                    web-share
+                    picture-in-picture
+                    
                 "
                 allowfullscreen>
             </iframe>
