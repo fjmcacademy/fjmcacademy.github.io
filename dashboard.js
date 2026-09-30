@@ -2377,7 +2377,7 @@ async function openPDFViewer(
 
 
         watermark.style.color =
-            "rgba(0, 0, 0, 0.50)";
+            "rgba(0, 0, 0, 1.0)";
 
 
         watermark.style.fontSize =
