@@ -1,748 +1,639 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
 <meta charset="UTF-8">
-
-<meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>FJMC Academy | Admin Panel</title>
 
 <style>
-
 *{
-    box-sizing:border-box;
+  box-sizing:border-box;
 }
 
 body{
-    margin:0;
-    font-family:Arial,sans-serif;
-    background:#0f172a;
-    color:#e5e7eb;
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:#0f172a;
+  color:#e5e7eb;
 }
 
 button,
 input,
 select,
 textarea{
-    font-family:inherit;
+  font-family:inherit;
 }
 
 .top{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    gap:15px;
-    padding:16px 22px;
-    background:#111827;
-    position:sticky;
-    top:0;
-    z-index:20;
-    border-bottom:1px solid #243047;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:15px;
+  padding:16px 22px;
+  background:#111827;
+  position:sticky;
+  top:0;
+  z-index:20;
+  border-bottom:1px solid #243047;
 }
 
 .top h1{
-    margin:0;
-    font-size:22px;
+  margin:0;
+  font-size:22px;
 }
 
 .top-right{
-    display:flex;
-    align-items:center;
-    gap:10px;
+  display:flex;
+  align-items:center;
+  gap:10px;
 }
 
 .top button,
 .btn{
-    border:0;
-    border-radius:9px;
-    padding:10px 14px;
-    cursor:pointer;
-    font-weight:700;
+  border:0;
+  border-radius:9px;
+  padding:10px 14px;
+  cursor:pointer;
+  font-weight:700;
 }
 
 .primary{
-    background:#2563eb;
-    color:#fff;
+  background:#2563eb;
+  color:#fff;
 }
 
 .primary:hover{
-    background:#1d4ed8;
+  background:#1d4ed8;
 }
 
 .danger{
-    background:#dc2626;
-    color:#fff;
+  background:#dc2626;
+  color:#fff;
 }
 
 .danger:hover{
-    background:#b91c1c;
+  background:#b91c1c;
 }
 
 .muted{
-    background:#334155;
-    color:#fff;
+  background:#334155;
+  color:#fff;
 }
 
 .muted:hover{
-    background:#475569;
-}
-
-.green-btn{
-    background:#059669;
-    color:white;
+  background:#475569;
 }
 
 .layout{
-    display:grid;
-    grid-template-columns:230px 1fr;
-    min-height:calc(100vh - 65px);
+  display:grid;
+  grid-template-columns:230px 1fr;
+  min-height:calc(100vh - 65px);
 }
 
 .side{
-    background:#111827;
-    padding:15px;
-    border-right:1px solid #243047;
+  background:#111827;
+  padding:15px;
+  border-right:1px solid #243047;
 }
 
 .side button{
-    width:100%;
-    margin:5px 0;
-    text-align:left;
-    background:#1f2937;
-    color:#fff;
-    border:0;
-    padding:12px;
-    border-radius:9px;
-    cursor:pointer;
-    font-weight:700;
+  width:100%;
+  margin:5px 0;
+  text-align:left;
+  background:#1f2937;
+  color:#fff;
+  border:0;
+  padding:12px;
+  border-radius:9px;
+  cursor:pointer;
+  font-weight:700;
 }
 
 .side button:hover{
-    background:#334155;
+  background:#334155;
 }
 
 .side button.active{
-    background:#2563eb;
+  background:#2563eb;
 }
 
 .main{
-    padding:22px;
-    max-width:1500px;
-    width:100%;
-    margin:auto;
+  padding:22px;
+  max-width:1500px;
+  width:100%;
+  margin:auto;
 }
 
 .section{
-    display:none;
+  display:none;
 }
 
 .section.active{
-    display:block;
+  display:block;
 }
 
 .card{
-    background:#111827;
-    border:1px solid #243047;
-    border-radius:14px;
-    padding:18px;
-    margin-bottom:18px;
+  background:#111827;
+  border:1px solid #243047;
+  border-radius:14px;
+  padding:18px;
+  margin-bottom:18px;
 }
 
 .card h2,
 .card h3{
-    margin-top:0;
+  margin-top:0;
 }
 
 .grid{
-    display:grid;
-    grid-template-columns:repeat(2,minmax(0,1fr));
-    gap:12px;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:12px;
 }
 
 .grid3{
-    display:grid;
-    grid-template-columns:repeat(3,minmax(0,1fr));
-    gap:12px;
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
 }
 
 .search-grid{
-    display:grid;
-    grid-template-columns:2fr 1fr 1fr 1fr;
-    gap:10px;
-    margin-bottom:15px;
+  display:grid;
+  grid-template-columns:2fr 1fr 1fr 1fr;
+  gap:10px;
+  margin-bottom:15px;
 }
 
 label{
-    font-size:13px;
-    color:#94a3b8;
+  font-size:13px;
+  color:#94a3b8;
 }
 
 input,
 select,
 textarea{
-    width:100%;
-    margin-top:6px;
-    padding:11px;
-    border-radius:8px;
-    border:1px solid #334155;
-    background:#0b1220;
-    color:#fff;
-    outline:none;
+  width:100%;
+  margin-top:6px;
+  padding:11px;
+  border-radius:8px;
+  border:1px solid #334155;
+  background:#0b1220;
+  color:#fff;
+  outline:none;
 }
 
 input:focus,
 select:focus,
 textarea:focus{
-    border-color:#2563eb;
+  border-color:#2563eb;
 }
 
 textarea{
-    min-height:80px;
-    resize:vertical;
+  min-height:80px;
+  resize:vertical;
 }
 
 .actions{
-    display:flex;
-    gap:8px;
-    flex-wrap:wrap;
-    margin-top:14px;
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:14px;
 }
 
 .table-wrap{
-    overflow:auto;
+  overflow:auto;
 }
 
 .table{
-    width:100%;
-    border-collapse:collapse;
-    min-width:900px;
+  width:100%;
+  border-collapse:collapse;
+  min-width:850px;
 }
 
 .table th,
 .table td{
-    padding:10px;
-    border-bottom:1px solid #263247;
-    text-align:left;
-    vertical-align:top;
+  padding:10px;
+  border-bottom:1px solid #263247;
+  text-align:left;
+  vertical-align:top;
 }
 
 .table th{
-    background:#172033;
-    position:sticky;
-    top:0;
-    z-index:1;
+  background:#172033;
+  position:sticky;
+  top:0;
+  z-index:1;
 }
 
 .pill{
-    display:inline-block;
-    background:#1e3a8a;
-    padding:4px 8px;
-    border-radius:99px;
-    font-size:12px;
-    margin:2px;
+  display:inline-block;
+  background:#1e3a8a;
+  padding:4px 8px;
+  border-radius:99px;
+  font-size:12px;
+  margin:2px;
 }
 
 .pill.green{
-    background:#065f46;
+  background:#065f46;
 }
 
 .pill.red{
-    background:#991b1b;
+  background:#991b1b;
 }
 
 .pill.gray{
-    background:#475569;
-}
-
-.pill.orange{
-    background:#92400e;
+  background:#475569;
 }
 
 .content-row{
-    display:grid;
-    grid-template-columns:130px 1fr 1fr auto;
-    gap:8px;
-    align-items:end;
-    margin:8px 0;
+  display:grid;
+  grid-template-columns:130px 1fr 1fr auto;
+  gap:8px;
+  align-items:end;
+  margin:8px 0;
 }
 
 .content-row button{
-    height:40px;
+  height:40px;
 }
 
 .login{
-    max-width:420px;
-    margin:10vh auto;
-    padding:24px;
+  max-width:420px;
+  margin:10vh auto;
+  padding:24px;
 }
 
 .notice{
-    padding:12px;
-    border-radius:9px;
-    background:#172554;
-    margin-bottom:14px;
+  padding:12px;
+  border-radius:9px;
+  background:#172554;
+  margin-bottom:14px;
 }
 
 .error{
-    background:#450a0a;
+  background:#450a0a;
 }
 
 .success{
-    background:#064e3b;
+  background:#064e3b;
 }
 
 .hidden{
-    display:none!important;
+  display:none!important;
 }
 
 .small{
-    font-size:12px;
-    color:#94a3b8;
+  font-size:12px;
+  color:#94a3b8;
 }
 
 .stat{
-    font-size:28px;
-    font-weight:800;
+  font-size:28px;
+  font-weight:800;
 }
 
 .stat-grid{
-    display:grid;
-    grid-template-columns:repeat(4,1fr);
-    gap:12px;
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:12px;
 }
 
 .group-card{
-    background:#0b1220;
-    border:1px solid #334155;
-    border-radius:12px;
-    margin-bottom:16px;
-    overflow:hidden;
+  background:#0b1220;
+  border:1px solid #334155;
+  border-radius:12px;
+  margin-bottom:16px;
+  overflow:hidden;
 }
 
 .group-header{
-    padding:13px 15px;
-    background:#172033;
-    border-bottom:1px solid #334155;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    gap:10px;
+  padding:13px 15px;
+  background:#172033;
+  border-bottom:1px solid #334155;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
 }
 
 .group-title{
-    font-weight:800;
-    color:#fff;
+  font-weight:800;
+  color:#fff;
 }
 
 .group-count{
-    background:#2563eb;
-    color:#fff;
-    padding:4px 9px;
-    border-radius:99px;
-    font-size:12px;
+  background:#2563eb;
+  color:#fff;
+  padding:4px 9px;
+  border-radius:99px;
+  font-size:12px;
 }
 
 .group-body{
-    padding:0;
+  padding:0;
 }
 
 .empty{
-    padding:20px;
-    text-align:center;
-    color:#94a3b8;
+  padding:20px;
+  text-align:center;
+  color:#94a3b8;
 }
 
 .assign-tools{
-    display:grid;
-    grid-template-columns:2fr 1fr 1fr 1fr auto;
-    gap:8px;
-    margin-bottom:12px;
+  display:grid;
+  grid-template-columns:2fr 1fr 1fr 1fr auto;
+  gap:8px;
+  margin-bottom:12px;
 }
 
 .checklist{
-    max-height:500px;
-    overflow:auto;
-    border:1px solid #334155;
-    border-radius:8px;
-    padding:8px;
+  max-height:500px;
+  overflow:auto;
+  border:1px solid #334155;
+  border-radius:8px;
+  padding:8px;
 }
 
 .assign-group{
-    border:1px solid #334155;
-    border-radius:10px;
-    margin-bottom:10px;
-    overflow:hidden;
+  border:1px solid #334155;
+  border-radius:10px;
+  margin-bottom:10px;
+  overflow:hidden;
 }
 
 .assign-group-header{
-    background:#172033;
-    padding:10px;
-    font-weight:700;
+  background:#172033;
+  padding:10px;
+  font-weight:700;
 }
 
 .check{
-    display:flex;
-    gap:8px;
-    align-items:center;
-    padding:8px 10px;
-    border-top:1px solid #263247;
+  display:flex;
+  gap:8px;
+  align-items:center;
+  padding:8px 10px;
+  border-top:1px solid #263247;
 }
 
 .check:hover{
-    background:#111827;
+  background:#111827;
 }
 
 .check input{
-    width:auto;
-    margin:0;
+  width:auto;
+  margin:0;
 }
 
 .check-info{
-    flex:1;
+  flex:1;
 }
 
 .result-toolbar{
-    display:grid;
-    grid-template-columns:2fr 1fr 1fr 1fr 1fr;
-    gap:10px;
-    margin-bottom:15px;
+  display:grid;
+  grid-template-columns:2fr 1fr 1fr 1fr 1fr;
+  gap:10px;
+  margin-bottom:15px;
 }
 
 .result-summary{
-    display:flex;
-    flex-wrap:wrap;
-    gap:8px;
-    margin-bottom:15px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:15px;
 }
 
 .result-group{
-    margin-bottom:18px;
+  margin-bottom:18px;
 }
 
 .result-group-title{
-    padding:12px;
-    background:#172033;
-    border:1px solid #334155;
-    border-radius:10px 10px 0 0;
-    font-weight:800;
+  padding:12px;
+  background:#172033;
+  border:1px solid #334155;
+  border-radius:10px 10px 0 0;
+  font-weight:800;
 }
 
 .result-item{
-    border:1px solid #334155;
-    border-top:0;
-    background:#0b1220;
-    padding:12px;
+  border:1px solid #334155;
+  border-top:0;
+  background:#0b1220;
+  padding:12px;
 }
 
 .result-main{
-    display:grid;
-    grid-template-columns:1.2fr 1.2fr 1fr 1fr 1fr auto;
-    gap:10px;
-    align-items:center;
+  display:grid;
+  grid-template-columns:1.2fr 1.2fr 1fr 1fr 1fr auto;
+  gap:10px;
+  align-items:center;
 }
 
 .score{
-    font-size:18px;
-    font-weight:800;
+  font-size:18px;
+  font-weight:800;
 }
 
 .status-enrolled{
-    color:#34d399;
-    font-weight:800;
+  color:#34d399;
+  font-weight:800;
 }
 
 .status-not-enrolled{
-    color:#f87171;
-    font-weight:800;
-}
-
-/* ================= TEST EDITOR ================= */
-
-.test-toolbar{
-    display:grid;
-    grid-template-columns:2fr 1fr 1fr 1fr 1fr;
-    gap:10px;
-    margin-bottom:15px;
-}
-
-.question-editor{
-    border:1px solid #334155;
-    background:#0b1220;
-    border-radius:12px;
-    padding:15px;
-    margin-bottom:15px;
-}
-
-.question-header{
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    gap:10px;
-    margin-bottom:12px;
-}
-
-.question-number{
-    font-size:17px;
-    font-weight:800;
-}
-
-.option-editor{
-    display:grid;
-    grid-template-columns:40px 1fr 1fr auto;
-    gap:8px;
-    align-items:end;
-    margin-top:9px;
-}
-
-.option-editor input[type="radio"]{
-    width:20px;
-    height:20px;
-    margin:0 auto;
-}
-
-.question-actions{
-    display:flex;
-    gap:8px;
-    flex-wrap:wrap;
-    margin-top:12px;
-}
-
-.test-list-card{
-    border:1px solid #334155;
-    background:#0b1220;
-    border-radius:12px;
-    padding:14px;
-    margin-bottom:10px;
-}
-
-.test-list-top{
-    display:flex;
-    justify-content:space-between;
-    gap:10px;
-    align-items:center;
-}
-
-.test-meta{
-    display:flex;
-    flex-wrap:wrap;
-    gap:5px;
-    margin-top:8px;
-}
-
-.test-actions{
-    display:flex;
-    gap:7px;
-    flex-wrap:wrap;
-}
-
-.status-toggle{
-    cursor:pointer;
+  color:#f87171;
+  font-weight:800;
 }
 
 .device{
-    padding:10px;
-    border:1px solid #334155;
-    border-radius:8px;
-    margin:7px 0;
-    overflow:hidden;
+  padding:10px;
+  border:1px solid #334155;
+  border-radius:8px;
+  margin:7px 0;
+  overflow:hidden;
 }
 
 .device button{
-    float:right;
+  float:right;
+}
+
+.mobile-note{
+  display:none;
 }
 
 .no-results{
-    padding:20px;
-    color:#94a3b8;
-    text-align:center;
+  padding:20px;
+  color:#94a3b8;
+  text-align:center;
 }
 
 @media(max-width:1100px){
+  .result-toolbar{
+    grid-template-columns:repeat(2,1fr);
+  }
 
-    .result-toolbar,
-    .test-toolbar{
-        grid-template-columns:repeat(2,1fr);
-    }
+  .result-main{
+    grid-template-columns:repeat(3,1fr);
+  }
 
-    .result-main{
-        grid-template-columns:repeat(3,1fr);
-    }
+  .assign-tools{
+    grid-template-columns:1fr 1fr;
+  }
 
-    .assign-tools{
-        grid-template-columns:1fr 1fr;
-    }
+  .search-grid{
+    grid-template-columns:1fr 1fr;
+  }
 
-    .search-grid{
-        grid-template-columns:1fr 1fr;
-    }
-
-    .stat-grid{
-        grid-template-columns:repeat(2,1fr);
-    }
-
-    .option-editor{
-        grid-template-columns:30px 1fr;
-    }
+  .stat-grid{
+    grid-template-columns:repeat(2,1fr);
+  }
 }
 
 @media(max-width:800px){
 
-    .layout{
-        grid-template-columns:1fr;
-    }
+  .layout{
+    grid-template-columns:1fr;
+  }
 
-    .side{
-        display:flex;
-        overflow:auto;
-        gap:6px;
-        border-right:0;
-        border-bottom:1px solid #243047;
-    }
+  .side{
+    display:flex;
+    overflow:auto;
+    gap:6px;
+    border-right:0;
+    border-bottom:1px solid #243047;
+  }
 
-    .side button{
-        min-width:max-content;
-    }
+  .side button{
+    min-width:max-content;
+  }
 
-    .main{
-        padding:14px;
-    }
+  .main{
+    padding:14px;
+  }
 
-    .grid,
-    .grid3,
-    .search-grid,
-    .test-toolbar{
-        grid-template-columns:1fr;
-    }
+  .grid,
+  .grid3,
+  .search-grid{
+    grid-template-columns:1fr;
+  }
 
-    .stat-grid{
-        grid-template-columns:1fr 1fr;
-    }
+  .stat-grid{
+    grid-template-columns:1fr 1fr;
+  }
 
-    .content-row{
-        grid-template-columns:1fr;
-    }
+  .content-row{
+    grid-template-columns:1fr;
+  }
 
-    .result-toolbar,
-    .assign-tools{
-        grid-template-columns:1fr;
-    }
+  .result-toolbar,
+  .assign-tools{
+    grid-template-columns:1fr;
+  }
 
-    .result-main{
-        grid-template-columns:1fr 1fr;
-    }
+  .result-main{
+    grid-template-columns:1fr 1fr;
+  }
 
-    .top h1{
-        font-size:18px;
-    }
+  .mobile-note{
+    display:block;
+  }
 
-    .top{
-        padding:12px;
-    }
+  .top h1{
+    font-size:18px;
+  }
 
-    .top-right .small{
-        display:none;
-    }
+  .top{
+    padding:12px;
+  }
 
+  .top-right .small{
+    display:none;
+  }
 }
-
 </style>
 </head>
 
 <body>
 
-<!-- ================= LOGIN ================= -->
-
+<!-- LOGIN -->
 <div id="loginView" class="card login">
 
-    <h2>FJMC Academy Admin</h2>
+  <h2>FJMC Academy Admin</h2>
 
-    <p class="small">
-        Sign in with Firebase Authentication admin account.
-    </p>
+  <p class="small">
+    Sign in with a Firebase Authentication admin account.
+  </p>
 
-    <div id="loginMsg" class="notice hidden"></div>
+  <div id="loginMsg" class="notice hidden"></div>
 
-    <form id="adminLoginForm">
+  <form id="adminLoginForm">
 
-        <label>
-            Email
-            <input id="adminEmail" type="email" required>
-        </label>
+    <label>
+      Email
+      <input id="adminEmail" type="email" required>
+    </label>
 
-        <br>
+    <br>
 
-        <label>
-            Password
-            <input id="adminPassword" type="password" required>
-        </label>
+    <label>
+      Password
+      <input id="adminPassword" type="password" required>
+    </label>
 
-        <div class="actions">
+    <div class="actions">
+      <button class="btn primary">
+        Admin Login
+      </button>
+    </div>
 
-            <button class="btn primary">
-                Admin Login
-            </button>
-
-        </div>
-
-    </form>
+  </form>
 
 </div>
 
 
-<!-- ================= ADMIN APP ================= -->
-
+<!-- ADMIN APP -->
 <div id="app" class="hidden">
 
 <header class="top">
 
-    <h1>FJMC Academy — Admin Panel</h1>
+  <h1>FJMC Academy — Admin Panel</h1>
 
-    <div class="top-right">
+  <div class="top-right">
 
-        <span id="adminUser" class="small"></span>
+    <span id="adminUser" class="small"></span>
 
-        <button id="logoutBtn" class="btn muted">
-            Logout
-        </button>
+    <button id="logoutBtn" class="btn muted">
+      Logout
+    </button>
 
-    </div>
+  </div>
 
 </header>
 
 
 <div class="layout">
 
-
 <aside class="side">
 
-    <button data-section="home" class="active">
-        🏠 Overview
-    </button>
+  <button data-section="home" class="active">
+    🏠 Overview
+  </button>
 
-    <button data-section="students">
-        👨‍🎓 Students
-    </button>
+  <button data-section="students">
+    👨‍🎓 Students
+  </button>
 
-    <button data-section="courses">
-        📚 Courses & Content
-    </button>
+  <button data-section="courses">
+    📚 Courses & Content
+  </button>
 
-    <button data-section="tests">
-        📝 Tests
-    </button>
+  <button data-section="results">
+    🏆 Test Results
+  </button>
 
-    <button data-section="results">
-        🏆 Test Results
-    </button>
-
-    <button data-section="devices">
-        📱 Devices
-    </button>
+  <button data-section="devices">
+    📱 Devices
+  </button>
 
 </aside>
 
@@ -754,49 +645,54 @@ textarea{
 
 <section id="home" class="section active">
 
+  <div class="card">
+
+    <h2>Admin Overview</h2>
+
+    <p>
+      Yahan se students, courses, assignments, test results aur
+      devices manage karein.
+    </p>
+
+    <div class="actions">
+
+      <button id="seedBtn" class="btn primary">
+        Import Existing Dashboard Data
+      </button>
+
+    </div>
+
+    <p class="small">
+      Existing sample students/courses ko Firestore me import karta hai.
+      Admin account student list me import nahi hoga.
+    </p>
+
+  </div>
+
+
+  <div class="stat-grid">
+
     <div class="card">
-
-        <h2>Admin Overview</h2>
-
-        <p>
-            Yahan se students, courses, tests, results aur
-            devices manage karein.
-        </p>
-
-        <div class="actions">
-
-            <button id="seedBtn" class="btn primary">
-                Import Existing Dashboard Data
-            </button>
-
-        </div>
-
+      <div class="small">Students</div>
+      <div id="statStudents" class="stat">0</div>
     </div>
 
-
-    <div class="stat-grid">
-
-        <div class="card">
-            <div class="small">Students</div>
-            <div id="statStudents" class="stat">0</div>
-        </div>
-
-        <div class="card">
-            <div class="small">Courses</div>
-            <div id="statCourses" class="stat">0</div>
-        </div>
-
-        <div class="card">
-            <div class="small">Test Results</div>
-            <div id="statResults" class="stat">0</div>
-        </div>
-
-        <div class="card">
-            <div class="small">Tests</div>
-            <div id="statTests" class="stat">0</div>
-        </div>
-
+    <div class="card">
+      <div class="small">Courses</div>
+      <div id="statCourses" class="stat">0</div>
     </div>
+
+    <div class="card">
+      <div class="small">Test Results</div>
+      <div id="statResults" class="stat">0</div>
+    </div>
+
+    <div class="card">
+      <div class="small">Tests</div>
+      <div id="statTests" class="stat">0</div>
+    </div>
+
+  </div>
 
 </section>
 
@@ -805,139 +701,138 @@ textarea{
 
 <section id="students" class="section">
 
-    <div class="card">
+  <div class="card">
 
-        <h2>Student Management</h2>
+    <h2>Student Management</h2>
 
-        <form id="studentForm">
+    <form id="studentForm">
 
-            <div class="grid">
+      <div class="grid">
 
-                <label>
-                    Email
-                    <input id="sEmail" type="email" required>
-                </label>
+        <label>
+          Email
+          <input id="sEmail" type="email" required>
+        </label>
 
-                <label>
-                    Password
-                    <input
-                        id="sPassword"
-                        type="password"
-                        minlength="6"
-                        placeholder="New student only"
-                    >
-                </label>
+        <label>
+          Password (new student only)
+          <input
+            id="sPassword"
+            type="password"
+            minlength="6"
+            placeholder="At least 6 characters"
+          >
+        </label>
 
-                <label>
-                    Name
-                    <input id="sName" required>
-                </label>
+        <label>
+          Name
+          <input id="sName" required>
+        </label>
 
-                <label>
-                    Exam
-                    <input id="sExam" placeholder="CSIR NET" required>
-                </label>
+        <label>
+          Exam
+          <input id="sExam" placeholder="CSIR NET" required>
+        </label>
 
-                <label>
-                    Batch
-                    <input id="sBatch" placeholder="Batch 1" required>
-                </label>
+        <label>
+          Batch
+          <input id="sBatch" placeholder="Batch 1" required>
+        </label>
 
-                <label>
-                    Year
-                    <input id="sYear" placeholder="2026" required>
-                </label>
+        <label>
+          Year
+          <input id="sYear" placeholder="2026" required>
+        </label>
 
-            </div>
-
-
-            <h3 style="margin-top:20px">
-                Assign Courses
-            </h3>
+      </div>
 
 
-            <div class="assign-tools">
+      <h3 style="margin-top:20px">
+        Assign Courses
+      </h3>
 
-                <input
-                    id="courseAssignSearch"
-                    placeholder="🔎 Search course..."
-                >
+      <div class="assign-tools">
 
-                <select id="courseAssignExamFilter">
-                    <option value="">All Exams</option>
-                </select>
+        <input
+          id="courseAssignSearch"
+          placeholder="🔎 Search course..."
+        >
 
-                <select id="courseAssignBatchFilter">
-                    <option value="">All Batches</option>
-                </select>
+        <select id="courseAssignExamFilter">
+          <option value="">All Exams</option>
+        </select>
 
-                <select id="courseAssignYearFilter">
-                    <option value="">All Years</option>
-                </select>
+        <select id="courseAssignBatchFilter">
+          <option value="">All Batches</option>
+        </select>
 
-                <button
-                    type="button"
-                    id="selectVisibleCoursesBtn"
-                    class="btn muted"
-                >
-                    Select Visible
-                </button>
+        <select id="courseAssignYearFilter">
+          <option value="">All Years</option>
+        </select>
 
-            </div>
+        <button
+          type="button"
+          id="selectVisibleCoursesBtn"
+          class="btn muted"
+        >
+          Select Visible
+        </button>
 
-
-            <div id="courseChecklist" class="checklist"></div>
-
-
-            <div class="actions">
-
-                <button class="btn primary">
-                    Save Student
-                </button>
-
-                <button
-                    type="button"
-                    id="newStudentBtn"
-                    class="btn muted"
-                >
-                    New / Clear
-                </button>
-
-            </div>
-
-        </form>
-
-    </div>
+      </div>
 
 
-    <div class="card">
+      <div id="courseChecklist" class="checklist"></div>
 
-        <h3>Students</h3>
 
-        <div class="search-grid">
+      <div class="actions">
 
-            <input
-                id="studentSearch"
-                placeholder="🔎 Search student..."
-            >
+        <button class="btn primary">
+          Save Student
+        </button>
 
-            <select id="studentExamFilter">
-                <option value="">All Exams</option>
-            </select>
+        <button
+          type="button"
+          id="newStudentBtn"
+          class="btn muted"
+        >
+          New / Clear
+        </button>
 
-            <select id="studentBatchFilter">
-                <option value="">All Batches</option>
-            </select>
+      </div>
 
-            <select id="studentYearFilter">
-                <option value="">All Years</option>
-            </select>
+    </form>
 
-        </div>
+  </div>
 
-        <div id="studentsTable" class="table-wrap"></div>
+
+  <div class="card">
+
+    <h3>Students</h3>
+
+    <div class="search-grid">
+
+      <input
+        id="studentSearch"
+        placeholder="🔎 Search name, email, exam, batch, year..."
+      >
+
+      <select id="studentExamFilter">
+        <option value="">All Exams</option>
+      </select>
+
+      <select id="studentBatchFilter">
+        <option value="">All Batches</option>
+      </select>
+
+      <select id="studentYearFilter">
+        <option value="">All Years</option>
+      </select>
 
     </div>
+
+    <div id="studentsTable" class="table-wrap"></div>
+
+  </div>
 
 </section>
 
@@ -946,351 +841,130 @@ textarea{
 
 <section id="courses" class="section">
 
-    <div class="card">
+  <div class="card">
 
-        <h2>Course & Content Management</h2>
+    <h2>Course & Content Management</h2>
 
-        <form id="courseForm">
+    <form id="courseForm">
 
-            <div class="grid3">
+      <div class="grid3">
 
-                <label>
-                    Course ID
-                    <input
-                        id="cId"
-                        placeholder="csir-net-2026-real-analysis"
-                        required
-                    >
-                </label>
+        <label>
+          Course ID
+          <input
+            id="cId"
+            placeholder="csir-net-2026-batch1-real-analysis"
+            required
+          >
+        </label>
 
-                <label>
-                    Exam
-                    <input id="cExam" required>
-                </label>
+        <label>
+          Exam
+          <input id="cExam" required>
+        </label>
 
-                <label>
-                    Batch
-                    <input id="cBatch" required>
-                </label>
+        <label>
+          Batch
+          <input id="cBatch" required>
+        </label>
 
-                <label>
-                    Year
-                    <input id="cYear" required>
-                </label>
+        <label>
+          Year
+          <input id="cYear" required>
+        </label>
 
-                <label>
-                    Subject
-                    <input id="cSubject" required>
-                </label>
+        <label>
+          Subject
+          <input id="cSubject" required>
+        </label>
 
-                <label>
-                    Title
-                    <input id="cTitle" required>
-                </label>
+        <label>
+          Title
+          <input id="cTitle" required>
+        </label>
 
-            </div>
-
-
-            <label style="display:block;margin-top:12px">
-                Description
-                <textarea id="cDescription"></textarea>
-            </label>
+      </div>
 
 
-            <label style="display:block;margin-top:12px">
-                Test ID
-                <input
-                    id="cTestId"
-                    placeholder="real-analysis"
-                >
-            </label>
+      <label style="display:block;margin-top:12px">
+        Description
+        <textarea id="cDescription"></textarea>
+      </label>
 
 
-            <h3>
-                Course Content
-            </h3>
-
-            <div id="contentsEditor"></div>
-
-
-            <div class="actions">
-
-                <button
-                    type="button"
-                    id="addContentBtn"
-                    class="btn muted"
-                >
-                    + Add Content
-                </button>
-
-                <button class="btn primary">
-                    Save Course
-                </button>
-
-                <button
-                    type="button"
-                    id="newCourseBtn"
-                    class="btn muted"
-                >
-                    New / Clear
-                </button>
-
-            </div>
-
-        </form>
-
-    </div>
+      <label style="display:block;margin-top:12px">
+        Test ID
+        <input
+          id="cTestId"
+          placeholder="real-analysis"
+        >
+      </label>
 
 
-    <div class="card">
+      <h3>
+        Course Content
+      </h3>
 
-        <h3>Courses</h3>
+      <div id="contentsEditor"></div>
 
-        <div class="search-grid">
 
-            <input
-                id="courseSearch"
-                placeholder="🔎 Search course..."
-            >
+      <div class="actions">
 
-            <select id="courseExamFilter">
-                <option value="">All Exams</option>
-            </select>
+        <button
+          type="button"
+          id="addContentBtn"
+          class="btn muted"
+        >
+          + Add Content
+        </button>
 
-            <select id="courseBatchFilter">
-                <option value="">All Batches</option>
-            </select>
+        <button class="btn primary">
+          Save Course
+        </button>
 
-            <select id="courseYearFilter">
-                <option value="">All Years</option>
-            </select>
+        <button
+          type="button"
+          id="newCourseBtn"
+          class="btn muted"
+        >
+          New / Clear
+        </button>
 
-        </div>
+      </div>
 
-        <div id="coursesTable" class="table-wrap"></div>
+    </form>
+
+  </div>
+
+
+  <div class="card">
+
+    <h3>Courses</h3>
+
+    <div class="search-grid">
+
+      <input
+        id="courseSearch"
+        placeholder="🔎 Search course, subject, exam, batch..."
+      >
+
+      <select id="courseExamFilter">
+        <option value="">All Exams</option>
+      </select>
+
+      <select id="courseBatchFilter">
+        <option value="">All Batches</option>
+      </select>
+
+      <select id="courseYearFilter">
+        <option value="">All Years</option>
+      </select>
 
     </div>
 
-</section>
+    <div id="coursesTable" class="table-wrap"></div>
 
-
-<!-- ================= TEST MANAGEMENT ================= -->
-
-<section id="tests" class="section">
-
-    <div class="card">
-
-        <h2>📝 Test Management</h2>
-
-        <p class="small">
-            Yahan se student tests create, edit, enable/disable
-            aur delete kar sakte ho.
-        </p>
-
-        <form id="testForm">
-
-            <div class="grid3">
-
-                <label>
-                    Test ID
-                    <input
-                        id="tId"
-                        placeholder="real-analysis-lecture-1-test-1"
-                        required
-                    >
-                </label>
-
-                <label>
-                    Exam
-                    <input
-                        id="tExam"
-                        placeholder="CSIR NET"
-                        required
-                    >
-                </label>
-
-                <label>
-                    Batch
-                    <input
-                        id="tBatch"
-                        placeholder="Batch 1"
-                        required
-                    >
-                </label>
-
-                <label>
-                    Year
-                    <input
-                        id="tYear"
-                        placeholder="2026"
-                        required
-                    >
-                </label>
-
-                <label>
-                    Course ID
-                    <input
-                        id="tCourseId"
-                        placeholder="real-analysis"
-                        required
-                    >
-                </label>
-
-                <label>
-                    Lecture ID
-                    <input
-                        id="tLectureId"
-                        placeholder="1"
-                        required
-                    >
-                </label>
-
-                <label>
-                    Lecture Title
-                    <input
-                        id="tLectureTitle"
-                        placeholder="Lecture 1"
-                        required
-                    >
-                </label>
-
-                <label>
-                    Test Number
-                    <input
-                        id="tTestNumber"
-                        type="number"
-                        min="1"
-                        value="1"
-                        required
-                    >
-                </label>
-
-                <label>
-                    Duration (minutes)
-                    <input
-                        id="tDuration"
-                        type="number"
-                        min="1"
-                        value="30"
-                        required
-                    >
-                </label>
-
-            </div>
-
-
-            <label style="display:block;margin-top:12px">
-
-                Test Title
-
-                <input
-                    id="tTitle"
-                    placeholder="Real Analysis - Lecture 1 Test - 1"
-                    required
-                >
-
-            </label>
-
-
-            <div
-                style="
-                    margin-top:18px;
-                    display:flex;
-                    align-items:center;
-                    gap:10px;
-                "
-            >
-
-                <input
-                    id="tActive"
-                    type="checkbox"
-                    checked
-                    style="width:auto;margin:0"
-                >
-
-                <label
-                    for="tActive"
-                    style="color:#fff"
-                >
-                    Test Active / Available to Students
-                </label>
-
-            </div>
-
-
-            <h3 style="margin-top:22px">
-                Questions
-            </h3>
-
-
-            <div id="questionsEditor"></div>
-
-
-            <div class="actions">
-
-                <button
-                    type="button"
-                    id="addQuestionBtn"
-                    class="btn muted"
-                >
-                    + Add Question
-                </button>
-
-                <button
-                    type="submit"
-                    class="btn primary"
-                >
-                    Save Test
-                </button>
-
-                <button
-                    type="button"
-                    id="newTestBtn"
-                    class="btn muted"
-                >
-                    New / Clear
-                </button>
-
-            </div>
-
-        </form>
-
-    </div>
-
-
-    <div class="card">
-
-        <h3>All Tests</h3>
-
-        <div class="test-toolbar">
-
-            <input
-                id="testSearch"
-                placeholder="🔎 Search test..."
-            >
-
-            <select id="testExamFilter">
-                <option value="">All Exams</option>
-            </select>
-
-            <select id="testBatchFilter">
-                <option value="">All Batches</option>
-            </select>
-
-            <select id="testYearFilter">
-                <option value="">All Years</option>
-            </select>
-
-            <select id="testCourseFilter">
-                <option value="">All Courses</option>
-            </select>
-
-        </div>
-
-
-        <div id="testsList"></div>
-
-    </div>
+  </div>
 
 </section>
 
@@ -1299,70 +973,70 @@ textarea{
 
 <section id="results" class="section">
 
-    <div class="card">
+  <div class="card">
 
-        <h2>🏆 Test Results</h2>
+    <h2>Test Results</h2>
 
-        <p class="small">
-            Results ko Exam → Batch → Course → Subject → Test
-            ke according organize kiya gaya hai.
-        </p>
-
-
-        <div class="result-toolbar">
-
-            <input
-                id="resultSearch"
-                placeholder="🔎 Search student, email, course, test..."
-            >
-
-            <select id="resultExamFilter">
-                <option value="">All Exams</option>
-            </select>
-
-            <select id="resultBatchFilter">
-                <option value="">All Batches</option>
-            </select>
-
-            <select id="resultCourseFilter">
-                <option value="">All Courses</option>
-            </select>
-
-            <select id="resultSubjectFilter">
-                <option value="">All Subjects</option>
-            </select>
-
-        </div>
+    <p class="small">
+      Results ko Exam → Batch → Course → Subject → Test ke according
+      organize kiya gaya hai.
+    </p>
 
 
-        <div class="actions">
+    <div class="result-toolbar">
 
-            <button
-                id="refreshResultsBtn"
-                class="btn muted"
-            >
-                Refresh
-            </button>
+      <input
+        id="resultSearch"
+        placeholder="🔎 Search student, email, course, test..."
+      >
 
-            <button
-                id="clearResultsBtn"
-                class="btn danger"
-            >
-                Delete ALL Test Results
-            </button>
+      <select id="resultExamFilter">
+        <option value="">All Exams</option>
+      </select>
 
-        </div>
+      <select id="resultBatchFilter">
+        <option value="">All Batches</option>
+      </select>
 
+      <select id="resultCourseFilter">
+        <option value="">All Courses</option>
+      </select>
 
-        <div
-            id="resultSummary"
-            class="result-summary"
-        ></div>
-
-
-        <div id="resultsTable"></div>
+      <select id="resultSubjectFilter">
+        <option value="">All Subjects</option>
+      </select>
 
     </div>
+
+
+    <div class="actions">
+
+      <button
+        id="refreshResultsBtn"
+        class="btn muted"
+      >
+        Refresh
+      </button>
+
+      <button
+        id="clearResultsBtn"
+        class="btn danger"
+      >
+        Delete ALL Test Results
+      </button>
+
+    </div>
+
+
+    <div
+      id="resultSummary"
+      class="result-summary"
+    ></div>
+
+
+    <div id="resultsTable"></div>
+
+  </div>
 
 </section>
 
@@ -1371,18 +1045,18 @@ textarea{
 
 <section id="devices" class="section">
 
-    <div class="card">
+  <div class="card">
 
-        <h2>Device Reservations</h2>
+    <h2>Device Reservations</h2>
 
-        <p class="small">
-            Yahan se student ka device reservation release
-            kar sakte ho.
-        </p>
+    <p class="small">
+      Logout se slot free nahi hota. Yahan se admin kisi student
+      ka device reservation manually release kar sakta hai.
+    </p>
 
-        <div id="deviceStudents"></div>
+    <div id="deviceStudents"></div>
 
-    </div>
+  </div>
 
 </section>
 
@@ -1392,10 +1066,7 @@ textarea{
 </div>
 
 
-<script
-    type="module"
-    src="./admin.js"
-></script>
+<script type="module" src="./admin.js"></script>
 
 </body>
 </html>
