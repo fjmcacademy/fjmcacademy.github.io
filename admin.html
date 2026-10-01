@@ -3,10 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>FJMC Academy | Admin Panel</title>
 
 <style>
-*{box-sizing:border-box}
+*{
+  box-sizing:border-box;
+}
 
 body{
   margin:0;
@@ -15,15 +18,24 @@ body{
   color:#e5e7eb;
 }
 
+button,
+input,
+select,
+textarea{
+  font-family:inherit;
+}
+
 .top{
   display:flex;
   justify-content:space-between;
   align-items:center;
+  gap:15px;
   padding:16px 22px;
   background:#111827;
   position:sticky;
   top:0;
-  z-index:5;
+  z-index:20;
+  border-bottom:1px solid #243047;
 }
 
 .top h1{
@@ -31,7 +43,14 @@ body{
   font-size:22px;
 }
 
-.top button,.btn{
+.top-right{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.top button,
+.btn{
   border:0;
   border-radius:9px;
   padding:10px 14px;
@@ -39,9 +58,32 @@ body{
   font-weight:700;
 }
 
-.primary{background:#2563eb;color:#fff}
-.danger{background:#dc2626;color:#fff}
-.muted{background:#334155;color:#fff}
+.primary{
+  background:#2563eb;
+  color:#fff;
+}
+
+.primary:hover{
+  background:#1d4ed8;
+}
+
+.danger{
+  background:#dc2626;
+  color:#fff;
+}
+
+.danger:hover{
+  background:#b91c1c;
+}
+
+.muted{
+  background:#334155;
+  color:#fff;
+}
+
+.muted:hover{
+  background:#475569;
+}
 
 .layout{
   display:grid;
@@ -52,6 +94,7 @@ body{
 .side{
   background:#111827;
   padding:15px;
+  border-right:1px solid #243047;
 }
 
 .side button{
@@ -64,6 +107,11 @@ body{
   padding:12px;
   border-radius:9px;
   cursor:pointer;
+  font-weight:700;
+}
+
+.side button:hover{
+  background:#334155;
 }
 
 .side button.active{
@@ -72,13 +120,18 @@ body{
 
 .main{
   padding:22px;
-  max-width:1400px;
+  max-width:1500px;
   width:100%;
   margin:auto;
 }
 
-.section{display:none}
-.section.active{display:block}
+.section{
+  display:none;
+}
+
+.section.active{
+  display:block;
+}
 
 .card{
   background:#111827;
@@ -86,6 +139,11 @@ body{
   border-radius:14px;
   padding:18px;
   margin-bottom:18px;
+}
+
+.card h2,
+.card h3{
+  margin-top:0;
 }
 
 .grid{
@@ -100,12 +158,21 @@ body{
   gap:12px;
 }
 
+.search-grid{
+  display:grid;
+  grid-template-columns:2fr 1fr 1fr 1fr;
+  gap:10px;
+  margin-bottom:15px;
+}
+
 label{
   font-size:13px;
   color:#94a3b8;
 }
 
-input,select,textarea{
+input,
+select,
+textarea{
   width:100%;
   margin-top:6px;
   padding:11px;
@@ -113,6 +180,13 @@ input,select,textarea{
   border:1px solid #334155;
   background:#0b1220;
   color:#fff;
+  outline:none;
+}
+
+input:focus,
+select:focus,
+textarea:focus{
+  border-color:#2563eb;
 }
 
 textarea{
@@ -134,13 +208,22 @@ textarea{
 .table{
   width:100%;
   border-collapse:collapse;
+  min-width:850px;
 }
 
-.table th,.table td{
+.table th,
+.table td{
   padding:10px;
   border-bottom:1px solid #263247;
   text-align:left;
   vertical-align:top;
+}
+
+.table th{
+  background:#172033;
+  position:sticky;
+  top:0;
+  z-index:1;
 }
 
 .pill{
@@ -150,6 +233,18 @@ textarea{
   border-radius:99px;
   font-size:12px;
   margin:2px;
+}
+
+.pill.green{
+  background:#065f46;
+}
+
+.pill.red{
+  background:#991b1b;
+}
+
+.pill.gray{
+  background:#475569;
 }
 
 .content-row{
@@ -177,9 +272,17 @@ textarea{
   margin-bottom:14px;
 }
 
-.error{background:#450a0a}
-.success{background:#064e3b}
-.hidden{display:none!important}
+.error{
+  background:#450a0a;
+}
+
+.success{
+  background:#064e3b;
+}
+
+.hidden{
+  display:none!important;
+}
 
 .small{
   font-size:12px;
@@ -191,28 +294,91 @@ textarea{
   font-weight:800;
 }
 
-.result-row{
+.stat-grid{
   display:grid;
-  grid-template-columns:1fr 1fr 100px 120px 90px;
-  gap:10px;
-  padding:10px;
-  border-bottom:1px solid #263247;
+  grid-template-columns:repeat(4,1fr);
+  gap:12px;
+}
+
+.group-card{
+  background:#0b1220;
+  border:1px solid #334155;
+  border-radius:12px;
+  margin-bottom:16px;
+  overflow:hidden;
+}
+
+.group-header{
+  padding:13px 15px;
+  background:#172033;
+  border-bottom:1px solid #334155;
+  display:flex;
+  justify-content:space-between;
   align-items:center;
+  gap:10px;
+}
+
+.group-title{
+  font-weight:800;
+  color:#fff;
+}
+
+.group-count{
+  background:#2563eb;
+  color:#fff;
+  padding:4px 9px;
+  border-radius:99px;
+  font-size:12px;
+}
+
+.group-body{
+  padding:0;
+}
+
+.empty{
+  padding:20px;
+  text-align:center;
+  color:#94a3b8;
+}
+
+.assign-tools{
+  display:grid;
+  grid-template-columns:2fr 1fr 1fr 1fr auto;
+  gap:8px;
+  margin-bottom:12px;
 }
 
 .checklist{
-  max-height:220px;
+  max-height:500px;
   overflow:auto;
   border:1px solid #334155;
   border-radius:8px;
   padding:8px;
 }
 
+.assign-group{
+  border:1px solid #334155;
+  border-radius:10px;
+  margin-bottom:10px;
+  overflow:hidden;
+}
+
+.assign-group-header{
+  background:#172033;
+  padding:10px;
+  font-weight:700;
+}
+
 .check{
   display:flex;
   gap:8px;
   align-items:center;
-  padding:6px;
+  padding:8px 10px;
+  border-top:1px solid #263247;
+}
+
+.check:hover{
+  background:#111827;
 }
 
 .check input{
@@ -220,77 +386,107 @@ textarea{
   margin:0;
 }
 
+.check-info{
+  flex:1;
+}
+
+.result-toolbar{
+  display:grid;
+  grid-template-columns:2fr 1fr 1fr 1fr 1fr;
+  gap:10px;
+  margin-bottom:15px;
+}
+
+.result-summary{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:15px;
+}
+
+.result-group{
+  margin-bottom:18px;
+}
+
+.result-group-title{
+  padding:12px;
+  background:#172033;
+  border:1px solid #334155;
+  border-radius:10px 10px 0 0;
+  font-weight:800;
+}
+
+.result-item{
+  border:1px solid #334155;
+  border-top:0;
+  background:#0b1220;
+  padding:12px;
+}
+
+.result-main{
+  display:grid;
+  grid-template-columns:1.2fr 1.2fr 1fr 1fr 1fr auto;
+  gap:10px;
+  align-items:center;
+}
+
+.score{
+  font-size:18px;
+  font-weight:800;
+}
+
+.status-enrolled{
+  color:#34d399;
+  font-weight:800;
+}
+
+.status-not-enrolled{
+  color:#f87171;
+  font-weight:800;
+}
+
 .device{
   padding:10px;
   border:1px solid #334155;
   border-radius:8px;
   margin:7px 0;
+  overflow:hidden;
 }
 
 .device button{
   float:right;
 }
 
-/* SEARCH */
-
-.search-box{
-  display:flex;
-  gap:8px;
-  margin-bottom:10px;
+.mobile-note{
+  display:none;
 }
 
-.search-box input{
-  margin-top:0;
-  flex:1;
-}
-
-.search-count{
-  margin-bottom:15px;
-}
-
-/* GROUPING */
-
-.group-card{
-  background:#0b1220;
-  border:1px solid #334155;
-  border-radius:12px;
-  margin:12px 0;
-  overflow:hidden;
-}
-
-.group-header{
-  padding:14px;
-  background:#1e293b;
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:10px;
-  flex-wrap:wrap;
-}
-
-.group-header h3{
-  margin:0;
-  color:#fff;
-}
-
-.batch-section{
-  border-top:1px solid #334155;
-}
-
-.batch-header{
-  padding:10px 14px;
-  background:#172033;
-  color:#93c5fd;
-  font-weight:700;
-}
-
-.group-content{
-  padding:8px 14px 14px;
-}
-
-.empty{
-  padding:15px;
+.no-results{
+  padding:20px;
   color:#94a3b8;
+  text-align:center;
+}
+
+@media(max-width:1100px){
+  .result-toolbar{
+    grid-template-columns:repeat(2,1fr);
+  }
+
+  .result-main{
+    grid-template-columns:repeat(3,1fr);
+  }
+
+  .assign-tools{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .search-grid{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .stat-grid{
+    grid-template-columns:repeat(2,1fr);
+  }
 }
 
 @media(max-width:800px){
@@ -303,33 +499,55 @@ textarea{
     display:flex;
     overflow:auto;
     gap:6px;
+    border-right:0;
+    border-bottom:1px solid #243047;
   }
 
   .side button{
     min-width:max-content;
   }
 
-  .grid,.grid3{
+  .main{
+    padding:14px;
+  }
+
+  .grid,
+  .grid3,
+  .search-grid{
     grid-template-columns:1fr;
+  }
+
+  .stat-grid{
+    grid-template-columns:1fr 1fr;
   }
 
   .content-row{
     grid-template-columns:1fr;
   }
 
-  .result-row{
+  .result-toolbar,
+  .assign-tools{
+    grid-template-columns:1fr;
+  }
+
+  .result-main{
     grid-template-columns:1fr 1fr;
   }
-}
 
-@media(max-width:600px){
-
-  .search-box{
-    flex-direction:column;
+  .mobile-note{
+    display:block;
   }
 
   .top h1{
     font-size:18px;
+  }
+
+  .top{
+    padding:12px;
+  }
+
+  .top-right .small{
+    display:none;
   }
 }
 </style>
@@ -338,7 +556,6 @@ textarea{
 <body>
 
 <!-- LOGIN -->
-
 <div id="loginView" class="card login">
 
   <h2>FJMC Academy Admin</h2>
@@ -374,28 +591,27 @@ textarea{
 </div>
 
 
-<!-- APP -->
-
+<!-- ADMIN APP -->
 <div id="app" class="hidden">
 
 <header class="top">
 
   <h1>FJMC Academy — Admin Panel</h1>
 
-  <div>
+  <div class="top-right">
+
     <span id="adminUser" class="small"></span>
 
     <button id="logoutBtn" class="btn muted">
       Logout
     </button>
+
   </div>
 
 </header>
 
 
 <div class="layout">
-
-<!-- SIDEBAR -->
 
 <aside class="side">
 
@@ -425,7 +641,7 @@ textarea{
 <main class="main">
 
 
-<!-- OVERVIEW -->
+<!-- ================= OVERVIEW ================= -->
 
 <section id="home" class="section active">
 
@@ -434,9 +650,8 @@ textarea{
     <h2>Admin Overview</h2>
 
     <p>
-      Student dashboard data Firestore se load karega.
-      Yahan se students, course assignments, videos/PDF/live links
-      aur device reservations manage karein.
+      Yahan se students, courses, assignments, test results aur
+      devices manage karein.
     </p>
 
     <div class="actions">
@@ -448,14 +663,14 @@ textarea{
     </div>
 
     <p class="small">
-      Ye existing sample students/courses ko Firestore me import karta hai.
-      Admin account ko student list me import nahi kiya jayega.
+      Existing sample students/courses ko Firestore me import karta hai.
+      Admin account student list me import nahi hoga.
     </p>
 
   </div>
 
 
-  <div class="grid3">
+  <div class="stat-grid">
 
     <div class="card">
       <div class="small">Students</div>
@@ -472,12 +687,17 @@ textarea{
       <div id="statResults" class="stat">0</div>
     </div>
 
+    <div class="card">
+      <div class="small">Tests</div>
+      <div id="statTests" class="stat">0</div>
+    </div>
+
   </div>
 
 </section>
 
 
-<!-- STUDENTS -->
+<!-- ================= STUDENTS ================= -->
 
 <section id="students" class="section">
 
@@ -500,11 +720,12 @@ textarea{
             id="sPassword"
             type="password"
             minlength="6"
-            placeholder="At least 6 characters">
+            placeholder="At least 6 characters"
+          >
         </label>
 
         <label>
-          Student Name
+          Name
           <input id="sName" required>
         </label>
 
@@ -526,9 +747,39 @@ textarea{
       </div>
 
 
-      <label style="display:block;margin-top:12px">
+      <h3 style="margin-top:20px">
         Assign Courses
-      </label>
+      </h3>
+
+      <div class="assign-tools">
+
+        <input
+          id="courseAssignSearch"
+          placeholder="🔎 Search course..."
+        >
+
+        <select id="courseAssignExamFilter">
+          <option value="">All Exams</option>
+        </select>
+
+        <select id="courseAssignBatchFilter">
+          <option value="">All Batches</option>
+        </select>
+
+        <select id="courseAssignYearFilter">
+          <option value="">All Years</option>
+        </select>
+
+        <button
+          type="button"
+          id="selectVisibleCoursesBtn"
+          class="btn muted"
+        >
+          Select Visible
+        </button>
+
+      </div>
+
 
       <div id="courseChecklist" class="checklist"></div>
 
@@ -542,7 +793,8 @@ textarea{
         <button
           type="button"
           id="newStudentBtn"
-          class="btn muted">
+          class="btn muted"
+        >
           New / Clear
         </button>
 
@@ -553,40 +805,39 @@ textarea{
   </div>
 
 
-  <!-- STUDENT SEARCH + GROUP -->
-
   <div class="card">
 
-    <h3>
-      🔎 Search & Student Groups
-    </h3>
+    <h3>Students</h3>
 
-    <div class="search-box">
+    <div class="search-grid">
 
       <input
         id="studentSearch"
-        type="text"
-        placeholder="Search name, Gmail, Student ID, Exam, Batch, Year...">
+        placeholder="🔎 Search name, email, exam, batch, year..."
+      >
 
-      <button
-        type="button"
-        id="clearStudentSearch"
-        class="btn muted">
-        Clear
-      </button>
+      <select id="studentExamFilter">
+        <option value="">All Exams</option>
+      </select>
+
+      <select id="studentBatchFilter">
+        <option value="">All Batches</option>
+      </select>
+
+      <select id="studentYearFilter">
+        <option value="">All Years</option>
+      </select>
 
     </div>
 
-    <div id="studentSearchCount" class="small search-count"></div>
-
-    <div id="studentsTable"></div>
+    <div id="studentsTable" class="table-wrap"></div>
 
   </div>
 
 </section>
 
 
-<!-- COURSES -->
+<!-- ================= COURSES ================= -->
 
 <section id="courses" class="section">
 
@@ -603,7 +854,8 @@ textarea{
           <input
             id="cId"
             placeholder="csir-net-2026-batch1-real-analysis"
-            required>
+            required
+          >
         </label>
 
         <label>
@@ -641,17 +893,17 @@ textarea{
 
 
       <label style="display:block;margin-top:12px">
-
         Test ID
-
         <input
           id="cTestId"
-          placeholder="real-analysis">
-
+          placeholder="real-analysis"
+        >
       </label>
 
 
-      <h3>Course Content</h3>
+      <h3>
+        Course Content
+      </h3>
 
       <div id="contentsEditor"></div>
 
@@ -661,7 +913,8 @@ textarea{
         <button
           type="button"
           id="addContentBtn"
-          class="btn muted">
+          class="btn muted"
+        >
           + Add Content
         </button>
 
@@ -672,7 +925,8 @@ textarea{
         <button
           type="button"
           id="newCourseBtn"
-          class="btn muted">
+          class="btn muted"
+        >
           New / Clear
         </button>
 
@@ -683,71 +937,111 @@ textarea{
   </div>
 
 
-  <!-- COURSE SEARCH + GROUP -->
-
   <div class="card">
 
-    <h3>
-      🔎 Search & Course Groups
-    </h3>
+    <h3>Courses</h3>
 
-    <div class="search-box">
+    <div class="search-grid">
 
       <input
         id="courseSearch"
-        type="text"
-        placeholder="Search Course ID, Title, Subject, Exam, Batch, Year...">
+        placeholder="🔎 Search course, subject, exam, batch..."
+      >
 
-      <button
-        type="button"
-        id="clearCourseSearch"
-        class="btn muted">
-        Clear
-      </button>
+      <select id="courseExamFilter">
+        <option value="">All Exams</option>
+      </select>
+
+      <select id="courseBatchFilter">
+        <option value="">All Batches</option>
+      </select>
+
+      <select id="courseYearFilter">
+        <option value="">All Years</option>
+      </select>
 
     </div>
 
-    <div id="courseSearchCount" class="small search-count"></div>
-
-    <div id="coursesTable"></div>
+    <div id="coursesTable" class="table-wrap"></div>
 
   </div>
 
 </section>
 
 
-<!-- RESULTS -->
+<!-- ================= RESULTS ================= -->
 
 <section id="results" class="section">
 
   <div class="card">
 
-    <h2>Test Results / Leaderboard Data</h2>
+    <h2>Test Results</h2>
+
+    <p class="small">
+      Results ko Exam → Batch → Course → Subject → Test ke according
+      organize kiya gaya hai.
+    </p>
+
+
+    <div class="result-toolbar">
+
+      <input
+        id="resultSearch"
+        placeholder="🔎 Search student, email, course, test..."
+      >
+
+      <select id="resultExamFilter">
+        <option value="">All Exams</option>
+      </select>
+
+      <select id="resultBatchFilter">
+        <option value="">All Batches</option>
+      </select>
+
+      <select id="resultCourseFilter">
+        <option value="">All Courses</option>
+      </select>
+
+      <select id="resultSubjectFilter">
+        <option value="">All Subjects</option>
+      </select>
+
+    </div>
+
 
     <div class="actions">
 
       <button
         id="refreshResultsBtn"
-        class="btn muted">
+        class="btn muted"
+      >
         Refresh
       </button>
 
       <button
         id="clearResultsBtn"
-        class="btn danger">
+        class="btn danger"
+      >
         Delete ALL Test Results
       </button>
 
     </div>
 
-    <div id="resultsTable" class="table-wrap"></div>
+
+    <div
+      id="resultSummary"
+      class="result-summary"
+    ></div>
+
+
+    <div id="resultsTable"></div>
 
   </div>
 
 </section>
 
 
-<!-- DEVICES -->
+<!-- ================= DEVICES ================= -->
 
 <section id="devices" class="section">
 
@@ -756,9 +1050,8 @@ textarea{
     <h2>Device Reservations</h2>
 
     <p class="small">
-      Logout se slot free nahi hota.
-      Yahan se admin kisi student ka device reservation manually release
-      kar sakta hai.
+      Logout se slot free nahi hota. Yahan se admin kisi student
+      ka device reservation manually release kar sakta hai.
     </p>
 
     <div id="deviceStudents"></div>
