@@ -1,1002 +1,159 @@
-/* =========================================================
-   FJMC ACADEMY
-   LECTURE WISE TEST SYSTEM
-   ========================================================= */
+import { auth, db } from "./firebase.js";
 
 import {
-    onAuthStateChanged
+  onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 
 import {
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    setDoc
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  setDoc
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-import {
-    auth,
-    db
-} from "./firebase.js";
-
-
 /* =========================================================
-   TEST DATA
+   OLD / FALLBACK TEST DATA
    =========================================================
-   
    IMPORTANT:
-   Course
-      ↓
-   Lecture
-      ↓
-   Test 1 / Test 2 / Test 3 / ...
-      ↓
-   Questions
+   Apna existing TESTS object yahan same rakho.
 
-   Jitne chahe TEST add kar sakte ho.
+   Agar tumhare current test.js me already bahut saare tests
+   hain, to neeche diye TESTS object ke andar apna existing
+   complete TESTS object paste kar dena.
    ========================================================= */
 
 const TESTS = {
-
-    /* =====================================================
-       REAL ANALYSIS
-       ===================================================== */
-
-    "real-analysis": {
-
-        title: "Real Analysis",
-
-        lectures: {
-
-            /* =================================================
-               LECTURE 1
-               ================================================= */
-
-            "1": {
-
-                title: "Lecture 1",
-
-                tests: {
-
-                    /* ==============================
-                       TEST 1
-                       ============================== */
-
-                    "1": {
-
-                        title:
-                            "Real Analysis - Lecture 1 Test - 1",
-
-                        duration: 15,
-
-                        questions: [
-
-                            {
-                                question:
-                                    "Which of the following statements is true about every convergent sequence?",
-
-                                options: [
-
-                                    {
-                                        text:
-                                            "Every convergent sequence is bounded",
-
-                                        correct: true,
-
-                                        solution:
-                                            "Every convergent sequence is bounded."
-                                    },
-
-                                    {
-                                        text:
-                                            "Every bounded sequence is convergent",
-
-                                        correct: false,
-
-                                        solution:
-                                            "A bounded sequence need not converge. For example, (-1)^n is bounded but divergent."
-                                    },
-
-                                    {
-                                        text:
-                                            "Every sequence is convergent",
-
-                                        correct: false,
-
-                                        solution:
-                                            "Not every sequence converges."
-                                    },
-
-                                    {
-                                        text:
-                                            "Every divergent sequence is bounded",
-
-                                        correct: false,
-
-                                        solution:
-                                            "A divergent sequence can be bounded or unbounded."
-                                    }
-
-                                ]
-                            },
-
-
-                            {
-                                question:
-                                    "If a sequence converges to L, what is its limit?",
-
-                                options: [
-
-                                    {
-                                        text: "L",
-
-                                        correct: true,
-
-                                        solution:
-                                            "By definition, the limit of the sequence is L."
-                                    },
-
-                                    {
-                                        text: "0 always",
-
-                                        correct: false,
-
-                                        solution:
-                                            "A convergent sequence need not converge to zero."
-                                    },
-
-                                    {
-                                        text: "Infinity always",
-
-                                        correct: false,
-
-                                        solution:
-                                            "A convergent sequence has a finite real limit."
-                                    },
-
-                                    {
-                                        text: "It has no limit",
-
-                                        correct: false,
-
-                                        solution:
-                                            "A convergent sequence necessarily has a limit."
-                                    }
-
-                                ]
-                            },
-
-
-                            {
-                                question:
-                                    "Which condition is sufficient for a sequence to be Cauchy in R?",
-
-                                options: [
-
-                                    {
-                                        text:
-                                            "The sequence is convergent",
-
-                                        correct: true,
-
-                                        solution:
-                                            "Every convergent sequence in R is Cauchy."
-                                    },
-
-                                    {
-                                        text:
-                                            "The sequence contains only positive terms",
-
-                                        correct: false,
-
-                                        solution:
-                                            "Positive terms alone do not imply the Cauchy property."
-                                    },
-
-                                    {
-                                        text:
-                                            "The sequence is always increasing",
-
-                                        correct: false,
-
-                                        solution:
-                                            "An increasing sequence need not be Cauchy."
-                                    },
-
-                                    {
-                                        text:
-                                            "The sequence has infinitely many terms",
-
-                                        correct: false,
-
-                                        solution:
-                                            "Having infinitely many terms does not imply that a sequence is Cauchy."
-                                    }
-
-                                ]
-                            },
-
-
-                            {
-                                question:
-                                    "What is the supremum of the set (0,1)?",
-
-                                options: [
-
-                                    {
-                                        text: "1",
-
-                                        correct: true,
-
-                                        solution:
-                                            "The supremum of (0,1) is 1."
-                                    },
-
-                                    {
-                                        text: "0",
-
-                                        correct: false,
-
-                                        solution:
-                                            "0 is the infimum, not the supremum."
-                                    },
-
-                                    {
-                                        text: "1/2",
-
-                                        correct: false,
-
-                                        solution:
-                                            "1/2 is not an upper bound of (0,1)."
-                                    },
-
-                                    {
-                                        text:
-                                            "There is no supremum",
-
-                                        correct: false,
-
-                                        solution:
-                                            "The set (0,1) has supremum 1."
-                                    }
-
-                                ]
-                            },
-
-
-                            {
-                                question:
-                                    "Which theorem states that every bounded monotone sequence converges?",
-
-                                options: [
-
-                                    {
-                                        text:
-                                            "Monotone Convergence Theorem",
-
-                                        correct: true,
-
-                                        solution:
-                                            "Every bounded monotone sequence of real numbers converges."
-                                    },
-
-                                    {
-                                        text:
-                                            "Intermediate Value Theorem",
-
-                                        correct: false,
-
-                                        solution:
-                                            "This theorem concerns continuous functions."
-                                    },
-
-                                    {
-                                        text:
-                                            "Bolzano-Weierstrass Theorem",
-
-                                        correct: false,
-
-                                        solution:
-                                            "It states that every bounded sequence has a convergent subsequence."
-                                    },
-
-                                    {
-                                        text:
-                                            "Mean Value Theorem",
-
-                                        correct: false,
-
-                                        solution:
-                                            "It concerns derivatives of functions."
-                                    }
-
-                                ]
-                            }
-
-                        ]
-
-                    },
-
-
-                    /* ==============================
-                       TEST 2
-                       ============================== */
-
-                    "2": {
-
-                        title:
-                            "Real Analysis - Lecture 1 Test - 2",
-
-                        duration: 30,
-
-                        questions: [
-
-                            {
-                                question:
-                                    "Which of the following sequences converges to 0?",
-
-                                options: [
-
-                                    {
-                                        text: "1/n",
-
-                                        correct: true,
-
-                                        solution:
-                                            "As n tends to infinity, 1/n tends to 0."
-                                    },
-
-                                    {
-                                        text: "n",
-
-                                        correct: false,
-
-                                        solution:
-                                            "n tends to infinity."
-                                    },
-
-                                    {
-                                        text: "(-1)^n",
-
-                                        correct: false,
-
-                                        solution:
-                                            "(-1)^n oscillates between -1 and 1."
-                                    },
-
-                                    {
-                                        text: "n^2",
-
-                                        correct: false,
-
-                                        solution:
-                                            "n^2 tends to infinity."
-                                    }
-
-                                ]
-                            },
-
-
-                            {
-                                question:
-                                    "Which of the following sequences is bounded?",
-
-                                options: [
-
-                                    {
-                                        text: "(-1)^n",
-
-                                        correct: true,
-
-                                        solution:
-                                            "The sequence only takes the values -1 and 1."
-                                    },
-
-                                    {
-                                        text: "n",
-
-                                        correct: false,
-
-                                        solution:
-                                            "n is unbounded."
-                                    },
-
-                                    {
-                                        text: "n^2",
-
-                                        correct: false,
-
-                                        solution:
-                                            "n^2 is unbounded."
-                                    },
-
-                                    {
-                                        text: "2^n",
-
-                                        correct: false,
-
-                                        solution:
-                                            "2^n is unbounded."
-                                    }
-
-                                ]
-                            },
-
-
-                            {
-                                question:
-                                    "What is the infimum of the set (0,1)?",
-
-                                options: [
-
-                                    {
-                                        text: "0",
-
-                                        correct: true,
-
-                                        solution:
-                                            "The infimum of (0,1) is 0."
-                                    },
-
-                                    {
-                                        text: "1",
-
-                                        correct: false,
-
-                                        solution:
-                                            "1 is the supremum."
-                                    },
-
-                                    {
-                                        text: "1/2",
-
-                                        correct: false,
-
-                                        solution:
-                                            "1/2 is not a lower bound."
-                                    },
-
-                                    {
-                                        text:
-                                            "There is no infimum",
-
-                                        correct: false,
-
-                                        solution:
-                                            "The set (0,1) has infimum 0."
-                                    }
-
-                                ]
-                            },
-
-
-                            {
-                                question:
-                                    "Which of the following is true for every convergent sequence of real numbers?",
-
-                                options: [
-
-                                    {
-                                        text: "It is bounded",
-
-                                        correct: true,
-
-                                        solution:
-                                            "Every convergent sequence of real numbers is bounded."
-                                    },
-
-                                    {
-                                        text:
-                                            "It is strictly increasing",
-
-                                        correct: false,
-
-                                        solution:
-                                            "Convergence does not imply increasing behaviour."
-                                    },
-
-                                    {
-                                        text:
-                                            "It is strictly decreasing",
-
-                                        correct: false,
-
-                                        solution:
-                                            "Convergence does not imply decreasing behaviour."
-                                    },
-
-                                    {
-                                        text:
-                                            "It contains only positive terms",
-
-                                        correct: false,
-
-                                        solution:
-                                            "A convergent sequence may contain negative terms."
-                                    }
-
-                                ]
-                            },
-
-
-                            {
-                                question:
-                                    "Which sequence is monotone increasing?",
-
-                                options: [
-
-                                    {
-                                        text: "a_n = n",
-
-                                        correct: true,
-
-                                        solution:
-                                            "a_(n+1) = n+1 > n = a_n."
-                                    },
-
-                                    {
-                                        text: "a_n = (-1)^n",
-
-                                        correct: false,
-
-                                        solution:
-                                            "The sequence alternates between -1 and 1."
-                                    },
-
-                                    {
-                                        text: "a_n = 1/n",
-
-                                        correct: false,
-
-                                        solution:
-                                            "1/n is decreasing."
-                                    },
-
-                                    {
-                                        text: "a_n = (-1)^n/n",
-
-                                        correct: false,
-
-                                        solution:
-                                            "The signs alternate."
-                                    }
-
-                                ]
-                            }
-
-                        ]
-
-                    },
-
-
-                    /* ==============================
-                       TEST 3
-                       ============================== */
-
-                    "3": {
-
-                        title:
-                            "Real Analysis - Lecture 1 Test - 3",
-
-                        duration: 30,
-
-                        questions: [
-
-                            {
-                                question:
-                                    "Which of the following is an example of a divergent sequence?",
-
-                                options: [
-
-                                    {
-                                        text: "(-1)^n",
-
-                                        correct: true,
-
-                                        solution:
-                                            "The sequence oscillates between -1 and 1 and therefore does not converge."
-                                    },
-
-                                    {
-                                        text: "1/n",
-
-                                        correct: false,
-
-                                        solution:
-                                            "1/n converges to 0."
-                                    },
-
-                                    {
-                                        text: "1",
-
-                                        correct: false,
-
-                                        solution:
-                                            "The constant sequence 1 converges to 1."
-                                    },
-
-                                    {
-                                        text: "1/(n+1)",
-
-                                        correct: false,
-
-                                        solution:
-                                            "1/(n+1) converges to 0."
-                                    }
-
-                                ]
-                            }
-
-                        ]
-
-                    }
-
-                }
-
-            },
-
-
-            /* =================================================
-               LECTURE 2
-               ================================================= */
-
-            "2": {
-
-                title: "Lecture 2",
-
-                tests: {
-
-                    "1": {
-
-                        title:
-                            "Real Analysis - Lecture 2 Test - 1",
-
-                        duration: 30,
-
-                        questions: [
-
-                            {
-                                question:
-                                    "A sample Lecture 2 question?",
-
-                                options: [
-
-                                    {
-                                        text: "Correct Answer",
-
-                                        correct: true,
-
-                                        solution:
-                                            "This is the correct answer."
-                                    },
-
-                                    {
-                                        text: "Wrong Answer",
-
-                                        correct: false,
-
-                                        solution:
-                                            "This is incorrect."
-                                    },
-
-                                    {
-                                        text: "Wrong Answer",
-
-                                        correct: false,
-
-                                        solution:
-                                            "This is incorrect."
-                                    },
-
-                                    {
-                                        text: "Wrong Answer",
-
-                                        correct: false,
-
-                                        solution:
-                                            "This is incorrect."
-                                    }
-
-                                ]
-                            }
-
-                        ]
-
-                    },
-
-
-                    "2": {
-
-                        title:
-                            "Real Analysis - Lecture 2 Test - 2",
-
-                        duration: 30,
-
-                        questions: []
-
-                    }
-
-                }
-
-            },
-
-
-            /* =================================================
-               LECTURE 3
-               ================================================= */
-
-            "3": {
-
-                title: "Lecture 3",
-
-                tests: {
-
-                    "1": {
-
-                        title:
-                            "Real Analysis - Lecture 3 Test - 1",
-
-                        duration: 30,
-
-                        questions: []
-
-                    },
-
-                    "2": {
-
-                        title:
-                            "Real Analysis - Lecture 3 Test - 2",
-
-                        duration: 30,
-
-                        questions: []
-
-                    }
-
-                }
-
-            }
-
+  "real-analysis": {
+    title: "Real Analysis",
+
+    lectures: {
+      "1": {
+        title: "Lecture 1",
+
+        tests: {
+          "1": {
+            title: "Real Analysis - Lecture 1 Test - 1",
+            duration: 15,
+
+            questions: [
+              {
+                question: "Which of the following is a rational number?",
+                options: [
+                  {
+                    text: "√2",
+                    correct: false,
+                    solution: "√2 is irrational."
+                  },
+                  {
+                    text: "π",
+                    correct: false,
+                    solution: "π is irrational."
+                  },
+                  {
+                    text: "1/2",
+                    correct: true,
+                    solution: "1/2 can be written as p/q, so it is rational."
+                  },
+                  {
+                    text: "√3",
+                    correct: false,
+                    solution: "√3 is irrational."
+                  }
+                ]
+              }
+            ]
+          }
         }
-
-    },
-
-
-    /* =====================================================
-       CALCULUS
-       ===================================================== */
-
-    "calculus": {
-
-        title: "Calculus",
-
-        lectures: {
-
-            /* =================================================
-               LECTURE 1
-               ================================================= */
-
-            "1": {
-
-                title: "Calculus - Lecture 1",
-
-                tests: {
-
-                    "1": {
-
-                        title:
-                            "Calculus - Lecture 1 Test - 1",
-
-                        duration: 30,
-
-                        questions: [
-
-                            {
-                                question:
-                                    "What is the derivative of x²?",
-
-                                options: [
-
-                                    {
-                                        text: "2x",
-
-                                        correct: true,
-
-                                        solution:
-                                            "Using the power rule, d(x²)/dx = 2x."
-                                    },
-
-                                    {
-                                        text: "x",
-
-                                        correct: false,
-
-                                        solution:
-                                            "The derivative of x² is 2x."
-                                    },
-
-                                    {
-                                        text: "x²",
-
-                                        correct: false,
-
-                                        solution:
-                                            "x² is the original function, not its derivative."
-                                    },
-
-                                    {
-                                        text: "2",
-
-                                        correct: false,
-
-                                        solution:
-                                            "The derivative of x² is 2x."
-                                    }
-
-                                ]
-                            }
-
-                        ]
-
-                    },
-
-
-                    "2": {
-
-                        title:
-                            "Calculus - Lecture 1 Test - 2",
-
-                        duration: 30,
-
-                        questions: []
-
-                    },
-
-
-                    "3": {
-
-                        title:
-                            "Calculus - Lecture 1 Test - 3",
-
-                        duration: 30,
-
-                        questions: []
-
-                    }
-
-                }
-
-            },
-
-
-            /* =================================================
-               LECTURE 2
-               ================================================= */
-
-            "2": {
-
-                title: "Calculus - Lecture 2",
-
-                tests: {
-
-                    "1": {
-
-                        title:
-                            "Calculus - Lecture 2 Test - 1",
-
-                        duration: 30,
-
-                        questions: []
-
-                    },
-
-                    "2": {
-
-                        title:
-                            "Calculus - Lecture 2 Test - 2",
-
-                        duration: 30,
-
-                        questions: []
-
-                    }
-
-                }
-
-            },
-
-
-            /* =================================================
-               LECTURE 3
-               ================================================= */
-
-            "3": {
-
-                title: "Calculus - Lecture 3",
-
-                tests: {
-
-                    "1": {
-
-                        title:
-                            "Calculus - Lecture 3 Test - 1",
-
-                        duration: 30,
-
-                        questions: []
-
-                    },
-
-                    "2": {
-
-                        title:
-                            "Calculus - Lecture 3 Test - 2",
-
-                        duration: 30,
-
-                        questions: []
-
-                    }
-
-                }
-
-            }
-
-        }
-
+      }
     }
+  },
 
+  "calculus": {
+    title: "Calculus",
+
+    lectures: {
+      "1": {
+        title: "Lecture 1",
+
+        tests: {
+          "1": {
+            title: "Calculus - Lecture 1 Test - 1",
+            duration: 15,
+
+            questions: [
+              {
+                question: "What is the derivative of x²?",
+                options: [
+                  {
+                    text: "x",
+                    correct: false,
+                    solution: "The derivative of x² is 2x."
+                  },
+                  {
+                    text: "2x",
+                    correct: true,
+                    solution: "Using the power rule, d(x²)/dx = 2x."
+                  },
+                  {
+                    text: "x²",
+                    correct: false,
+                    solution: "x² is the original function."
+                  },
+                  {
+                    text: "2",
+                    correct: false,
+                    solution: "The derivative is 2x, not 2."
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
 };
 
 
 /* =========================================================
-   VARIABLES
+   GLOBAL STATE
    ========================================================= */
 
 let currentUser = null;
 let currentTest = null;
 
-let courseId = null;
-let lectureId = null;
-let testNumber = null;
+let currentCourseId = "";
+let currentLectureId = "";
+let currentTestNumber = "";
 
 let timerInterval = null;
 let remainingSeconds = 0;
 
-let testSubmitted = false;
+let selectedAnswers = {};
+
+let firestoreTests = [];
 
 
 /* =========================================================
-   URL PARAMETERS
+   DOM HELPERS
    ========================================================= */
 
-const params =
-    new URLSearchParams(
-        window.location.search
-    );
+function $(id) {
+  return document.getElementById(id);
+}
 
-courseId =
-    params.get("course");
+function safeText(value) {
+  return value == null ? "" : String(value);
+}
 
-lectureId =
-    params.get("lecture");
-
-testNumber =
-    params.get("test");
-
-
-/* =========================================================
-   PAGE SAVE / PRINT PROTECTION
-   ========================================================= */
-
-function protectPage() {
-
-    document.documentElement.setAttribute(
-        "data-test-page",
-        "true"
-    );
-
+function escapeHtml(value) {
+  return safeText(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 
@@ -1004,158 +161,686 @@ function protectPage() {
    AUTH
    ========================================================= */
 
-onAuthStateChanged(
-    auth,
-    async function(user) {
+onAuthStateChanged(auth, async (user) => {
 
-        if (!user) {
+  if (!user) {
+    window.location.href = "login.html";
+    return;
+  }
 
-            window.location.href =
-                "login.html";
+  currentUser = user;
 
-            return;
+  const emailEl = $("studentEmail");
 
-        }
+  if (emailEl) {
+    emailEl.textContent = user.email || "";
+  }
 
-        currentUser = user;
+  try {
+    await loadFirestoreTests();
 
+    await startFromUrl();
 
-        const emailElement =
-            document.getElementById(
-                "studentEmail"
-            );
+  } catch (error) {
 
-        if (emailElement) {
+    console.error("Test initialization error:", error);
 
-            emailElement.textContent =
-                user.email || "";
-
-        }
-
-
-        const course =
-            TESTS[courseId];
-
-
-        if (!course) {
-
-            showMessage(
-                "Course not available."
-            );
-
-            return;
-
-        }
-
-
-        /* ==============================================
-           NO LECTURE / TEST
-           ============================================== */
-
-        if (
-            !lectureId ||
-            !testNumber
-        ) {
-
-            showTestSelection();
-
-            return;
-
-        }
-
-
-        /* ==============================================
-           GET TEST
-           ============================================== */
-
-        currentTest =
-            course
-                .lectures?.[lectureId]
-                ?.tests?.[testNumber];
-
-
-        if (!currentTest) {
-
-            showMessage(
-                "Test not available."
-            );
-
-            return;
-
-        }
-
-
-        const titleElement =
-            document.getElementById(
-                "testTitle"
-            );
-
-        if (titleElement) {
-
-            titleElement.textContent =
-                currentTest.title;
-
-        }
-
-
-        const loading =
-            document.getElementById(
-                "loading"
-            );
-
-        if (loading) {
-
-            loading.remove();
-
-        }
-
-
-        renderTest();
-
-        startTimer();
-
-    }
-);
+    await startFromUrl();
+  }
+});
 
 
 /* =========================================================
-   MESSAGE
+   LOAD TESTS FROM FIRESTORE
+   ========================================================= */
+
+async function loadFirestoreTests() {
+
+  firestoreTests = [];
+
+  try {
+
+    const snapshot = await getDocs(
+      collection(db, "tests")
+    );
+
+    snapshot.forEach((docSnap) => {
+
+      const data = docSnap.data();
+
+      firestoreTests.push({
+        id: docSnap.id,
+        ...data
+      });
+
+    });
+
+    console.log(
+      "Firestore tests loaded:",
+      firestoreTests.length
+    );
+
+  } catch (error) {
+
+    console.warn(
+      "Could not load Firestore tests:",
+      error
+    );
+
+    firestoreTests = [];
+  }
+}
+
+
+/* =========================================================
+   URL PARAMS
+   ========================================================= */
+
+async function startFromUrl() {
+
+  const params = new URLSearchParams(
+    window.location.search
+  );
+
+  const courseId =
+    params.get("course");
+
+  const lectureId =
+    params.get("lecture");
+
+  const testNumber =
+    params.get("test");
+
+  currentCourseId = courseId || "";
+  currentLectureId = lectureId || "";
+  currentTestNumber = testNumber || "";
+
+  if (!courseId) {
+
+    await showCourseSelection();
+
+    return;
+  }
+
+  if (!lectureId) {
+
+    await showLectureSelection(
+      courseId
+    );
+
+    return;
+  }
+
+  if (!testNumber) {
+
+    await showTestSelection(
+      courseId,
+      lectureId
+    );
+
+    return;
+  }
+
+  await openSpecificTest(
+    courseId,
+    lectureId,
+    testNumber
+  );
+}
+
+
+/* =========================================================
+   FIRESTORE TEST ID
+   ========================================================= */
+
+function makeTestId(
+  courseId,
+  lectureId,
+  testNumber
+) {
+
+  return (
+    courseId +
+    "-lecture-" +
+    lectureId +
+    "-test-" +
+    testNumber
+  );
+}
+
+
+/* =========================================================
+   GET FIRESTORE TEST
+   ========================================================= */
+
+async function getFirestoreTest(
+  courseId,
+  lectureId,
+  testNumber
+) {
+
+  const testId =
+    makeTestId(
+      courseId,
+      lectureId,
+      testNumber
+    );
+
+  try {
+
+    const testRef =
+      doc(db, "tests", testId);
+
+    const testSnap =
+      await getDoc(testRef);
+
+    if (!testSnap.exists()) {
+      return null;
+    }
+
+    return {
+      id: testSnap.id,
+      ...testSnap.data()
+    };
+
+  } catch (error) {
+
+    console.warn(
+      "Could not read Firestore test:",
+      error
+    );
+
+    return null;
+  }
+}
+
+
+/* =========================================================
+   GET FALLBACK TEST
+   ========================================================= */
+
+function getHardcodedTest(
+  courseId,
+  lectureId,
+  testNumber
+) {
+
+  const course =
+    TESTS[courseId];
+
+  if (!course) {
+    return null;
+  }
+
+  const lecture =
+    course.lectures?.[lectureId];
+
+  if (!lecture) {
+    return null;
+  }
+
+  const test =
+    lecture.tests?.[testNumber];
+
+  if (!test) {
+    return null;
+  }
+
+  return {
+    ...test,
+
+    courseId,
+    lectureId,
+    testNumber,
+
+    testId:
+      makeTestId(
+        courseId,
+        lectureId,
+        testNumber
+      )
+  };
+}
+
+
+/* =========================================================
+   GET FINAL TEST
+   ========================================================= */
+
+async function getTest(
+  courseId,
+  lectureId,
+  testNumber
+) {
+
+  const firestoreTest =
+    await getFirestoreTest(
+      courseId,
+      lectureId,
+      testNumber
+    );
+
+  /*
+    Firestore test has priority.
+
+    This allows Admin Panel to control tests.
+  */
+
+  if (firestoreTest) {
+
+    return {
+      ...firestoreTest,
+
+      courseId:
+        firestoreTest.courseId ||
+        courseId,
+
+      lectureId:
+        String(
+          firestoreTest.lectureId ??
+          lectureId
+        ),
+
+      testNumber:
+        String(
+          firestoreTest.testNumber ??
+          testNumber
+        ),
+
+      testId:
+        firestoreTest.testId ||
+        makeTestId(
+          courseId,
+          lectureId,
+          testNumber
+        )
+    };
+  }
+
+
+  /*
+    If Firestore test does not exist,
+    use old TESTS object.
+  */
+
+  return getHardcodedTest(
+    courseId,
+    lectureId,
+    testNumber
+  );
+}
+
+
+/* =========================================================
+   OPEN SPECIFIC TEST
+   ========================================================= */
+
+async function openSpecificTest(
+  courseId,
+  lectureId,
+  testNumber
+) {
+
+  showLoading();
+
+  const test =
+    await getTest(
+      courseId,
+      lectureId,
+      testNumber
+    );
+
+  if (!test) {
+
+    showMessage(
+      "Test not found."
+    );
+
+    return;
+  }
+
+
+  /*
+    Admin can disable a test.
+  */
+
+  if (test.active === false) {
+
+    showMessage(
+      "This test is currently disabled."
+    );
+
+    return;
+  }
+
+
+  currentCourseId =
+    courseId;
+
+  currentLectureId =
+    String(lectureId);
+
+  currentTestNumber =
+    String(testNumber);
+
+  currentTest = normalizeTest(test);
+
+  selectedAnswers = {};
+
+  renderTest();
+}
+
+
+/* =========================================================
+   NORMALIZE TEST
+   ========================================================= */
+
+function normalizeTest(test) {
+
+  const normalized = {
+    ...test
+  };
+
+  normalized.title =
+    test.title ||
+    `Test ${test.testNumber || ""}`;
+
+  normalized.duration =
+    Number(test.duration) > 0
+      ? Number(test.duration)
+      : 15;
+
+  normalized.questions =
+    Array.isArray(test.questions)
+      ? test.questions
+      : [];
+
+  normalized.questions =
+    normalized.questions.map(
+      (question) => {
+
+        const options =
+          Array.isArray(question.options)
+            ? question.options
+            : [];
+
+        return {
+          question:
+            question.question || "",
+
+          options:
+            options.map(
+              (option) => ({
+                text:
+                  option.text || "",
+
+                correct:
+                  option.correct === true,
+
+                solution:
+                  option.solution || ""
+              })
+            )
+        };
+      }
+    );
+
+  return normalized;
+}
+
+
+/* =========================================================
+   LOADING
+   ========================================================= */
+
+function showLoading() {
+
+  const loading =
+    $("loading");
+
+  const testArea =
+    $("testArea");
+
+  if (loading) {
+    loading.style.display = "block";
+    loading.textContent =
+      "Loading test...";
+  }
+
+  if (testArea) {
+    testArea.style.display = "none";
+  }
+}
+
+
+/* =========================================================
+   SHOW MESSAGE
    ========================================================= */
 
 function showMessage(message) {
 
-    const loading =
-        document.getElementById(
-            "loading"
-        );
+  const loading =
+    $("loading");
 
-    const area =
-        document.getElementById(
-            "testArea"
-        );
+  const testArea =
+    $("testArea");
+
+  if (loading) {
+    loading.style.display = "block";
+    loading.textContent = message;
+  }
+
+  if (testArea) {
+    testArea.style.display = "none";
+  }
+}
 
 
-    if (loading) {
+/* =========================================================
+   COURSE SELECTION
+   ========================================================= */
 
-        loading.innerHTML = `
-            <h3>${message}</h3>
-        `;
+async function showCourseSelection() {
 
+  const courses = [];
+
+  /*
+    First take Firestore tests.
+  */
+
+  firestoreTests.forEach(
+    (test) => {
+
+      if (
+        test.active === false
+      ) {
         return;
+      }
 
+      const courseId =
+        test.courseId;
+
+      if (!courseId) {
+        return;
+      }
+
+      if (
+        !courses.some(
+          (course) =>
+            course.id === courseId
+        )
+      ) {
+
+        courses.push({
+          id: courseId,
+
+          title:
+            test.courseTitle ||
+            courseId
+        });
+      }
     }
+  );
 
 
-    if (area) {
+  /*
+    Then add hardcoded courses.
+  */
 
-        area.innerHTML = `
-            <div class="test-info">
-                <h3>${message}</h3>
-            </div>
-        `;
+  Object.entries(TESTS)
+    .forEach(
+      ([id, course]) => {
 
+        if (
+          !courses.some(
+            (item) =>
+              item.id === id
+          )
+        ) {
+
+          courses.push({
+            id,
+
+            title:
+              course.title || id
+          });
+        }
+      }
+    );
+
+
+  renderSelectionPage(
+    "Select Course",
+    courses.map(
+      (course) => `
+
+        <button
+          class="selection-btn"
+          onclick="location.href='test.html?course=${encodeURIComponent(course.id)}'"
+        >
+          ${escapeHtml(course.title)}
+        </button>
+
+      `
+    ).join("")
+  );
+}
+
+
+/* =========================================================
+   LECTURE SELECTION
+   ========================================================= */
+
+async function showLectureSelection(
+  courseId
+) {
+
+  const lectures = [];
+
+
+  /*
+    Firestore lectures
+  */
+
+  firestoreTests.forEach(
+    (test) => {
+
+      if (
+        test.active === false
+      ) {
+        return;
+      }
+
+      if (
+        test.courseId !== courseId
+      ) {
+        return;
+      }
+
+      const lectureId =
+        String(
+          test.lectureId ?? ""
+        );
+
+      if (!lectureId) {
+        return;
+      }
+
+      if (
+        !lectures.some(
+          (lecture) =>
+            lecture.id === lectureId
+        )
+      ) {
+
+        lectures.push({
+          id: lectureId,
+
+          title:
+            test.lectureTitle ||
+            `Lecture ${lectureId}`
+        });
+      }
     }
+  );
 
+
+  /*
+    Hardcoded lectures
+  */
+
+  const course =
+    TESTS[courseId];
+
+  if (course?.lectures) {
+
+    Object.entries(
+      course.lectures
+    ).forEach(
+      ([id, lecture]) => {
+
+        if (
+          !lectures.some(
+            (item) =>
+              item.id === id
+          )
+        ) {
+
+          lectures.push({
+            id,
+
+            title:
+              lecture.title ||
+              `Lecture ${id}`
+          });
+        }
+      }
+    );
+  }
+
+
+  lectures.sort(
+    (a, b) =>
+      Number(a.id) -
+      Number(b.id)
+  );
+
+
+  renderSelectionPage(
+    "Select Lecture",
+    lectures.map(
+      (lecture) => `
+
+        <button
+          class="selection-btn"
+          onclick="location.href='test.html?course=${encodeURIComponent(courseId)}&lecture=${encodeURIComponent(lecture.id)}'"
+        >
+          ${escapeHtml(lecture.title)}
+        </button>
+
+      `
+    ).join("")
+  );
 }
 
 
@@ -1163,256 +848,192 @@ function showMessage(message) {
    TEST SELECTION
    ========================================================= */
 
-function showTestSelection() {
+async function showTestSelection(
+  courseId,
+  lectureId
+) {
 
-    const loading =
-        document.getElementById(
-            "loading"
-        );
-
-    if (loading) {
-
-        loading.remove();
-
-    }
+  const tests = [];
 
 
-    const area =
-        document.getElementById(
-            "testArea"
-        );
+  /*
+    Firestore tests
+  */
 
+  firestoreTests.forEach(
+    (test) => {
 
-    if (!area) {
-
+      if (
+        test.active === false
+      ) {
         return;
+      }
 
+      if (
+        test.courseId !== courseId
+      ) {
+        return;
+      }
+
+      if (
+        String(
+          test.lectureId
+        ) !== String(lectureId)
+      ) {
+        return;
+      }
+
+      const number =
+        String(
+          test.testNumber
+        );
+
+      if (!number) {
+        return;
+      }
+
+      if (
+        !tests.some(
+          (item) =>
+            item.number === number
+        )
+      ) {
+
+        tests.push({
+          number,
+
+          title:
+            test.title ||
+            `Test ${number}`,
+
+          duration:
+            test.duration || 15
+        });
+      }
     }
+  );
 
 
-    const course =
-        TESTS[courseId];
+  /*
+    Hardcoded tests
+  */
 
+  const course =
+    TESTS[courseId];
 
-    let html = `
+  const lecture =
+    course?.lectures?.[lectureId];
 
-        <div class="test-info">
+  if (lecture?.tests) {
 
-            <h1>
-                ${course.title}
-            </h1>
-
-            <p>
-                Select Lecture and Test
-            </p>
-
-        </div>
-
-    `;
-
-
-    Object.keys(
-        course.lectures
+    Object.entries(
+      lecture.tests
     ).forEach(
-        function(lectureKey) {
+      ([number, test]) => {
 
-            const lecture =
-                course.lectures[
-                    lectureKey
-                ];
+        if (
+          !tests.some(
+            (item) =>
+              item.number === number
+          )
+        ) {
 
+          tests.push({
+            number,
 
-            html += `
+            title:
+              test.title ||
+              `Test ${number}`,
 
-                <div class="question">
-
-                    <h2>
-                        📚 ${lecture.title}
-                    </h2>
-
-                    <div
-                        style="
-                            display:grid;
-                            gap:10px;
-                        "
-                    >
-
-            `;
-
-
-            Object.keys(
-                lecture.tests
-            ).forEach(
-                function(testKey) {
-
-                    const test =
-                        lecture.tests[
-                            testKey
-                        ];
-
-
-                    html += `
-
-                        <button
-                            type="button"
-                            class="submit-btn"
-                            style="
-                                background:#2563eb;
-                                cursor:pointer;
-                            "
-                            onclick="
-                                openTest(
-                                    '${escapeAttribute(lectureKey)}',
-                                    '${escapeAttribute(testKey)}'
-                                )
-                            "
-                        >
-
-                            📝 Test ${testKey}
-
-                            <span
-                                style="
-                                    font-size:14px;
-                                    opacity:.9;
-                                "
-                            >
-                                (${test.duration} min)
-                            </span>
-
-                        </button>
-
-                    `;
-
-                }
-            );
-
-
-            html += `
-
-                    </div>
-
-                </div>
-
-            `;
-
+            duration:
+              test.duration || 15
+          });
         }
+      }
     );
+  }
 
 
-    area.innerHTML =
-        html;
+  tests.sort(
+    (a, b) =>
+      Number(a.number) -
+      Number(b.number)
+  );
 
+
+  renderSelectionPage(
+    "Select Test",
+    tests.map(
+      (test) => `
+
+        <button
+          class="selection-btn"
+          onclick="location.href='test.html?course=${encodeURIComponent(courseId)}&lecture=${encodeURIComponent(lectureId)}&test=${encodeURIComponent(test.number)}'"
+        >
+
+          ${escapeHtml(test.title)}
+
+          <small>
+            ${escapeHtml(test.duration)} minutes
+          </small>
+
+        </button>
+
+      `
+    ).join("")
+  );
 }
 
 
 /* =========================================================
-   ESCAPE ATTRIBUTE
+   GENERIC SELECTION PAGE
    ========================================================= */
 
-function escapeAttribute(value) {
+function renderSelectionPage(
+  title,
+  content
+) {
 
-    return String(value)
-        .replace(
-            /'/g,
-            "\\'"
-        );
+  const loading =
+    $("loading");
 
-}
+  const testArea =
+    $("testArea");
 
+  if (loading) {
+    loading.style.display = "none";
+  }
 
-/* =========================================================
-   OPEN TEST
-   ========================================================= */
+  if (!testArea) {
+    return;
+  }
 
-window.openTest =
-    function(
-        lecture,
-        test
-    ) {
+  testArea.style.display = "block";
 
-        window.location.href =
-            "test.html?course=" +
-            encodeURIComponent(
-                courseId
-            ) +
-            "&lecture=" +
-            encodeURIComponent(
-                lecture
-            ) +
-            "&test=" +
-            encodeURIComponent(
-                test
-            );
+  testArea.innerHTML = `
 
-    };
+    <div class="selection-page">
 
+      <h1>
+        ${escapeHtml(title)}
+      </h1>
 
-/* =========================================================
-   STUDENT NAME
-   ========================================================= */
+      <div class="selection-list">
 
-function getStudentName() {
-
-    if (
-        currentUser &&
-        currentUser.displayName
-    ) {
-
-        return currentUser.displayName;
-
-    }
-
-
-    try {
-
-        const stored =
-            sessionStorage.getItem(
-                "loggedInStudent"
-            );
-
-
-        if (stored) {
-
-            const student =
-                JSON.parse(
-                    stored
-                );
-
-
-            if (
-                student &&
-                student.name
-            ) {
-
-                return student.name;
-
-            }
-
+        ${
+          content ||
+          `
+            <p>
+              No tests available.
+            </p>
+          `
         }
 
-    } catch (error) {
+      </div>
 
-        console.log(
-            "Student name error:",
-            error
-        );
+    </div>
 
-    }
-
-
-    if (
-        currentUser &&
-        currentUser.email
-    ) {
-
-        return currentUser.email
-            .split("@")[0];
-
-    }
-
-
-    return "Student";
-
+  `;
 }
 
 
@@ -1422,157 +1043,236 @@ function getStudentName() {
 
 function renderTest() {
 
-    const area =
-        document.getElementById(
-            "testArea"
-        );
+  stopTimer();
+
+  const loading =
+    $("loading");
+
+  const testArea =
+    $("testArea");
+
+  if (loading) {
+    loading.style.display = "none";
+  }
+
+  if (!testArea) {
+    return;
+  }
+
+  testArea.style.display =
+    "block";
 
 
-    if (!area) {
-
-        return;
-
-    }
+  const questions =
+    currentTest.questions || [];
 
 
-    let html = `
+  testArea.innerHTML = `
 
-        <div class="test-info">
+    <div class="test-header">
 
-            <h2>
-                ${currentTest.title}
-            </h2>
+      <div>
 
-            <p>
-                Lecture:
-                ${lectureId}
-            </p>
+        <h1>
+          ${escapeHtml(
+            currentTest.title
+          )}
+        </h1>
 
-            <p>
-                Test:
-                ${testNumber}
-            </p>
+        <p>
+          ${
+            escapeHtml(
+              getCourseTitle(
+                currentCourseId
+              )
+            )
+          }
 
-            <p>
-                Total Questions:
-                ${currentTest.questions.length}
-            </p>
+          • Lecture
+          ${escapeHtml(
+            currentLectureId
+          )}
 
-            <p>
-                Each correct answer = 1 mark
-            </p>
+          • Test
+          ${escapeHtml(
+            currentTestNumber
+          )}
+        </p>
 
-            <div
-                id="timerBox"
-                class="timer-box"
-            >
+      </div>
 
-                Time Left:
+      <div class="test-info">
 
-                <strong id="timer">
-                    00:00
-                </strong>
+        <span>
+          Questions:
+          ${questions.length}
+        </span>
 
-            </div>
+        <span>
+          Each correct answer = 1 mark
+        </span>
 
-        </div>
+      </div>
 
-        <form id="testForm">
-
-    `;
-
-
-    currentTest.questions.forEach(
-        function(
-            question,
-            index
-        ) {
-
-            html += `
-
-                <div class="question">
-
-                    <h3>
-                        Q${index + 1}.
-                        ${question.question}
-                    </h3>
-
-            `;
+    </div>
 
 
-            question.options.forEach(
-                function(
-                    option,
-                    optionIndex
-                ) {
+    <div class="timer-box">
 
-                    html += `
+      <span>
+        Time Remaining
+      </span>
 
-                        <label
-                            class="option"
-                        >
+      <strong id="timer">
+        ${formatTime(
+          Number(currentTest.duration) * 60
+        )}
+      </strong>
 
-                            <input
-                                type="radio"
-                                name="q${index}"
-                                value="${optionIndex}"
-                            >
-
-                            ${option.text}
-
-                        </label>
-
-                    `;
-
-                }
-            );
+    </div>
 
 
-            html += `
+    <form
+      id="testForm"
+      class="questions-container"
+    >
 
-                </div>
+      ${
+        questions
+          .map(
+            (question, index) =>
+              renderQuestion(
+                question,
+                index
+              )
+          )
+          .join("")
+      }
 
-            `;
 
-        }
+      <button
+        type="submit"
+        class="submit-test-btn"
+        id="submitTestBtn"
+      >
+        Submit Test
+      </button>
+
+    </form>
+
+  `;
+
+
+  const form =
+    $("testForm");
+
+  if (form) {
+
+    form.addEventListener(
+      "submit",
+      async (event) => {
+
+        event.preventDefault();
+
+        await submitTest(false);
+      }
     );
+  }
 
 
-    html += `
-
-        <button
-            type="submit"
-            class="submit-btn"
-            id="submitBtn"
-        >
-            Submit Test
-        </button>
-
-        </form>
-
-    `;
-
-
-    area.innerHTML =
-        html;
-
-
-    const form =
-        document.getElementById(
-            "testForm"
-        );
-
-
-    if (form) {
-
-        form.addEventListener(
-            "submit",
-            submitTest
-        );
-
-    }
-
+  startTimer();
 }
+
+
+/* =========================================================
+   RENDER QUESTION
+   ========================================================= */
+
+function renderQuestion(
+  question,
+  index
+) {
+
+  const options =
+    Array.isArray(question.options)
+      ? question.options
+      : [];
+
+  return `
+
+    <div
+      class="question-card"
+      data-question="${index}"
+    >
+
+      <div class="question-number">
+
+        Question ${index + 1}
+
+      </div>
+
+      <div class="question-text">
+
+        ${escapeHtml(
+          question.question
+        )}
+
+      </div>
+
+
+      <div class="options">
+
+        ${
+          options
+            .map(
+              (option, optionIndex) => `
+
+                <label
+                  class="option-label"
+                >
+
+                  <input
+                    type="radio"
+                    name="question-${index}"
+                    value="${optionIndex}"
+                    onchange="window.selectAnswer(${index}, ${optionIndex})"
+                  />
+
+                  <span>
+                    ${escapeHtml(
+                      option.text
+                    )}
+                  </span>
+
+                </label>
+
+              `
+            )
+            .join("")
+        }
+
+      </div>
+
+    </div>
+
+  `;
+}
+
+
+/* =========================================================
+   SELECT ANSWER
+   ========================================================= */
+
+window.selectAnswer =
+function (
+  questionIndex,
+  optionIndex
+) {
+
+  selectedAnswers[
+    questionIndex
+  ] = optionIndex;
+};
 
 
 /* =========================================================
@@ -1581,72 +1281,51 @@ function renderTest() {
 
 function startTimer() {
 
-    if (
-        !currentTest ||
-        !currentTest.duration
-    ) {
+  stopTimer();
 
-        return;
+  remainingSeconds =
+    Number(currentTest.duration) *
+    60;
 
-    }
+  updateTimer();
 
+  timerInterval =
+    setInterval(
+      () => {
 
-    remainingSeconds =
-        Number(
-            currentTest.duration
-        ) * 60;
+        remainingSeconds--;
 
+        updateTimer();
 
-    updateTimer();
+        if (
+          remainingSeconds <= 0
+        ) {
 
+          stopTimer();
 
-    timerInterval =
-        setInterval(
-            function() {
+          autoSubmitTest();
+        }
 
-                if (testSubmitted) {
-
-                    clearInterval(
-                        timerInterval
-                    );
-
-                    return;
-
-                }
+      },
+      1000
+    );
+}
 
 
-                remainingSeconds--;
+/* =========================================================
+   STOP TIMER
+   ========================================================= */
 
+function stopTimer() {
 
-                updateTimer();
+  if (timerInterval) {
 
+    clearInterval(
+      timerInterval
+    );
 
-                if (
-                    remainingSeconds <= 0
-                ) {
-
-                    clearInterval(
-                        timerInterval
-                    );
-
-
-                    alert(
-                        "Time is over. Test will be submitted automatically."
-                    );
-
-
-                    submitTest(
-                        new Event(
-                            "submit"
-                        )
-                    );
-
-                }
-
-            },
-            1000
-        );
-
+    timerInterval = null;
+  }
 }
 
 
@@ -1656,36 +1335,79 @@ function startTimer() {
 
 function updateTimer() {
 
-    const timer =
-        document.getElementById(
-            "timer"
-        );
+  const timer =
+    $("timer");
+
+  if (!timer) {
+    return;
+  }
+
+  timer.textContent =
+    formatTime(
+      remainingSeconds
+    );
 
 
-    if (!timer) {
+  if (
+    remainingSeconds <= 60
+  ) {
 
-        return;
+    timer.classList.add(
+      "danger"
+    );
 
-    }
+  } else if (
+    remainingSeconds <= 300
+  ) {
+
+    timer.classList.add(
+      "warning"
+    );
+  }
+}
 
 
-    const minutes =
-        Math.floor(
-            remainingSeconds / 60
-        );
+/* =========================================================
+   FORMAT TIME
+   ========================================================= */
+
+function formatTime(
+  seconds
+) {
+
+  seconds =
+    Math.max(
+      0,
+      Number(seconds) || 0
+    );
+
+  const minutes =
+    Math.floor(
+      seconds / 60
+    );
+
+  const secs =
+    seconds % 60;
+
+  return (
+    String(minutes).padStart(2, "0") +
+    ":" +
+    String(secs).padStart(2, "0")
+  );
+}
 
 
-    const seconds =
-        remainingSeconds % 60;
+/* =========================================================
+   AUTO SUBMIT
+   ========================================================= */
 
+async function autoSubmitTest() {
 
-    timer.textContent =
-        String(minutes)
-            .padStart(2, "0") +
-        ":" +
-        String(seconds)
-            .padStart(2, "0");
+  alert(
+    "Time is over. Your test will be submitted automatically."
+  );
 
+  await submitTest(true);
 }
 
 
@@ -1693,262 +1415,347 @@ function updateTimer() {
    SUBMIT TEST
    ========================================================= */
 
-async function submitTest(event) {
+async function submitTest(
+  autoSubmitted = false
+) {
 
-    if (event) {
+  if (!currentUser) {
+    return;
+  }
 
-        event.preventDefault();
+  const submitButton =
+    $("submitTestBtn");
 
-    }
-
-
-    if (testSubmitted) {
-
-        return;
-
-    }
-
-
-    testSubmitted = true;
+  if (submitButton) {
+    submitButton.disabled = true;
+    submitButton.textContent =
+      "Submitting...";
+  }
 
 
-    if (timerInterval) {
+  stopTimer();
 
-        clearInterval(
-            timerInterval
+
+  const questions =
+    currentTest.questions || [];
+
+
+  /*
+    Collect answers from radio buttons
+    too, so that data remains correct
+    even if selectedAnswers was not updated.
+  */
+
+  questions.forEach(
+    (_, index) => {
+
+      const selected =
+        document.querySelector(
+          `input[name="question-${index}"]:checked`
         );
 
+      if (selected) {
+
+        selectedAnswers[index] =
+          Number(
+            selected.value
+          );
+      }
     }
+  );
 
 
-    const submitBtn =
-        document.getElementById(
-            "submitBtn"
+  let score = 0;
+
+  const answers = [];
+
+
+  questions.forEach(
+    (question, index) => {
+
+      const selectedIndex =
+        selectedAnswers[index];
+
+      const selectedOption =
+        Number.isInteger(
+          selectedIndex
+        )
+          ? question.options[
+              selectedIndex
+            ]
+          : null;
+
+
+      const correctIndex =
+        question.options.findIndex(
+          (option) =>
+            option.correct === true
         );
 
 
-    if (submitBtn) {
-
-        submitBtn.disabled =
-            true;
-
-    }
-
-
-    let score = 0;
-
-    const answers = [];
+      const isCorrect =
+        Number.isInteger(
+          selectedIndex
+        ) &&
+        selectedIndex ===
+          correctIndex;
 
 
-    currentTest.questions.forEach(
-        function(
-            question,
-            index
-        ) {
-
-            const selected =
-                document.querySelector(
-                    `input[name="q${index}"]:checked`
-                );
+      if (isCorrect) {
+        score++;
+      }
 
 
-            const selectedIndex =
-                selected
-                    ? Number(
-                        selected.value
-                    )
-                    : -1;
+      answers.push({
 
+        questionIndex:
+          index,
 
-            const correctIndex =
-                question.options.findIndex(
-                    function(option) {
+        selectedIndex:
+          Number.isInteger(
+            selectedIndex
+          )
+            ? selectedIndex
+            : null,
 
-                        return (
-                            option.correct ===
-                            true
-                        );
+        selectedText:
+          selectedOption
+            ? selectedOption.text
+            : "",
 
-                    }
-                );
+        correctIndex,
 
-
-            if (
-                selectedIndex ===
+        correctText:
+          correctIndex >= 0
+            ? question.options[
                 correctIndex
-            ) {
+              ].text
+            : "",
 
-                score++;
+        correct:
+          isCorrect
 
-            }
+      });
+
+    }
+  );
 
 
-            answers.push({
+  const total =
+    questions.length;
 
-                questionIndex:
-                    index,
+  const percentage =
+    total > 0
+      ? Math.round(
+          (score / total) * 100
+        )
+      : 0;
 
-                selectedIndex:
-                    selectedIndex,
 
-                correctIndex:
-                    correctIndex
+  /*
+    IMPORTANT
+    Keep this exact testId format.
 
-            });
+    Leaderboard depends on this.
+  */
 
-        }
+  const testId =
+    makeTestId(
+      currentCourseId,
+      currentLectureId,
+      currentTestNumber
     );
 
 
-    const total =
-        currentTest.questions.length;
+  /*
+    IMPORTANT
+    Existing result ID format is kept.
+  */
+
+  const safeEmail =
+    (currentUser.email || "")
+      .replace(
+        /[^a-zA-Z0-9]/g,
+        "_"
+      );
 
 
-    const percentage =
-        total > 0
-            ? (
-                score /
-                total *
-                100
-            ).toFixed(2)
-            : "0.00";
+  const resultId =
+    testId +
+    "_" +
+    safeEmail;
 
 
-    /* =====================================================
-       RESULT ID
-       ===================================================== */
+  try {
 
-    const safeEmail =
-        (
-            currentUser.email || ""
-        )
-            .toLowerCase()
-            .replace(
-                /[^a-z0-9]/g,
-                "_"
-            );
+    const resultRef =
+      doc(
+        db,
+        "testResults",
+        resultId
+      );
 
 
-    const resultId =
-        courseId +
-        "_lecture-" +
-        lectureId +
-        "_test-" +
-        testNumber +
-        "_" +
-        safeEmail;
+    const existingResult =
+      await getDoc(
+        resultRef
+      );
 
 
-    try {
+    /*
+      FIRST ATTEMPT ONLY
 
-        const resultRef =
-            doc(
-                db,
-                "testResults",
-                resultId
-            );
+      If result already exists,
+      do not overwrite it.
+    */
 
+    if (
+      existingResult.exists()
+    ) {
 
-        const existingResult =
-            await getDoc(
-                resultRef
-            );
+      const oldResult =
+        existingResult.data();
 
+      showAlreadySubmitted(
+        oldResult
+      );
 
-        /* ==============================================
-           FIRST ATTEMPT ONLY
-           ============================================== */
-
-        if (
-            !existingResult.exists()
-        ) {
-
-            await setDoc(
-                resultRef,
-                {
-
-                    name:
-                        getStudentName(),
-
-                    email:
-                        currentUser.email,
-
-                    uid:
-                        currentUser.uid,
-
-                    course:
-                        courseId,
-
-                    lecture:
-                        lectureId,
-
-                    testNumber:
-                        testNumber,
-
-                    testId:
-                        courseId +
-                        "-lecture-" +
-                        lectureId +
-                        "-test-" +
-                        testNumber,
-
-                    score:
-                        score,
-
-                    total:
-                        total,
-
-                    percentage:
-                        Number(
-                            percentage
-                        ),
-
-                    answers:
-                        answers,
-
-                    submittedAt:
-                        Date.now()
-
-                }
-            );
-
-        }
-
-
-        showResult(
-            score,
-            total,
-            percentage,
-            answers
-        );
-
-    } catch (error) {
-
-        console.error(
-            "Result save error:",
-            error
-        );
-
-
-        alert(
-            "Result save nahi ho saka.\n" +
-            error.message
-        );
-
-
-        if (submitBtn) {
-
-            submitBtn.disabled =
-                false;
-
-        }
-
-
-        testSubmitted =
-            false;
-
+      return;
     }
 
+
+    const resultData = {
+
+      name:
+        currentUser.displayName ||
+        currentUser.email ||
+        "Student",
+
+      email:
+        currentUser.email || "",
+
+      uid:
+        currentUser.uid,
+
+      course:
+        currentCourseId,
+
+      lecture:
+        currentLectureId,
+
+      testNumber:
+        currentTestNumber,
+
+      testId,
+
+      score,
+
+      total,
+
+      percentage,
+
+      answers,
+
+      submittedAt:
+        Date.now()
+
+    };
+
+
+    await setDoc(
+      resultRef,
+      resultData
+    );
+
+
+    await showResult(
+      resultData,
+      autoSubmitted
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "Submit test error:",
+      error
+    );
+
+    alert(
+      "Unable to submit test. Please try again."
+    );
+
+    if (submitButton) {
+
+      submitButton.disabled =
+        false;
+
+      submitButton.textContent =
+        "Submit Test";
+    }
+
+    startTimer();
+  }
+}
+
+
+/* =========================================================
+   ALREADY SUBMITTED
+   ========================================================= */
+
+function showAlreadySubmitted(
+  result
+) {
+
+  const testArea =
+    $("testArea");
+
+  if (!testArea) {
+    return;
+  }
+
+  testArea.innerHTML = `
+
+    <div class="result-card">
+
+      <h2>
+        Test Already Submitted
+      </h2>
+
+      <p>
+        You have already attempted this test.
+      </p>
+
+      <div class="score-box">
+
+        <strong>
+          ${escapeHtml(
+            result.score
+          )}
+          /
+          ${escapeHtml(
+            result.total
+          )}
+        </strong>
+
+        <span>
+          ${escapeHtml(
+            result.percentage
+          )}%
+        </span>
+
+      </div>
+
+      <button
+        class="submit-test-btn"
+        onclick="location.href='test.html?course=${encodeURIComponent(currentCourseId)}&lecture=${encodeURIComponent(currentLectureId)}&test=${encodeURIComponent(currentTestNumber)}'"
+      >
+        View Result
+      </button>
+
+    </div>
+
+  `;
 }
 
 
@@ -1957,574 +1764,668 @@ async function submitTest(event) {
    ========================================================= */
 
 async function showResult(
-    score,
-    total,
-    percentage,
-    answers
+  result,
+  autoSubmitted
 ) {
 
-    const area =
-        document.getElementById(
-            "testArea"
-        );
+  const testArea =
+    $("testArea");
+
+  if (!testArea) {
+    return;
+  }
 
 
-    let html = `
-
-        <div class="result">
-
-            <h2>
-                Test Completed
-            </h2>
-
-            <h1>
-                ${score} / ${total}
-            </h1>
-
-            <p>
-                Percentage:
-                ${percentage}%
-            </p>
-
-            <div
-                class="rank-box"
-                id="rankBox"
-            >
-                Calculating Rank...
-            </div>
-
-        </div>
-
-
-        <div
-            class="leaderboard"
-        >
-
-            <h2>
-                🏆 First Attempt Leaderboard
-            </h2>
-
-            <div
-                id="leaderboardList"
-            >
-                Loading...
-            </div>
-
-        </div>
-
-        <h2>
-            Solutions & Explanations
-        </h2>
-
-    `;
-
-
-    currentTest.questions.forEach(
-        function(
-            question,
-            qIndex
-        ) {
-
-            const answer =
-                answers[qIndex];
-
-
-            html += `
-
-                <div class="question">
-
-                    <h3>
-                        Q${qIndex + 1}.
-                        ${question.question}
-                    </h3>
-
-            `;
-
-
-            question.options.forEach(
-                function(
-                    option,
-                    optionIndex
-                ) {
-
-                    const isCorrect =
-                        option.correct === true;
-
-
-                    const isSelected =
-                        answer.selectedIndex ===
-                        optionIndex;
-
-
-                    let className =
-                        isCorrect
-                            ? "solution correct"
-                            : "solution";
-
-
-                    if (
-                        isSelected &&
-                        !isCorrect
-                    ) {
-
-                        className =
-                            "solution wrong";
-
-                    }
-
-
-                    html += `
-
-                        <div
-                            class="${className}"
-                        >
-
-                            <strong>
-                                ${option.text}
-                            </strong>
-
-                            <p>
-
-                                ${
-                                    isCorrect
-                                        ? "✅ Correct Answer"
-                                        : isSelected
-                                            ? "❌ Your Answer"
-                                            : "○ Option"
-                                }
-
-                            </p>
-
-                            <p>
-
-                                <strong>
-                                    Explanation:
-                                </strong>
-
-                                ${option.solution}
-
-                            </p>
-
-                        </div>
-
-                    `;
-
-                }
-            );
-
-
-            html += `
-
-                </div>
-
-            `;
-
-        }
+  const rankData =
+    await getLeaderboard(
+      result.testId,
+      result.uid
     );
 
 
-    area.innerHTML =
-        html;
+  testArea.innerHTML = `
+
+    <div class="result-page">
+
+      <div class="result-card">
+
+        <h1>
+          Test Submitted
+        </h1>
+
+        ${
+          autoSubmitted
+            ? `
+              <p class="auto-submit-message">
+                Time was over, so the test was submitted automatically.
+              </p>
+            `
+            : ""
+        }
 
 
-    await calculateRank();
+        <div class="score-box">
 
+          <div>
+
+            <span>
+              Score
+            </span>
+
+            <strong>
+              ${escapeHtml(
+                result.score
+              )}
+              /
+              ${escapeHtml(
+                result.total
+              )}
+            </strong>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              Percentage
+            </span>
+
+            <strong>
+              ${escapeHtml(
+                result.percentage
+              )}%
+            </strong>
+
+          </div>
+
+        </div>
+
+
+        <div class="rank-box">
+
+          <h3>
+            Your Rank
+          </h3>
+
+          <strong>
+            #${rankData.rank}
+          </strong>
+
+          <span>
+            out of
+            ${rankData.totalStudents}
+          </span>
+
+        </div>
+
+      </div>
+
+
+      <div class="leaderboard-card">
+
+        <h2>
+          🏆 Leaderboard
+        </h2>
+
+        <div
+          id="leaderboard"
+        >
+
+          ${renderLeaderboard(
+            rankData.rows,
+            result.uid
+          )}
+
+        </div>
+
+      </div>
+
+
+      <div class="solutions-card">
+
+        <h2>
+          Detailed Solutions
+        </h2>
+
+        ${renderSolutions(
+          result.answers
+        )}
+
+      </div>
+
+
+      <div class="result-actions">
+
+        <button
+          class="submit-test-btn"
+          onclick="location.href='test.html?course=${encodeURIComponent(currentCourseId)}&lecture=${encodeURIComponent(currentLectureId)}'"
+        >
+          Back to Tests
+        </button>
+
+      </div>
+
+    </div>
+
+  `;
 }
 
 
 /* =========================================================
-   RANK + LEADERBOARD
+   LEADERBOARD
+   =========================================================
+   IMPORTANT:
+   This system is intentionally preserved.
    ========================================================= */
 
-async function calculateRank() {
+async function getLeaderboard(
+  testId,
+  currentUid
+) {
 
-    const rankBox =
-        document.getElementById(
-            "rankBox"
+  try {
+
+    const snapshot =
+      await getDocs(
+        collection(
+          db,
+          "testResults"
+        )
+      );
+
+
+    const results = [];
+
+
+    snapshot.forEach(
+      (docSnap) => {
+
+        const data =
+          docSnap.data();
+
+
+        /*
+          Only same test
+        */
+
+        if (
+          data.testId !== testId
+        ) {
+          return;
+        }
+
+
+        results.push({
+
+          id:
+            docSnap.id,
+
+          ...data
+
+        });
+
+      }
+    );
+
+
+    /*
+      Highest score first.
+
+      If score is same,
+      earlier submission gets higher rank.
+    */
+
+    results.sort(
+      (a, b) => {
+
+        const scoreA =
+          Number(a.score) || 0;
+
+        const scoreB =
+          Number(b.score) || 0;
+
+        if (
+          scoreB !== scoreA
+        ) {
+
+          return (
+            scoreB - scoreA
+          );
+        }
+
+
+        const timeA =
+          Number(
+            a.submittedAt
+          ) || 0;
+
+        const timeB =
+          Number(
+            b.submittedAt
+          ) || 0;
+
+        return (
+          timeA - timeB
         );
+      }
+    );
 
 
-    const leaderboardList =
-        document.getElementById(
-            "leaderboardList"
-        );
+    const currentIndex =
+      results.findIndex(
+        (item) =>
+          item.uid ===
+          currentUid
+      );
 
 
-    try {
+    return {
 
-        const snapshot =
-            await getDocs(
-                collection(
-                    db,
-                    "testResults"
-                )
-            );
+      rank:
+        currentIndex >= 0
+          ? currentIndex + 1
+          : "-",
 
+      totalStudents:
+        results.length,
 
-        const currentTestId =
-            courseId +
-            "-lecture-" +
-            lectureId +
-            "-test-" +
-            testNumber;
+      rows:
+        results
+
+    };
 
 
-        const results = [];
+  } catch (error) {
+
+    console.error(
+      "Leaderboard error:",
+      error
+    );
+
+    return {
+
+      rank: "-",
+
+      totalStudents: 0,
+
+      rows: []
+
+    };
+  }
+}
 
 
-        snapshot.forEach(
-            function(resultDoc) {
+/* =========================================================
+   RENDER LEADERBOARD
+   ========================================================= */
 
-                const data =
-                    resultDoc.data();
+function renderLeaderboard(
+  rows,
+  currentUid
+) {
 
+  if (
+    !rows ||
+    rows.length === 0
+  ) {
 
-                if (
-                    data.testId ===
-                    currentTestId
-                ) {
-
-                    results.push(
-                        data
-                    );
-
-                }
-
-            }
-        );
-
-
-        results.sort(
-            function(a, b) {
-
-                const difference =
-                    Number(b.score) -
-                    Number(a.score);
+    return `
+      <p>
+        No leaderboard data available.
+      </p>
+    `;
+  }
 
 
-                if (
-                    difference !== 0
-                ) {
+  return `
 
-                    return difference;
+    <div class="leaderboard-table">
 
-                }
+      <div class="leaderboard-row leaderboard-head">
 
+        <div>
+          Rank
+        </div>
 
-                return (
-                    Number(
-                        a.submittedAt || 0
-                    ) -
-                    Number(
-                        b.submittedAt || 0
-                    )
-                );
+        <div>
+          Student
+        </div>
 
-            }
-        );
+        <div>
+          Score
+        </div>
 
+        <div>
+          %
+        </div>
 
-        const myIndex =
-            results.findIndex(
-                function(result) {
-
-                    return (
-                        result.uid ===
-                        currentUser.uid
-                    );
-
-                }
-            );
+      </div>
 
 
-        const rank =
-            myIndex >= 0
-                ? myIndex + 1
-                : "-";
+      ${
+        rows
+          .map(
+            (row, index) => {
+
+              const rank =
+                index + 1;
+
+              let medal = "";
+
+              if (rank === 1) {
+                medal = "🥇";
+              } else if (
+                rank === 2
+              ) {
+                medal = "🥈";
+              } else if (
+                rank === 3
+              ) {
+                medal = "🥉";
+              }
 
 
-        if (rankBox) {
+              const isCurrent =
+                row.uid ===
+                currentUid;
 
-            rankBox.innerHTML = `
 
-                🏆 Your First Attempt Rank:
+              return `
 
-                <strong>
+                <div
+                  class="leaderboard-row ${
+                    isCurrent
+                      ? "current-user"
+                      : ""
+                  }"
+                >
+
+                  <div>
+                    ${medal}
                     #${rank}
-                </strong>
+                  </div>
 
-            `;
+                  <div>
 
-        }
+                    ${escapeHtml(
+                      row.name ||
+                      row.email ||
+                      "Student"
+                    )}
 
+                    ${
+                      isCurrent
+                        ? `
+                          <span class="you-badge">
+                            You
+                          </span>
+                        `
+                        : ""
+                    }
 
-        let html = "";
+                  </div>
 
+                  <div>
+                    ${escapeHtml(
+                      row.score
+                    )}
+                    /
+                    ${escapeHtml(
+                      row.total
+                    )}
+                  </div>
 
-        results.forEach(
-            function(
-                result,
-                index
-            ) {
+                  <div>
+                    ${escapeHtml(
+                      row.percentage
+                    )}%
+                  </div>
 
-                const name =
-                    result.name ||
-                    (
-                        result.email
-                            ? result.email
-                                .split("@")[0]
-                            : "Student"
-                    );
+                </div>
 
-
-                let rankText =
-                    "#" +
-                    (
-                        index + 1
-                    );
-
-
-                if (index === 0) {
-
-                    rankText =
-                        "🥇 #1";
-
-                } else if (index === 1) {
-
-                    rankText =
-                        "🥈 #2";
-
-                } else if (index === 2) {
-
-                    rankText =
-                        "🥉 #3";
-
-                }
-
-
-                const isMe =
-                    result.uid ===
-                    currentUser.uid;
-
-
-                html += `
-
-                    <div
-                        class="
-                            leaderboard-row
-                            ${
-                                isMe
-                                    ? "my-rank"
-                                    : ""
-                            }
-                        "
-                    >
-
-                        <span
-                            class="lb-rank"
-                        >
-                            ${rankText}
-                        </span>
-
-                        <span
-                            class="lb-name"
-                        >
-                            ${name}
-                            ${
-                                isMe
-                                    ? " 👈"
-                                    : ""
-                            }
-                        </span>
-
-                        <span
-                            class="lb-score"
-                        >
-                            ${result.score}/${result.total}
-                        </span>
-
-                    </div>
-
-                `;
-
+              `;
             }
-        );
+          )
+          .join("")
+      }
 
+    </div>
 
-        if (leaderboardList) {
-
-            leaderboardList.innerHTML =
-                html ||
-                "<p>No results yet.</p>";
-
-        }
-
-
-    } catch (error) {
-
-        console.error(
-            "Leaderboard error:",
-            error
-        );
-
-
-        if (rankBox) {
-
-            rankBox.textContent =
-                "Rank unavailable";
-
-        }
-
-
-        if (leaderboardList) {
-
-            leaderboardList.textContent =
-                "Leaderboard unavailable.";
-
-        }
-
-    }
-
+  `;
 }
 
 
 /* =========================================================
-   BASIC COPY / CONTEXT PROTECTION
+   RENDER SOLUTIONS
    ========================================================= */
 
-document.addEventListener(
-    "contextmenu",
-    function(event) {
+function renderSolutions(
+  answers
+) {
 
-        event.preventDefault();
+  if (
+    !answers ||
+    answers.length === 0
+  ) {
 
-    }
-);
-
-
-document.addEventListener(
-    "copy",
-    function(event) {
-
-        event.preventDefault();
-
-    }
-);
+    return `
+      <p>
+        No answer details available.
+      </p>
+    `;
+  }
 
 
-document.addEventListener(
-    "cut",
-    function(event) {
+  return answers
+    .map(
+      (answer, index) => {
 
-        event.preventDefault();
+        return `
 
-    }
-);
+          <div
+            class="solution-item ${
+              answer.correct
+                ? "correct"
+                : "incorrect"
+            }"
+          >
+
+            <h3>
+              Question ${index + 1}
+
+              ${
+                answer.correct
+                  ? "✓"
+                  : "✗"
+              }
+
+            </h3>
 
 
-document.addEventListener(
-    "selectstart",
-    function(event) {
+            <p>
 
-        event.preventDefault();
+              <strong>
+                Your answer:
+              </strong>
 
-    }
-);
+              ${
+                escapeHtml(
+                  answer.selectedText ||
+                  "Not answered"
+                )
+              }
+
+            </p>
+
+
+            <p>
+
+              <strong>
+                Correct answer:
+              </strong>
+
+              ${
+                escapeHtml(
+                  answer.correctText ||
+                  "Not available"
+                )
+              }
+
+            </p>
+
+          </div>
+
+        `;
+      }
+    )
+    .join("");
+}
 
 
 /* =========================================================
-   KEYBOARD PROTECTION
+   COURSE TITLE
+   ========================================================= */
+
+function getCourseTitle(
+  courseId
+) {
+
+  /*
+    Hardcoded course title
+  */
+
+  if (
+    TESTS[courseId]?.title
+  ) {
+
+    return TESTS[
+      courseId
+    ].title;
+  }
+
+
+  /*
+    Firestore course title
+  */
+
+  const firestoreTest =
+    firestoreTests.find(
+      (test) =>
+        test.courseId ===
+        courseId
+    );
+
+
+  if (
+    firestoreTest?.courseTitle
+  ) {
+
+    return firestoreTest.courseTitle;
+  }
+
+
+  return courseId;
+}
+
+
+/* =========================================================
+   GLOBAL PROTECTION
    ========================================================= */
 
 document.addEventListener(
-    "keydown",
-    function(event) {
-
-        const key =
-            String(
-                event.key
-            ).toLowerCase();
+  "contextmenu",
+  (event) => {
+    event.preventDefault();
+  }
+);
 
 
-        /* Ctrl / CMD */
-
-        if (
-            (
-                event.ctrlKey ||
-                event.metaKey
-            ) &&
-            (
-                key === "p" ||
-                key === "s" ||
-                key === "c" ||
-                key === "u"
-            )
-        ) {
-
-            event.preventDefault();
-
-            event.stopPropagation();
-
-            return;
-
-        }
+document.addEventListener(
+  "selectstart",
+  (event) => {
+    event.preventDefault();
+  }
+);
 
 
-        /* F12 */
-
-        if (
-            key === "f12"
-        ) {
-
-            event.preventDefault();
-
-            event.stopPropagation();
-
-            return;
-
-        }
+document.addEventListener(
+  "dragstart",
+  (event) => {
+    event.preventDefault();
+  }
+);
 
 
-        /* Ctrl + Shift + I */
+document.addEventListener(
+  "keydown",
+  (event) => {
 
-        if (
-            (
-                event.ctrlKey ||
-                event.metaKey
-            ) &&
-            event.shiftKey &&
-            key === "i"
-        ) {
+    /*
+      Print
+    */
 
-            event.preventDefault();
+    if (
+      event.ctrlKey &&
+      event.key.toLowerCase() === "p"
+    ) {
 
-            event.stopPropagation();
-
-            return;
-
-        }
-
-
-        /* Ctrl + Shift + J */
-
-        if (
-            (
-                event.ctrlKey ||
-                event.metaKey
-            ) &&
-            event.shiftKey &&
-            key === "j"
-        ) {
-
-            event.preventDefault();
-
-            event.stopPropagation();
-
-            return;
-
-        }
-
+      event.preventDefault();
     }
+
+
+    /*
+      Save page
+    */
+
+    if (
+      event.ctrlKey &&
+      event.key.toLowerCase() === "s"
+    ) {
+
+      event.preventDefault();
+    }
+
+
+    /*
+      View source
+    */
+
+    if (
+      event.ctrlKey &&
+      event.key.toLowerCase() === "u"
+    ) {
+
+      event.preventDefault();
+    }
+
+
+    /*
+      Developer tools shortcuts
+    */
+
+    if (
+      event.key === "F12"
+    ) {
+
+      event.preventDefault();
+    }
+
+
+    if (
+      event.ctrlKey &&
+      event.shiftKey &&
+      (
+        event.key.toLowerCase() === "i" ||
+        event.key.toLowerCase() === "j" ||
+        event.key.toLowerCase() === "c"
+      )
+    ) {
+
+      event.preventDefault();
+    }
+
+  }
 );
 
 
@@ -2533,79 +2434,38 @@ document.addEventListener(
    ========================================================= */
 
 window.addEventListener(
-    "beforeprint",
-    function() {
+  "beforeprint",
+  () => {
 
-        document.body.setAttribute(
-            "data-print-blocked",
-            "true"
-        );
+    document.body.classList.add(
+      "printing"
+    );
+
+  }
+);
 
 
-        document.body.innerHTML = `
+window.addEventListener(
+  "afterprint",
+  () => {
 
-            <div
-                style="
-                    width:100%;
-                    height:100vh;
-                    display:flex;
-                    align-items:center;
-                    justify-content:center;
-                    font-family:Arial,sans-serif;
-                    text-align:center;
-                "
-            >
+    document.body.classList.remove(
+      "printing"
+    );
 
-                <div>
-
-                    <h2>
-                        Printing is disabled.
-                    </h2>
-
-                    <p>
-                        Please use the test page normally.
-                    </p>
-
-                </div>
-
-            </div>
-
-        `;
-
-    }
+  }
 );
 
 
 /* =========================================================
-   AFTER PRINT
+   CLEANUP
    ========================================================= */
 
 window.addEventListener(
-    "afterprint",
-    function() {
+  "beforeunload",
+  () => {
 
-        window.location.reload();
+    stopTimer();
 
-    }
-);
-
-
-/* =========================================================
-   PAGE PROTECTION
-   ========================================================= */
-
-protectPage();
-
-
-/* =========================================================
-   PREVENT DRAGGING
-   ========================================================= */
-
-document.addEventListener(
-    "dragstart",
-    function(event) {
-
-        event.preventDefault();
-
-    }
+  }
 );
