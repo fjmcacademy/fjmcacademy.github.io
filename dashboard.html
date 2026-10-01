@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Student Dashboard | FJMC Academy</title>
+
+    <link rel="stylesheet" href="student.css">
+</head>
+
+<body>
+
+    <!-- ================= HEADER ================= -->
+
+    <header class="dashboard-header">
+        <div class="logo">FJMC Academy</div>
+
+        <button id="logoutBtn">
+            Logout
+        </button>
+    </header>
+
+
+    <!-- ================= MAIN DASHBOARD ================= -->
+
+    <main class="dashboard">
+
+        <div class="welcome">
+            <h1 id="studentName">Welcome</h1>
+            <p>Your Learning Dashboard</p>
+        </div>
+
+
+        <h2>My Courses</h2>
+
+
+        <!-- ================= COURSES ================= -->
+
+        <div id="coursesContainer" class="courses-container">
+            <!-- Courses will be loaded by dashboard.js -->
+        </div>
+
+    </main>
+
+
+    <!-- ================= PDF VIEWER ================= -->
+    <!-- PDF viewer will be created by JavaScript -->
+
+
+    <!-- ================= PDF.JS ================= -->
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+
+    <!-- ================= DASHBOARD JAVASCRIPT ================= -->
+
+    <script type="module" src="dashboard.js?v=13"></script>
+
+</body>
+</html>
