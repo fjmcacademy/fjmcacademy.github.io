@@ -9,16 +9,21 @@ import {
 import {
   collection,
   doc,
-  getDoc,
   getDocs,
   setDoc,
   deleteDoc,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-import { auth, db, app } from "./firebase.js";
+import {
+  initializeApp
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+import {
+  auth,
+  db,
+  app
+} from "./firebase.js";
 
 import {
   DEFAULT_STUDENTS,
@@ -26,18 +31,18 @@ import {
 } from "./admin-default-data.js";
 
 
-// ======================================================
-// ADMIN EMAIL
-// ======================================================
+/* =========================================================
+   ADMIN
+========================================================= */
 
 const ADMIN_EMAILS = [
   "fjmcacademy1008@gmail.com"
 ];
 
 
-// ======================================================
-// VARIABLES
-// ======================================================
+/* =========================================================
+   HELPERS
+========================================================= */
 
 const $ = id => document.getElementById(id);
 
@@ -45,77 +50,124 @@ let currentUser = null;
 
 let students = {};
 let courses = {};
+let tests = {};
+let results = [];
 
 let editingStudentId = null;
 let editingCourseId = null;
 
-
-// ======================================================
-// SECONDARY FIREBASE AUTH
-// Student account create karne ke liye
-// ======================================================
-
-const secondaryApp =
-  initializeApp(app.options, "fjmcStudentCreator");
-
-const secondaryAuth =
-  getAuth(secondaryApp);
+let assignedCourseIds = new Set();
 
 
-// ======================================================
-// HELPERS
-// ======================================================
+function normalize(value = "") {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
+}
 
-function studentDocId(email){
+
+function esc(value = "") {
+
+  return String(value ?? "")
+    .replace(/[&<>"']/g, c => ({
+      "&":"&amp;",
+      "<":"&lt;",
+      ">":"&gt;",
+      '"':"&quot;",
+      "'":"&#39;"
+    }[c]));
+
+}
+
+
+function studentDocId(email) {
+
   return email
     .trim()
     .toLowerCase()
     .replaceAll("/", "_");
+
 }
 
 
-function showMsg(text, ok=false){
+function groupKey(exam, batch, year) {
+
+  return [
+    normalize(exam) || "unknown exam",
+    normalize(batch) || "unknown batch",
+    normalize(year) || "unknown year"
+  ].join("|||");
+
+}
+
+
+function groupLabel(exam, batch, year) {
+
+  return `${exam || "Exam not set"} • ${batch || "Batch not set"} • ${year || "Year not set"}`;
+
+}
+
+
+function showMsg(text, ok = false) {
 
   const el = $("loginMsg");
 
   el.textContent = text;
 
   el.className =
-    "notice " + (ok ? "success" : "error");
+    "notice " +
+    (ok ? "success" : "error");
+
 }
 
 
-function isAdmin(user){
+function isAdmin(user) {
 
   return user &&
     ADMIN_EMAILS.includes(
       (user.email || "").toLowerCase()
     );
+
 }
 
 
-function esc(v=""){
+function uniqueSorted(values) {
 
-  return String(v).replace(
-    /[&<>"']/g,
-    c => ({
-      "&":"&amp;",
-      "<":"&lt;",
-      ">":"&gt;",
-      "\"":"&quot;",
-      "'":"&#39;"
-    }[c])
+  return [...new Set(
+    values
+      .filter(v => String(v ?? "").trim() !== "")
+      .map(v => String(v))
+  )].sort((a,b) =>
+    a.localeCompare(b, undefined, {
+      numeric:true,
+      sensitivity:"base"
+    })
   );
+
 }
 
 
-// ======================================================
-// LOGIN
-// ======================================================
+/* =========================================================
+   SECONDARY AUTH
+========================================================= */
+
+const secondaryApp =
+  initializeApp(
+    app.options,
+    "fjmcStudentCreator"
+  );
+
+const secondaryAuth =
+  getAuth(secondaryApp);
+
+
+/* =========================================================
+   AUTH
+========================================================= */
 
 onAuthStateChanged(auth, async user => {
 
-  if(!user){
+  if (!user) {
 
     $("loginView").classList.remove("hidden");
     $("app").classList.add("hidden");
@@ -124,7 +176,7 @@ onAuthStateChanged(auth, async user => {
   }
 
 
-  if(!isAdmin(user)){
+  if (!isAdmin(user)) {
 
     showMsg(
       "This Firebase account is not authorized as admin."
@@ -139,12 +191,10 @@ onAuthStateChanged(auth, async user => {
   currentUser = user;
 
   $("loginView").classList.add("hidden");
-
   $("app").classList.remove("hidden");
 
   $("adminUser").textContent =
     user.email;
-
 
   await refreshAll();
 
@@ -158,14 +208,20 @@ $("adminLoginForm").addEventListener(
     e.preventDefault();
 
     const email =
-      $("adminEmail").value.trim().toLowerCase();
+      $("adminEmail")
+        .value
+        .trim()
+        .toLowerCase();
 
     const password =
       $("adminPassword").value;
 
-    showMsg("Signing in...", true);
+    showMsg(
+      "Signing in...",
+      true
+    );
 
-    try{
+    try {
 
       await signInWithEmailAndPassword(
         auth,
@@ -173,7 +229,7 @@ $("adminLoginForm").addEventListener(
         password
       );
 
-    }catch(err){
+    } catch(err) {
 
       console.error(
         "Admin Firebase login error:",
@@ -186,38 +242,51 @@ $("adminLoginForm").addEventListener(
       if(
         code === "auth/invalid-credential" ||
         code === "auth/wrong-password"
-      ){
+      ) {
 
         showMsg(
           "Incorrect admin email or password."
         );
 
-      }else if(code === "auth/user-not-found"){
+      }
+      else if(
+        code === "auth/user-not-found"
+      ) {
 
         showMsg(
           "This Firebase Authentication account does not exist."
         );
 
-      }else if(code === "auth/invalid-email"){
+      }
+      else if(
+        code === "auth/invalid-email"
+      ) {
 
         showMsg(
           "Please enter a valid email address."
         );
 
-      }else if(code === "auth/too-many-requests"){
+      }
+      else if(
+        code === "auth/too-many-requests"
+      ) {
 
         showMsg(
           "Too many attempts. Please try again later."
         );
 
-      }else{
+      }
+      else {
 
         showMsg(
           "Admin login failed: " +
           (err?.message || "Unknown Firebase error")
         );
+
       }
+
     }
+
   }
 );
 
@@ -226,9 +295,9 @@ $("logoutBtn").onclick =
   () => signOut(auth);
 
 
-// ======================================================
-// SIDEBAR
-// ======================================================
+/* =========================================================
+   NAVIGATION
+========================================================= */
 
 document
   .querySelectorAll(".side button")
@@ -256,9 +325,19 @@ document
 
       if(
         btn.dataset.section === "devices"
-      ){
+      ) {
 
         loadDevices();
+
+      }
+
+
+      if(
+        btn.dataset.section === "results"
+      ) {
+
+        refreshResults();
+
       }
 
     };
@@ -266,19 +345,20 @@ document
   });
 
 
-// ======================================================
-// LOAD FIRESTORE DATA
-// ======================================================
+/* =========================================================
+   LOAD FIRESTORE DATA
+========================================================= */
 
-async function loadData(){
+async function loadData() {
 
   students = {};
   courses = {};
-
+  tests = {};
 
   const [
     studentSnap,
-    courseSnap
+    courseSnap,
+    testSnap
   ] = await Promise.all([
 
     getDocs(
@@ -287,6 +367,10 @@ async function loadData(){
 
     getDocs(
       collection(db, "courses")
+    ),
+
+    getDocs(
+      collection(db, "tests")
     )
 
   ]);
@@ -307,19 +391,39 @@ async function loadData(){
 
   });
 
+
+  testSnap.forEach(d => {
+
+    tests[d.id] =
+      d.data();
+
+  });
+
+
+  $("statStudents").textContent =
+    Object.keys(students).length;
+
+  $("statCourses").textContent =
+    Object.keys(courses).length;
+
+  $("statTests").textContent =
+    Object.keys(tests).length;
+
 }
 
 
-// ======================================================
-// REFRESH EVERYTHING
-// ======================================================
+/* =========================================================
+   REFRESH ALL
+========================================================= */
 
-async function refreshAll(){
+async function refreshAll() {
 
   await loadData();
 
-  renderStudents();
+  renderStudentFilters();
+  renderCourseFilters();
 
+  renderStudents();
   renderCourses();
 
   renderCourseChecklist();
@@ -329,331 +433,380 @@ async function refreshAll(){
 }
 
 
-// ======================================================
-// COURSE CHECKLIST
-// ======================================================
+/* =========================================================
+   STUDENT FILTERS
+========================================================= */
 
-function renderCourseChecklist(){
+function renderStudentFilters() {
 
-  $("courseChecklist").innerHTML =
+  const exams =
+    uniqueSorted(
+      Object.values(students)
+        .map(s => s.exam)
+    );
 
-    Object.entries(courses)
+  const batches =
+    uniqueSorted(
+      Object.values(students)
+        .map(s => s.batch)
+    );
 
-      .map(([id,c]) => `
+  const years =
+    uniqueSorted(
+      Object.values(students)
+        .map(s => s.year)
+    );
 
-        <label class="check">
 
-          <input
-            type="checkbox"
-            value="${esc(id)}">
+  fillSelect(
+    $("studentExamFilter"),
+    exams,
+    "All Exams"
+  );
 
-          ${esc(c.title || id)}
+  fillSelect(
+    $("studentBatchFilter"),
+    batches,
+    "All Batches"
+  );
 
-          <span class="small">
-            (${esc(c.exam || "")}
-            •
-            ${esc(c.batch || "")}
-            •
-            ${esc(c.year || "")})
-          </span>
+  fillSelect(
+    $("studentYearFilter"),
+    years,
+    "All Years"
+  );
 
-        </label>
-
-      `)
-
-      .join("")
-
-      ||
-
-      `<div class="small">
-        No courses yet. Create a course first.
-      </div>`;
 }
 
 
-// ======================================================
-// STUDENT GROUPING
-// Exam → Batch → Students
-// ======================================================
+function fillSelect(
+  select,
+  values,
+  firstLabel
+) {
 
-function groupStudents(){
+  const old =
+    select.value;
+
+  select.innerHTML =
+    `<option value="">${esc(firstLabel)}</option>` +
+    values.map(v =>
+      `<option value="${esc(v)}">${esc(v)}</option>`
+    ).join("");
+
+  if(
+    values.includes(old)
+  ) {
+
+    select.value = old;
+
+  }
+
+}
+
+
+[
+  "studentSearch",
+  "studentExamFilter",
+  "studentBatchFilter",
+  "studentYearFilter"
+].forEach(id => {
+
+  $(id).addEventListener(
+    "input",
+    renderStudents
+  );
+
+  $(id).addEventListener(
+    "change",
+    renderStudents
+  );
+
+});
+
+
+/* =========================================================
+   STUDENTS
+========================================================= */
+
+function getFilteredStudents() {
+
+  const search =
+    normalize(
+      $("studentSearch").value
+    );
+
+  const exam =
+    normalize(
+      $("studentExamFilter").value
+    );
+
+  const batch =
+    normalize(
+      $("studentBatchFilter").value
+    );
+
+  const year =
+    normalize(
+      $("studentYearFilter").value
+    );
+
+
+  return Object.entries(students)
+    .filter(([id, s]) => {
+
+      const text = [
+
+        id,
+        s.email,
+        s.name,
+        s.exam,
+        s.batch,
+        s.year
+
+      ].map(normalize).join(" ");
+
+
+      if(
+        search &&
+        !text.includes(search)
+      ) {
+
+        return false;
+
+      }
+
+
+      if(
+        exam &&
+        normalize(s.exam) !== exam
+      ) {
+
+        return false;
+
+      }
+
+
+      if(
+        batch &&
+        normalize(s.batch) !== batch
+      ) {
+
+        return false;
+
+      }
+
+
+      if(
+        year &&
+        normalize(s.year) !== year
+      ) {
+
+        return false;
+
+      }
+
+
+      return true;
+
+    });
+
+}
+
+
+function renderStudents() {
+
+  const entries =
+    getFilteredStudents();
+
+
+  if(!entries.length) {
+
+    $("studentsTable").innerHTML =
+      `<div class="no-results">
+        No matching students found.
+      </div>`;
+
+    return;
+
+  }
+
 
   const groups = {};
 
 
-  Object.entries(students)
-    .forEach(([id,s]) => {
+  entries.forEach(([id, s]) => {
 
-      const exam =
-        (s.exam || "Other").trim() || "Other";
-
-      const batch =
-        (s.batch || "No Batch").trim() ||
-        "No Batch";
-
-
-      if(!groups[exam]){
-        groups[exam] = {};
-      }
+    const key =
+      groupKey(
+        s.exam,
+        s.batch,
+        s.year
+      );
 
 
-      if(!groups[exam][batch]){
-        groups[exam][batch] = [];
-      }
+    if(!groups[key]) {
+
+      groups[key] = {
+        exam:s.exam || "",
+        batch:s.batch || "",
+        year:s.year || "",
+        students:[]
+      };
+
+    }
 
 
-      groups[exam][batch].push({
-        id,
-        ...s
-      });
-
+    groups[key].students.push({
+      id,
+      data:s
     });
-
-
-  return groups;
-}
-
-
-// ======================================================
-// RENDER STUDENTS
-// ======================================================
-
-function renderStudents(){
-
-  $("statStudents").textContent =
-    Object.keys(students).length;
-
-
-  const search =
-    ($("studentSearch")?.value || "")
-      .trim()
-      .toLowerCase();
-
-
-  const filtered =
-    Object.entries(students)
-      .filter(([id,s]) => {
-
-        const text = [
-
-          id,
-          s.email,
-          s.name,
-          s.exam,
-          s.batch,
-          s.year
-
-        ].join(" ").toLowerCase();
-
-
-        return text.includes(search);
-
-      });
-
-
-  if($("studentSearchCount")){
-
-    $("studentSearchCount").textContent =
-      search
-
-        ? `Showing ${filtered.length} of ${Object.keys(students).length} students`
-
-        : `${filtered.length} students`;
-  }
-
-
-  // Temporary filtered object
-  const filteredObject = {};
-
-
-  filtered.forEach(([id,s]) => {
-
-    filteredObject[id] = s;
 
   });
 
 
-  const oldStudents =
-    students;
+  const html =
+    Object.values(groups)
+      .sort((a,b) =>
+        groupLabel(
+          a.exam,
+          a.batch,
+          a.year
+        ).localeCompare(
+          groupLabel(
+            b.exam,
+            b.batch,
+            b.year
+          )
+        )
+      )
+      .map(group => {
+
+        group.students.sort(
+          (a,b) =>
+            String(a.data.name || "")
+              .localeCompare(
+                String(b.data.name || ""),
+                undefined,
+                {sensitivity:"base"}
+              )
+        );
 
 
-  students =
-    filteredObject;
+        return `
+          <div class="group-card">
 
+            <div class="group-header">
 
-  const groups =
-    groupStudents();
+              <div class="group-title">
+                ${esc(
+                  groupLabel(
+                    group.exam,
+                    group.batch,
+                    group.year
+                  )
+                )}
+              </div>
 
-
-  students =
-    oldStudents;
-
-
-  let html = "";
-
-
-  const exams =
-    Object.keys(groups).sort();
-
-
-  exams.forEach(exam => {
-
-    const batches =
-      Object.keys(groups[exam]).sort();
-
-
-    let examTotal = 0;
-
-    batches.forEach(batch => {
-
-      examTotal +=
-        groups[exam][batch].length;
-
-    });
-
-
-    html += `
-
-      <div class="group-card">
-
-        <div class="group-header">
-
-          <h3>
-            🎓 ${esc(exam)}
-          </h3>
-
-          <span class="pill">
-            ${examTotal} Students
-          </span>
-
-        </div>
-    `;
-
-
-    batches.forEach(batch => {
-
-      const list =
-        groups[exam][batch];
-
-
-      html += `
-
-        <div class="batch-section">
-
-          <div class="batch-header">
-            📌 Batch:
-            ${esc(batch)}
-            —
-            ${list.length} Students
-          </div>
-
-          <div class="group-content">
-
-            <table class="table">
-
-              <tr>
-                <th>Student</th>
-                <th>Email / ID</th>
-                <th>Year</th>
-                <th>Courses</th>
-                <th>Actions</th>
-              </tr>
-      `;
-
-
-      list.forEach(s => {
-
-        html += `
-
-          <tr>
-
-            <td>
-              <b>
-                ${esc(s.name || "")}
-              </b>
-            </td>
-
-            <td>
-
-              ${esc(s.email || s.id)}
-
-              <br>
-
-              <span class="small">
-                ID: ${esc(s.id)}
+              <span class="group-count">
+                ${group.students.length} Students
               </span>
 
-            </td>
+            </div>
 
-            <td>
-              ${esc(s.year || "")}
-            </td>
+            <div class="group-body">
 
-            <td>
+              <table class="table">
 
-              ${(s.courses || [])
-                .map(x => `
+                <tr>
+                  <th>Student</th>
+                  <th>Exam / Batch / Year</th>
+                  <th>Courses</th>
+                  <th>Actions</th>
+                </tr>
 
-                  <span class="pill">
-                    ${esc(
-                      courses[x]?.title || x
-                    )}
-                  </span>
+                ${group.students.map(
+                  ({id,s}) => {
 
-                `)
-                .join("")}
+                    const coursePills =
+                      (s.courses || [])
+                        .map(courseId => {
 
-            </td>
+                          const c =
+                            courses[courseId];
 
-            <td>
+                          return `
+                            <span class="pill">
+                              ${esc(
+                                c?.title ||
+                                courseId
+                              )}
+                            </span>
+                          `;
 
-              <button
-                class="btn muted"
-                data-edit-student="${esc(s.id)}">
-                Edit
-              </button>
-
-              <button
-                class="btn danger"
-                data-delete-student="${esc(s.id)}">
-                Delete
-              </button>
-
-            </td>
-
-          </tr>
-
-        `;
-
-      });
+                        })
+                        .join("");
 
 
-      html += `
+                    return `
+                      <tr>
 
-            </table>
+                        <td>
+                          <b>
+                            ${esc(s.name || "Unnamed")}
+                          </b>
+                          <br>
+                          <span class="small">
+                            ${esc(s.email || id)}
+                          </span>
+                        </td>
+
+                        <td>
+                          ${esc(s.exam || "")}
+                          <br>
+                          ${esc(s.batch || "")}
+                          •
+                          ${esc(s.year || "")}
+                        </td>
+
+                        <td>
+                          ${coursePills ||
+                            '<span class="small">No courses</span>'}
+                        </td>
+
+                        <td>
+
+                          <button
+                            class="btn muted"
+                            data-edit-student="${esc(id)}"
+                          >
+                            Edit
+                          </button>
+
+                          <button
+                            class="btn danger"
+                            data-delete-student="${esc(id)}"
+                          >
+                            Delete
+                          </button>
+
+                        </td>
+
+                      </tr>
+                    `;
+
+                  }
+                ).join("")}
+
+              </table>
+
+            </div>
 
           </div>
+        `;
 
-        </div>
-
-      `;
-
-    });
-
-
-    html += `</div>`;
-
-  });
-
-
-  if(!html){
-
-    html =
-      `<div class="empty">
-        No students found.
-      </div>`;
-
-  }
+      })
+      .join("");
 
 
   $("studentsTable").innerHTML =
@@ -661,24 +814,28 @@ function renderStudents(){
 
 
   document
-    .querySelectorAll("[data-edit-student]")
-    .forEach(b => {
+    .querySelectorAll(
+      "[data-edit-student]"
+    )
+    .forEach(button => {
 
-      b.onclick =
+      button.onclick =
         () => editStudent(
-          b.dataset.editStudent
+          button.dataset.editStudent
         );
 
     });
 
 
   document
-    .querySelectorAll("[data-delete-student]")
-    .forEach(b => {
+    .querySelectorAll(
+      "[data-delete-student]"
+    )
+    .forEach(button => {
 
-      b.onclick =
+      button.onclick =
         () => deleteStudent(
-          b.dataset.deleteStudent
+          button.dataset.deleteStudent
         );
 
     });
@@ -686,17 +843,373 @@ function renderStudents(){
 }
 
 
-// ======================================================
-// EDIT STUDENT
-// ======================================================
+/* =========================================================
+   ASSIGN COURSE CHECKLIST
+========================================================= */
 
-function editStudent(id){
+function getFilteredAssignCourses() {
+
+  const search =
+    normalize(
+      $("courseAssignSearch").value
+    );
+
+  const exam =
+    normalize(
+      $("courseAssignExamFilter").value
+    );
+
+  const batch =
+    normalize(
+      $("courseAssignBatchFilter").value
+    );
+
+  const year =
+    normalize(
+      $("courseAssignYearFilter").value
+    );
+
+
+  return Object.entries(courses)
+    .filter(([id,c]) => {
+
+      const text = [
+
+        id,
+        c.title,
+        c.subject,
+        c.exam,
+        c.batch,
+        c.year,
+        c.testId,
+        c.description
+
+      ].map(normalize).join(" ");
+
+
+      if(
+        search &&
+        !text.includes(search)
+      ) {
+
+        return false;
+
+      }
+
+
+      if(
+        exam &&
+        normalize(c.exam) !== exam
+      ) {
+
+        return false;
+
+      }
+
+
+      if(
+        batch &&
+        normalize(c.batch) !== batch
+      ) {
+
+        return false;
+
+      }
+
+
+      if(
+        year &&
+        normalize(c.year) !== year
+      ) {
+
+        return false;
+
+      }
+
+
+      return true;
+
+    });
+
+}
+
+
+function renderAssignCourseFilters() {
+
+  const exams =
+    uniqueSorted(
+      Object.values(courses)
+        .map(c => c.exam)
+    );
+
+  const batches =
+    uniqueSorted(
+      Object.values(courses)
+        .map(c => c.batch)
+    );
+
+  const years =
+    uniqueSorted(
+      Object.values(courses)
+        .map(c => c.year)
+    );
+
+
+  fillSelect(
+    $("courseAssignExamFilter"),
+    exams,
+    "All Exams"
+  );
+
+  fillSelect(
+    $("courseAssignBatchFilter"),
+    batches,
+    "All Batches"
+  );
+
+  fillSelect(
+    $("courseAssignYearFilter"),
+    years,
+    "All Years"
+  );
+
+}
+
+
+function renderCourseChecklist() {
+
+  renderAssignCourseFilters();
+
+
+  const entries =
+    getFilteredAssignCourses();
+
+
+  if(!entries.length) {
+
+    $("courseChecklist").innerHTML =
+      `<div class="empty">
+        No matching courses found.
+      </div>`;
+
+    return;
+
+  }
+
+
+  const groups = {};
+
+
+  entries.forEach(([id,c]) => {
+
+    const key =
+      groupKey(
+        c.exam,
+        c.batch,
+        c.year
+      );
+
+
+    if(!groups[key]) {
+
+      groups[key] = {
+        exam:c.exam || "",
+        batch:c.batch || "",
+        year:c.year || "",
+        courses:[]
+      };
+
+    }
+
+
+    groups[key].courses.push({
+      id,
+      data:c
+    });
+
+  });
+
+
+  $("courseChecklist").innerHTML =
+
+    Object.values(groups)
+      .sort((a,b) =>
+        groupLabel(
+          a.exam,
+          a.batch,
+          a.year
+        ).localeCompare(
+          groupLabel(
+            b.exam,
+            b.batch,
+            b.year
+          )
+        )
+      )
+      .map(group => {
+
+        group.courses.sort(
+          (a,b) =>
+            String(
+              a.data.title ||
+              a.id
+            ).localeCompare(
+              String(
+                b.data.title ||
+                b.id
+              ),
+              undefined,
+              {sensitivity:"base"}
+            )
+        );
+
+
+        return `
+          <div class="assign-group">
+
+            <div class="assign-group-header">
+              ${esc(
+                groupLabel(
+                  group.exam,
+                  group.batch,
+                  group.year
+                )
+              )}
+            </div>
+
+            ${group.courses.map(
+              ({id,c}) => {
+
+                const checked =
+                  assignedCourseIds.has(id)
+                    ? "checked"
+                    : "";
+
+
+                return `
+                  <label class="check">
+
+                    <input
+                      type="checkbox"
+                      value="${esc(id)}"
+                      ${checked}
+                    >
+
+                    <div class="check-info">
+
+                      <b>
+                        ${esc(
+                          c.title || id
+                        )}
+                      </b>
+
+                      <br>
+
+                      <span class="small">
+                        ${esc(c.subject || "")}
+                        ${c.testId
+                          ? " • Test: " +
+                            esc(c.testId)
+                          : ""}
+                      </span>
+
+                    </div>
+
+                  </label>
+                `;
+
+              }
+            ).join("")}
+
+          </div>
+        `;
+
+      })
+      .join("");
+
+
+  document
+    .querySelectorAll(
+      "#courseChecklist input[type=checkbox]"
+    )
+    .forEach(input => {
+
+      input.addEventListener(
+        "change",
+        () => {
+
+          if(input.checked) {
+
+            assignedCourseIds.add(
+              input.value
+            );
+
+          } else {
+
+            assignedCourseIds.delete(
+              input.value
+            );
+
+          }
+
+        }
+      );
+
+    });
+
+}
+
+
+/* Assign course search */
+
+[
+  "courseAssignSearch",
+  "courseAssignExamFilter",
+  "courseAssignBatchFilter",
+  "courseAssignYearFilter"
+].forEach(id => {
+
+  $(id).addEventListener(
+    "input",
+    renderCourseChecklist
+  );
+
+  $(id).addEventListener(
+    "change",
+    renderCourseChecklist
+  );
+
+});
+
+
+$("selectVisibleCoursesBtn").onclick =
+  () => {
+
+    const visible =
+      getFilteredAssignCourses();
+
+
+    visible.forEach(
+      ([id]) =>
+        assignedCourseIds.add(id)
+    );
+
+
+    renderCourseChecklist();
+
+  };
+
+
+/* =========================================================
+   EDIT STUDENT
+========================================================= */
+
+function editStudent(id) {
 
   const s =
     students[id];
 
   if(!s) return;
-
 
   editingStudentId =
     id;
@@ -717,18 +1230,24 @@ function editStudent(id){
   $("sYear").value =
     s.year || "";
 
+  $("sPassword").value =
+    "";
+
+
+  assignedCourseIds =
+    new Set(
+      s.courses || []
+    );
+
+
+  renderCourseChecklist();
+
 
   document
-    .querySelectorAll(
-      "#courseChecklist input"
+    .querySelector(
+      '[data-section="students"]'
     )
-    .forEach(x => {
-
-      x.checked =
-        (s.courses || [])
-          .includes(x.value);
-
-    });
+    ?.click();
 
 
   window.scrollTo({
@@ -739,25 +1258,21 @@ function editStudent(id){
 }
 
 
-// ======================================================
-// CLEAR STUDENT
-// ======================================================
+/* =========================================================
+   CLEAR STUDENT
+========================================================= */
 
-function clearStudent(){
+function clearStudent() {
 
-  editingStudentId =
-    null;
+  editingStudentId = null;
+
+  assignedCourseIds =
+    new Set();
+
 
   $("studentForm").reset();
 
-
-  document
-    .querySelectorAll(
-      "#courseChecklist input"
-    )
-    .forEach(x =>
-      x.checked = false
-    );
+  renderCourseChecklist();
 
 }
 
@@ -766,9 +1281,9 @@ $("newStudentBtn").onclick =
   clearStudent;
 
 
-// ======================================================
-// SAVE STUDENT
-// ======================================================
+/* =========================================================
+   SAVE STUDENT
+========================================================= */
 
 $("studentForm").onsubmit =
   async e => {
@@ -782,35 +1297,33 @@ $("studentForm").onsubmit =
         .trim()
         .toLowerCase();
 
-
     const password =
-      $("sPassword")?.value || "";
+      $("sPassword")
+        .value || "";
 
 
     const id =
       studentDocId(email);
 
 
-    const selected = [
-
-      ...document
-        .querySelectorAll(
-          "#courseChecklist input:checked"
-        )
-
-    ].map(x => x.value);
+    const selected =
+      [...assignedCourseIds];
 
 
     const wasEditing =
       !!editingStudentId;
 
 
-    try{
+    try {
 
-      // New Firebase Auth account
-      if(!wasEditing && password){
+      /* Create Firebase Auth account */
 
-        if(password.length < 6){
+      if(
+        !wasEditing &&
+        password
+      ) {
+
+        if(password.length < 6) {
 
           throw new Error(
             "Student password must be at least 6 characters."
@@ -819,7 +1332,7 @@ $("studentForm").onsubmit =
         }
 
 
-        try{
+        try {
 
           await createUserWithEmailAndPassword(
             secondaryAuth,
@@ -827,12 +1340,13 @@ $("studentForm").onsubmit =
             password
           );
 
-        }catch(authErr){
+        }
+        catch(authErr) {
 
           if(
             authErr.code !==
             "auth/email-already-in-use"
-          ){
+          ) {
 
             throw authErr;
 
@@ -844,13 +1358,7 @@ $("studentForm").onsubmit =
 
 
       await setDoc(
-
-        doc(
-          db,
-          "students",
-          id
-        ),
-
+        doc(db,"students",id),
         {
 
           email,
@@ -875,25 +1383,25 @@ $("studentForm").onsubmit =
               .value
               .trim(),
 
-          courses:
-            selected,
+          courses:selected,
 
           updatedAt:
             serverTimestamp()
 
         },
-
         {
           merge:true
         }
-
       );
 
 
       await loadData();
 
-      renderStudents();
+      renderStudentFilters();
+      renderCourseFilters();
 
+      renderStudents();
+      renderCourses();
       renderCourseChecklist();
 
       clearStudent();
@@ -906,7 +1414,8 @@ $("studentForm").onsubmit =
       );
 
 
-    }catch(err){
+    }
+    catch(err) {
 
       console.error(err);
 
@@ -924,52 +1433,63 @@ $("studentForm").onsubmit =
   };
 
 
-// ======================================================
-// DELETE STUDENT
-// ======================================================
+/* =========================================================
+   DELETE STUDENT
+========================================================= */
 
-async function deleteStudent(id){
+async function deleteStudent(id) {
 
   if(
     !confirm(
       "Delete this student profile? Firebase Authentication account will NOT be deleted."
     )
-  ){
+  ) {
 
     return;
 
   }
 
 
-  await deleteDoc(
-    doc(db,"students",id)
-  );
+  try {
+
+    await deleteDoc(
+      doc(db,"students",id)
+    );
 
 
-  await loadData();
+    await loadData();
 
-  renderStudents();
+    renderStudentFilters();
+    renderStudents();
+    renderCourseChecklist();
 
-  renderCourseChecklist();
+  }
+  catch(err) {
+
+    alert(
+      "Could not delete student: " +
+      err.message
+    );
+
+  }
 
 }
 
 
-// ======================================================
-// CONTENT EDITOR
-// ======================================================
+/* =========================================================
+   COURSE CONTENT
+========================================================= */
 
 function addContentRow(
-  item={
+  item = {
     type:"video",
     title:"",
     url:""
   }
-){
+) {
 
   const row =
     document.createElement("div");
-
 
   row.className =
     "content-row";
@@ -978,13 +1498,12 @@ function addContentRow(
   row.innerHTML = `
 
     <label>
-
       Type
 
       <select class="ct-type">
 
         <option value="video">
-          YouTube/Video
+          YouTube / Video
         </option>
 
         <option value="local-video">
@@ -1005,45 +1524,49 @@ function addContentRow(
 
 
     <label>
-
       Title
-
       <input class="ct-title">
-
     </label>
 
 
     <label>
-
       URL
-
       <input class="ct-url">
-
     </label>
 
 
     <button
       type="button"
-      class="btn danger remove-content">
+      class="btn danger remove-content"
+    >
       ×
     </button>
 
   `;
 
 
-  row.querySelector(".ct-type").value =
+  row.querySelector(
+    ".ct-type"
+  ).value =
     item.type || "video";
 
-  row.querySelector(".ct-title").value =
+
+  row.querySelector(
+    ".ct-title"
+  ).value =
     item.title || "";
 
-  row.querySelector(".ct-url").value =
+
+  row.querySelector(
+    ".ct-url"
+  ).value =
     item.url || "";
 
 
-  row
-    .querySelector(".remove-content")
-    .onclick = () => row.remove();
+  row.querySelector(
+    ".remove-content"
+  ).onclick =
+    () => row.remove();
 
 
   $("contentsEditor")
@@ -1056,14 +1579,13 @@ $("addContentBtn").onclick =
   () => addContentRow();
 
 
-// ======================================================
-// CLEAR COURSE
-// ======================================================
+/* =========================================================
+   CLEAR COURSE
+========================================================= */
 
-function clearCourse(){
+function clearCourse() {
 
-  editingCourseId =
-    null;
+  editingCourseId = null;
 
   $("courseForm").reset();
 
@@ -1078,11 +1600,11 @@ $("newCourseBtn").onclick =
   clearCourse;
 
 
-// ======================================================
-// EDIT COURSE
-// ======================================================
+/* =========================================================
+   EDIT COURSE
+========================================================= */
 
-function editCourse(id){
+function editCourse(id) {
 
   const c =
     courses[id];
@@ -1119,19 +1641,27 @@ function editCourse(id){
     c.testId || "";
 
 
-  $("contentsEditor")
-    .innerHTML = "";
+  $("contentsEditor").innerHTML = "";
 
 
   (c.contents || [])
     .forEach(addContentRow);
 
 
-  if(!(c.contents || []).length){
+  if(
+    !(c.contents || []).length
+  ) {
 
     addContentRow();
 
   }
+
+
+  document
+    .querySelector(
+      '[data-section="courses"]'
+    )
+    ?.click();
 
 
   window.scrollTo({
@@ -1142,318 +1672,399 @@ function editCourse(id){
 }
 
 
-// ======================================================
-// COURSE GROUPING
-// Exam → Batch → Courses
-// ======================================================
+/* =========================================================
+   COURSE FILTERS
+========================================================= */
 
-function groupCourses(){
+function renderCourseFilters() {
 
-  const groups = {};
+  const exams =
+    uniqueSorted(
+      Object.values(courses)
+        .map(c => c.exam)
+    );
 
+  const batches =
+    uniqueSorted(
+      Object.values(courses)
+        .map(c => c.batch)
+    );
 
-  Object.entries(courses)
-    .forEach(([id,c]) => {
-
-      const exam =
-        (c.exam || "Other").trim() ||
-        "Other";
-
-
-      const batch =
-        (c.batch || "No Batch").trim() ||
-        "No Batch";
-
-
-      if(!groups[exam]){
-        groups[exam] = {};
-      }
+  const years =
+    uniqueSorted(
+      Object.values(courses)
+        .map(c => c.year)
+    );
 
 
-      if(!groups[exam][batch]){
-        groups[exam][batch] = [];
-      }
+  fillSelect(
+    $("courseExamFilter"),
+    exams,
+    "All Exams"
+  );
 
+  fillSelect(
+    $("courseBatchFilter"),
+    batches,
+    "All Batches"
+  );
 
-      groups[exam][batch].push({
-        id,
-        ...c
-      });
-
-    });
-
-
-  return groups;
+  fillSelect(
+    $("courseYearFilter"),
+    years,
+    "All Years"
+  );
 
 }
 
 
-// ======================================================
-// RENDER COURSES
-// ======================================================
+[
+  "courseSearch",
+  "courseExamFilter",
+  "courseBatchFilter",
+  "courseYearFilter"
+].forEach(id => {
 
-function renderCourses(){
+  $(id).addEventListener(
+    "input",
+    renderCourses
+  );
+
+  $(id).addEventListener(
+    "change",
+    renderCourses
+  );
+
+});
+
+
+/* =========================================================
+   FILTER COURSES
+========================================================= */
+
+function getFilteredCourses() {
+
+  const search =
+    normalize(
+      $("courseSearch").value
+    );
+
+  const exam =
+    normalize(
+      $("courseExamFilter").value
+    );
+
+  const batch =
+    normalize(
+      $("courseBatchFilter").value
+    );
+
+  const year =
+    normalize(
+      $("courseYearFilter").value
+    );
+
+
+  return Object.entries(courses)
+    .filter(([id,c]) => {
+
+      const text = [
+
+        id,
+        c.title,
+        c.subject,
+        c.exam,
+        c.batch,
+        c.year,
+        c.testId,
+        c.description
+
+      ].map(normalize).join(" ");
+
+
+      if(
+        search &&
+        !text.includes(search)
+      ) {
+
+        return false;
+
+      }
+
+
+      if(
+        exam &&
+        normalize(c.exam) !== exam
+      ) {
+
+        return false;
+
+      }
+
+
+      if(
+        batch &&
+        normalize(c.batch) !== batch
+      ) {
+
+        return false;
+
+      }
+
+
+      if(
+        year &&
+        normalize(c.year) !== year
+      ) {
+
+        return false;
+
+      }
+
+
+      return true;
+
+    });
+
+}
+
+
+/* =========================================================
+   RENDER COURSES
+========================================================= */
+
+function renderCourses() {
 
   $("statCourses").textContent =
     Object.keys(courses).length;
 
 
-  const search =
-    ($("courseSearch")?.value || "")
-      .trim()
-      .toLowerCase();
+  const entries =
+    getFilteredCourses();
 
 
-  const filtered =
-    Object.entries(courses)
-      .filter(([id,c]) => {
+  if(!entries.length) {
 
-        const text = [
+    $("coursesTable").innerHTML =
+      `<div class="no-results">
+        No matching courses found.
+      </div>`;
 
-          id,
-          c.title,
-          c.subject,
-          c.exam,
-          c.batch,
-          c.year,
-          c.description,
-          c.testId
-
-        ].join(" ").toLowerCase();
-
-
-        return text.includes(search);
-
-      });
-
-
-  if($("courseSearchCount")){
-
-    $("courseSearchCount").textContent =
-      search
-
-        ? `Showing ${filtered.length} of ${Object.keys(courses).length} courses`
-
-        : `${filtered.length} courses`;
+    return;
 
   }
 
 
-  const filteredObject = {};
+  const groups = {};
 
 
-  filtered.forEach(([id,c]) => {
+  entries.forEach(([id,c]) => {
 
-    filteredObject[id] = c;
+    const key =
+      groupKey(
+        c.exam,
+        c.batch,
+        c.year
+      );
+
+
+    if(!groups[key]) {
+
+      groups[key] = {
+
+        exam:c.exam || "",
+        batch:c.batch || "",
+        year:c.year || "",
+
+        courses:[]
+
+      };
+
+    }
+
+
+    groups[key].courses.push({
+      id,
+      data:c
+    });
 
   });
 
 
-  const oldCourses =
-    courses;
+  $("coursesTable").innerHTML =
+
+    Object.values(groups)
+      .sort((a,b) =>
+        groupLabel(
+          a.exam,
+          a.batch,
+          a.year
+        ).localeCompare(
+          groupLabel(
+            b.exam,
+            b.batch,
+            b.year
+          )
+        )
+      )
+      .map(group => {
+
+        group.courses.sort(
+          (a,b) =>
+            String(
+              a.data.title ||
+              a.id
+            ).localeCompare(
+              String(
+                b.data.title ||
+                b.id
+              ),
+              undefined,
+              {sensitivity:"base"}
+            )
+        );
 
 
-  courses =
-    filteredObject;
+        return `
 
+          <div class="group-card">
 
-  const groups =
-    groupCourses();
+            <div class="group-header">
 
+              <div class="group-title">
+                ${esc(
+                  groupLabel(
+                    group.exam,
+                    group.batch,
+                    group.year
+                  )
+                )}
+              </div>
 
-  courses =
-    oldCourses;
+              <span class="group-count">
+                ${group.courses.length} Courses
+              </span>
 
+            </div>
 
-  let html = "";
-
-
-  const exams =
-    Object.keys(groups).sort();
-
-
-  exams.forEach(exam => {
-
-    const batches =
-      Object.keys(groups[exam]).sort();
-
-
-    let examTotal = 0;
-
-
-    batches.forEach(batch => {
-
-      examTotal +=
-        groups[exam][batch].length;
-
-    });
-
-
-    html += `
-
-      <div class="group-card">
-
-        <div class="group-header">
-
-          <h3>
-            📚 ${esc(exam)}
-          </h3>
-
-          <span class="pill">
-            ${examTotal} Courses
-          </span>
-
-        </div>
-
-    `;
-
-
-    batches.forEach(batch => {
-
-      const list =
-        groups[exam][batch];
-
-
-      html += `
-
-        <div class="batch-section">
-
-          <div class="batch-header">
-
-            📌 Batch:
-            ${esc(batch)}
-            —
-            ${list.length} Courses
-
-          </div>
-
-          <div class="group-content">
 
             <table class="table">
 
               <tr>
                 <th>Course</th>
+                <th>Exam / Batch / Year</th>
                 <th>Subject</th>
-                <th>Year</th>
-                <th>Test ID</th>
+                <th>Test</th>
                 <th>Content</th>
                 <th>Actions</th>
               </tr>
 
-      `;
+
+              ${group.courses.map(
+                ({id,c}) => `
+
+                  <tr>
+
+                    <td>
+                      <b>
+                        ${esc(
+                          c.title || id
+                        )}
+                      </b>
+
+                      <br>
+
+                      <span class="small">
+                        ${esc(id)}
+                      </span>
+                    </td>
 
 
-      list.forEach(c => {
-
-        html += `
-
-          <tr>
-
-            <td>
-
-              <b>
-                ${esc(c.title || c.id)}
-              </b>
-
-              <br>
-
-              <span class="small">
-                ID: ${esc(c.id)}
-              </span>
-
-            </td>
-
-            <td>
-              ${esc(c.subject || "")}
-            </td>
-
-            <td>
-              ${esc(c.year || "")}
-            </td>
-
-            <td>
-              ${esc(c.testId || "")}
-            </td>
-
-            <td>
-              ${(c.contents || []).length}
-              items
-            </td>
-
-            <td>
-
-              <button
-                class="btn muted"
-                data-edit-course="${esc(c.id)}">
-                Edit
-              </button>
-
-              <button
-                class="btn danger"
-                data-delete-course="${esc(c.id)}">
-                Delete
-              </button>
-
-            </td>
-
-          </tr>
-
-        `;
-
-      });
+                    <td>
+                      ${esc(c.exam || "")}
+                      <br>
+                      ${esc(c.batch || "")}
+                      •
+                      ${esc(c.year || "")}
+                    </td>
 
 
-      html += `
+                    <td>
+                      ${esc(
+                        c.subject || ""
+                      )}
+                    </td>
+
+
+                    <td>
+                      ${esc(
+                        c.testId || "-"
+                      )}
+                    </td>
+
+
+                    <td>
+                      ${(c.contents || []).length}
+                      items
+                    </td>
+
+
+                    <td>
+
+                      <button
+                        class="btn muted"
+                        data-edit-course="${esc(id)}"
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        class="btn danger"
+                        data-delete-course="${esc(id)}"
+                      >
+                        Delete
+                      </button>
+
+                    </td>
+
+                  </tr>
+
+                `
+              ).join("")}
 
             </table>
 
           </div>
 
-        </div>
+        `;
 
-      `;
-
-    });
-
-
-    html += `</div>`;
-
-  });
-
-
-  if(!html){
-
-    html =
-      `<div class="empty">
-        No courses found.
-      </div>`;
-
-  }
-
-
-  $("coursesTable").innerHTML =
-    html;
+      })
+      .join("");
 
 
   document
-    .querySelectorAll("[data-edit-course]")
-    .forEach(b => {
+    .querySelectorAll(
+      "[data-edit-course]"
+    )
+    .forEach(button => {
 
-      b.onclick =
+      button.onclick =
         () => editCourse(
-          b.dataset.editCourse
+          button.dataset.editCourse
         );
 
     });
 
 
   document
-    .querySelectorAll("[data-delete-course]")
-    .forEach(b => {
+    .querySelectorAll(
+      "[data-delete-course]"
+    )
+    .forEach(button => {
 
-      b.onclick =
+      button.onclick =
         () => deleteCourse(
-          b.dataset.deleteCourse
+          button.dataset.deleteCourse
         );
 
     });
@@ -1461,9 +2072,9 @@ function renderCourses(){
 }
 
 
-// ======================================================
-// SAVE COURSE
-// ======================================================
+/* =========================================================
+   SAVE COURSE
+========================================================= */
 
 $("courseForm").onsubmit =
   async e => {
@@ -1477,7 +2088,7 @@ $("courseForm").onsubmit =
         .trim();
 
 
-    if(!id){
+    if(!id) {
 
       alert("Course ID is required.");
 
@@ -1486,49 +2097,41 @@ $("courseForm").onsubmit =
     }
 
 
-    const contents = [
-
-      ...document
-        .querySelectorAll(
+    const contents =
+      [
+        ...document.querySelectorAll(
           "#contentsEditor .content-row"
         )
-
-    ]
-
-      .map(r => ({
+      ]
+      .map(row => ({
 
         type:
-          r.querySelector(
+          row.querySelector(
             ".ct-type"
           ).value,
 
         title:
-          r.querySelector(
+          row.querySelector(
             ".ct-title"
-          ).value.trim(),
+          ).value
+          .trim(),
 
         url:
-          r.querySelector(
+          row.querySelector(
             ".ct-url"
-          ).value.trim()
+          ).value
+          .trim()
 
       }))
-
       .filter(
         x => x.title || x.url
       );
 
 
-    try{
+    try {
 
       await setDoc(
-
-        doc(
-          db,
-          "courses",
-          id
-        ),
-
+        doc(db,"courses",id),
         {
 
           exam:
@@ -1572,37 +2175,35 @@ $("courseForm").onsubmit =
             serverTimestamp()
 
         },
-
         {
           merge:true
         }
-
       );
 
 
       await loadData();
 
+      renderCourseFilters();
       renderCourses();
-
       renderCourseChecklist();
+
 
       clearCourse();
 
 
-      alert("Course saved.");
+      alert(
+        "Course saved successfully."
+      );
 
 
-    }catch(err){
+    }
+    catch(err) {
 
       console.error(err);
 
       alert(
         "Could not save course: " +
-        (
-          err.message ||
-          err.code ||
-          "Unknown error"
-        )
+        err.message
       );
 
     }
@@ -1610,184 +2211,1476 @@ $("courseForm").onsubmit =
   };
 
 
-// ======================================================
-// DELETE COURSE
-// ======================================================
+/* =========================================================
+   DELETE COURSE
+========================================================= */
 
-async function deleteCourse(id){
+async function deleteCourse(id) {
 
   if(
     !confirm(
       "Delete this course? Student assignments containing this ID will remain until you edit them."
     )
-  ){
+  ) {
 
     return;
 
   }
 
 
-  await deleteDoc(
-    doc(db,"courses",id)
-  );
+  try {
+
+    await deleteDoc(
+      doc(db,"courses",id)
+    );
 
 
-  await loadData();
+    await loadData();
 
-  renderCourses();
+    renderCourseFilters();
+    renderCourses();
+    renderCourseChecklist();
 
-  renderCourseChecklist();
+  }
+  catch(err) {
+
+    alert(
+      "Could not delete course: " +
+      err.message
+    );
+
+  }
 
 }
 
 
-// ======================================================
-// TEST RESULTS
-// ======================================================
+/* =========================================================
+   RESULTS
+========================================================= */
 
-async function refreshResults(){
+async function loadResults() {
 
-  try{
+  const snap =
+    await getDocs(
+      collection(db,"testResults")
+    );
 
-    const snap =
-      await getDocs(
-        collection(db,"testResults")
+
+  results = [];
+
+
+  snap.forEach(d => {
+
+    results.push({
+
+      id:d.id,
+      data:d.data()
+
+    });
+
+  });
+
+
+  $("statResults").textContent =
+    results.length;
+
+}
+
+
+/* =========================================================
+   RESULT HELPERS
+========================================================= */
+
+function getResultCourse(x) {
+
+  const courseId =
+    x.courseId ||
+    x.course ||
+    "";
+
+
+  return courses[courseId] || null;
+
+}
+
+
+function getResultStudent(x) {
+
+  const email =
+    normalize(x.email);
+
+
+  if(!email) return null;
+
+
+  const found =
+    Object.values(students)
+      .find(
+        s =>
+          normalize(s.email) === email
       );
 
 
-    $("statResults").textContent =
-      snap.size;
+  return found || null;
+
+}
 
 
-    let rows = [];
+function getResultTest(x) {
+
+  const testId =
+    x.testId ||
+    x.test ||
+    "";
 
 
-    snap.forEach(d => {
+  return tests[testId] || null;
+
+}
+
+
+function getResultExam(x) {
+
+  const course =
+    getResultCourse(x);
+
+  const student =
+    getResultStudent(x);
+
+  const test =
+    getResultTest(x);
+
+
+  return (
+    x.exam ||
+    course?.exam ||
+    student?.exam ||
+    test?.exam ||
+    ""
+  );
+
+}
+
+
+function getResultBatch(x) {
+
+  const course =
+    getResultCourse(x);
+
+  const student =
+    getResultStudent(x);
+
+  const test =
+    getResultTest(x);
+
+
+  return (
+    x.batch ||
+    course?.batch ||
+    student?.batch ||
+    test?.batch ||
+    ""
+  );
+
+}
+
+
+function getResultCourseName(x) {
+
+  const course =
+    getResultCourse(x);
+
+
+  return (
+    x.courseName ||
+    course?.title ||
+    x.course ||
+    x.courseId ||
+    "-"
+  );
+
+}
+
+
+function getResultSubject(x) {
+
+  const course =
+    getResultCourse(x);
+
+
+  const test =
+    getResultTest(x);
+
+
+  return (
+    x.subject ||
+    course?.subject ||
+    test?.subject ||
+    "-"
+  );
+
+}
+
+
+function getResultTestName(x) {
+
+  const test =
+    getResultTest(x);
+
+
+  return (
+    x.testName ||
+    x.title ||
+    test?.title ||
+    x.testId ||
+    "-"
+  );
+
+}
+
+
+function getResultStudentName(x) {
+
+  const student =
+    getResultStudent(x);
+
+
+  return (
+    x.name ||
+    student?.name ||
+    "-"
+  );
+
+}
+
+
+function getResultStudentEmail(x) {
+
+  return (
+    x.email ||
+    "-"
+  );
+
+}
+
+
+function isStudentEnrolled(x) {
+
+  const student =
+    getResultStudent(x);
+
+  if(!student) {
+
+    return false;
+
+  }
+
+
+  const courseId =
+    x.courseId ||
+    x.course ||
+    "";
+
+
+  if(
+    !courseId
+  ) {
+
+    return true;
+
+  }
+
+
+  return (
+    Array.isArray(student.courses) &&
+    student.courses.includes(courseId)
+  );
+
+}
+
+
+/* =========================================================
+   RESULT FILTERS
+========================================================= */
+
+function renderResultFilters() {
+
+  const exams =
+    uniqueSorted(
+      results.map(
+        r => getResultExam(r.data)
+      )
+    );
+
+
+  const batches =
+    uniqueSorted(
+      results.map(
+        r => getResultBatch(r.data)
+      )
+    );
+
+
+  const coursesList =
+    uniqueSorted(
+      results.map(
+        r => getResultCourseName(r.data)
+      )
+    );
+
+
+  const subjects =
+    uniqueSorted(
+      results.map(
+        r => getResultSubject(r.data)
+      )
+    );
+
+
+  fillSelect(
+    $("resultExamFilter"),
+    exams,
+    "All Exams"
+  );
+
+  fillSelect(
+    $("resultBatchFilter"),
+    batches,
+    "All Batches"
+  );
+
+  fillSelect(
+    $("resultCourseFilter"),
+    coursesList,
+    "All Courses"
+  );
+
+  fillSelect(
+    $("resultSubjectFilter"),
+    subjects,
+    "All Subjects"
+  );
+
+}
+
+
+[
+  "resultSearch",
+  "resultExamFilter",
+  "resultBatchFilter",
+  "resultCourseFilter",
+  "resultSubjectFilter"
+].forEach(id => {
+
+  $(id).addEventListener(
+    "input",
+    renderResults
+  );
+
+  $(id).addEventListener(
+    "change",
+    renderResults
+  );
+
+});
+
+
+/* =========================================================
+   FILTER RESULTS
+========================================================= */
+
+function getFilteredResults() {
+
+  const search =
+    normalize(
+      $("resultSearch").value
+    );
+
+
+  const exam =
+    normalize(
+      $("resultExamFilter").value
+    );
+
+
+  const batch =
+    normalize(
+      $("resultBatchFilter").value
+    );
+
+
+  const course =
+    normalize(
+      $("resultCourseFilter").value
+    );
+
+
+  const subject =
+    normalize(
+      $("resultSubjectFilter").value
+    );
+
+
+  return results.filter(
+    r => {
 
       const x =
-        d.data();
+        r.data;
 
 
-      const ts =
-        x.submittedAt?.toDate
-          ? x.submittedAt
-              .toDate()
-              .toLocaleString()
-          : String(
-              x.submittedAt || ""
-            );
+      const searchText = [
+
+        r.id,
+
+        x.name,
+
+        x.email,
+
+        x.course,
+
+        x.courseId,
+
+        x.courseName,
+
+        x.subject,
+
+        x.testId,
+
+        x.testName,
+
+        x.title,
+
+        getResultExam(x),
+
+        getResultBatch(x)
+
+      ].map(normalize).join(" ");
 
 
-      rows.push(`
+      if(
+        search &&
+        !searchText.includes(search)
+      ) {
 
-        <div class="result-row">
+        return false;
 
-          <div>
+      }
 
-            <b>
-              ${esc(x.name || "")}
-            </b>
 
-            <br>
+      if(
+        exam &&
+        normalize(
+          getResultExam(x)
+        ) !== exam
+      ) {
 
-            <span class="small">
-              ${esc(x.email || "")}
-            </span>
+        return false;
+
+      }
+
+
+      if(
+        batch &&
+        normalize(
+          getResultBatch(x)
+        ) !== batch
+      ) {
+
+        return false;
+
+      }
+
+
+      if(
+        course &&
+        normalize(
+          getResultCourseName(x)
+        ) !== course
+      ) {
+
+        return false;
+
+      }
+
+
+      if(
+        subject &&
+        normalize(
+          getResultSubject(x)
+        ) !== subject
+      ) {
+
+        return false;
+
+      }
+
+
+      return true;
+
+    }
+  );
+
+}
+
+
+/* =========================================================
+   RESULT DATE
+========================================================= */
+
+function getResultDate(value) {
+
+  if(
+    value?.toDate
+  ) {
+
+    return value
+      .toDate()
+      .toLocaleString();
+
+  }
+
+
+  if(
+    typeof value === "number"
+  ) {
+
+    return new Date(value)
+      .toLocaleString();
+
+  }
+
+
+  return String(
+    value || "-"
+  );
+
+}
+
+
+/* =========================================================
+   RESULT SCORE
+========================================================= */
+
+function getScore(x) {
+
+  const score =
+    Number(
+      x.score ??
+      x.marks ??
+      0
+    );
+
+
+  const total =
+    Number(
+      x.total ??
+      x.totalMarks ??
+      0
+    );
+
+
+  return {
+    score,
+    total
+  };
+
+}
+
+
+function getPercentage(x) {
+
+  const {
+    score,
+    total
+  } = getScore(x);
+
+
+  if(!total) return 0;
+
+
+  return (
+    score / total * 100
+  );
+
+}
+
+
+/* =========================================================
+   RESULT PDF
+========================================================= */
+
+function downloadResultPDF(resultId) {
+
+  const result =
+    results.find(
+      r => r.id === resultId
+    );
+
+
+  if(!result) {
+
+    alert("Result not found.");
+
+    return;
+
+  }
+
+
+  const x =
+    result.data;
+
+
+  const course =
+    getResultCourse(x);
+
+  const student =
+    getResultStudent(x);
+
+  const test =
+    getResultTest(x);
+
+
+  const {
+    score,
+    total
+  } =
+    getScore(x);
+
+
+  const percentage =
+    getPercentage(x);
+
+
+  const enrolled =
+    isStudentEnrolled(x);
+
+
+  const studentName =
+    getResultStudentName(x);
+
+
+  const email =
+    getResultStudentEmail(x);
+
+
+  const exam =
+    getResultExam(x);
+
+
+  const batch =
+    getResultBatch(x);
+
+
+  const courseName =
+    getResultCourseName(x);
+
+
+  const subject =
+    getResultSubject(x);
+
+
+  const testName =
+    getResultTestName(x);
+
+
+  const submittedAt =
+    getResultDate(
+      x.submittedAt
+    );
+
+
+  /*
+    We create a printable HTML document.
+    Browser's print dialog allows
+    "Save as PDF".
+  */
+
+  const answers =
+    Array.isArray(x.answers)
+      ? x.answers
+      : Array.isArray(x.details)
+        ? x.details
+        : [];
+
+
+  const answerRows =
+    answers.map(
+      (a,index) => {
+
+        const question =
+          a.question ||
+          a.questionText ||
+          `Question ${index + 1}`;
+
+        const selected =
+          a.selectedAnswer ??
+          a.selected ??
+          a.answer ??
+          "-";
+
+        const correct =
+          a.correctAnswer ??
+          a.correct ??
+          "-";
+
+        const isCorrect =
+          a.isCorrect ??
+          (
+            normalize(selected) ===
+            normalize(correct)
+          );
+
+
+        const solution =
+          a.solution ||
+          a.explanation ||
+          "";
+
+
+        return `
+
+          <div class="question">
+
+            <h3>
+              Q${index + 1}. ${esc(question)}
+            </h3>
+
+            <p>
+              <b>Your Answer:</b>
+              ${esc(selected)}
+            </p>
+
+            <p>
+              <b>Correct Answer:</b>
+              ${esc(correct)}
+            </p>
+
+            <p>
+              <b>Status:</b>
+              <span class="${isCorrect ? "correct" : "wrong"}">
+                ${isCorrect ? "Correct" : "Incorrect"}
+              </span>
+            </p>
+
+            ${
+              solution
+                ? `
+                  <p>
+                    <b>Solution:</b>
+                    ${esc(solution)}
+                  </p>
+                `
+                : ""
+            }
 
           </div>
 
+        `;
 
-          <div>
+      }
+    ).join("");
 
-            ${esc(x.course || "")}
 
-            <br>
+  const html = `
 
-            <span class="small">
-              ${esc(x.testId || "")}
-            </span>
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>FJMC Academy Result</title>
+
+<style>
+
+body{
+  font-family:Arial,sans-serif;
+  padding:35px;
+  color:#111;
+  line-height:1.5;
+}
+
+h1{
+  margin-bottom:5px;
+}
+
+.header{
+  text-align:center;
+  border-bottom:2px solid #111;
+  padding-bottom:15px;
+  margin-bottom:25px;
+}
+
+.info{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-bottom:20px;
+}
+
+.info div{
+  padding:8px;
+  border:1px solid #ddd;
+}
+
+.score-box{
+  border:2px solid #111;
+  padding:15px;
+  margin:20px 0;
+  text-align:center;
+}
+
+.score{
+  font-size:28px;
+  font-weight:bold;
+}
+
+.question{
+  border:1px solid #ddd;
+  padding:15px;
+  margin:12px 0;
+  page-break-inside:avoid;
+}
+
+.correct{
+  color:green;
+  font-weight:bold;
+}
+
+.wrong{
+  color:red;
+  font-weight:bold;
+}
+
+.footer{
+  margin-top:30px;
+  border-top:1px solid #ddd;
+  padding-top:10px;
+  font-size:12px;
+}
+
+@media print{
+
+  body{
+    padding:10px;
+  }
+
+}
+
+</style>
+
+</head>
+
+
+<body>
+
+<div class="header">
+
+  <h1>FJMC Academy</h1>
+
+  <div>
+    Test Result
+  </div>
+
+</div>
+
+
+<div class="info">
+
+  <div>
+    <b>Student</b><br>
+    ${esc(studentName)}
+  </div>
+
+  <div>
+    <b>Email</b><br>
+    ${esc(email)}
+  </div>
+
+  <div>
+    <b>Exam</b><br>
+    ${esc(exam || "-")}
+  </div>
+
+  <div>
+    <b>Batch</b><br>
+    ${esc(batch || "-")}
+  </div>
+
+  <div>
+    <b>Course</b><br>
+    ${esc(courseName)}
+  </div>
+
+  <div>
+    <b>Subject</b><br>
+    ${esc(subject)}
+  </div>
+
+  <div>
+    <b>Test</b><br>
+    ${esc(testName)}
+  </div>
+
+  <div>
+    <b>Submitted</b><br>
+    ${esc(submittedAt)}
+  </div>
+
+</div>
+
+
+<div class="score-box">
+
+  <div class="score">
+    ${score} / ${total}
+  </div>
+
+  <div>
+    Percentage:
+    ${percentage.toFixed(2)}%
+  </div>
+
+  <div>
+    Enrollment:
+    ${enrolled
+      ? "Enrolled"
+      : "Not Enrolled"}
+  </div>
+
+</div>
+
+
+<h2>Question Details</h2>
+
+${
+  answerRows ||
+  "<p>No detailed answer data was saved with this result.</p>"
+}
+
+
+<div class="footer">
+
+  Result ID:
+  ${esc(resultId)}
+
+  <br>
+
+  Generated by FJMC Academy Admin Panel
+
+</div>
+
+
+<script>
+
+window.onload = function(){
+
+  setTimeout(function(){
+
+    window.print();
+
+  },300);
+
+};
+
+</script>
+
+
+</body>
+
+</html>
+`;
+
+
+  const blob =
+    new Blob(
+      [html],
+      {
+        type:"text/html"
+      }
+    );
+
+
+  const url =
+    URL.createObjectURL(blob);
+
+
+  const a =
+    document.createElement("a");
+
+
+  a.href = url;
+
+  a.target = "_blank";
+
+  a.rel = "noopener";
+
+
+  /*
+    Open printable result.
+    User can select "Save as PDF".
+  */
+
+  const win =
+    window.open(
+      url,
+      "_blank"
+    );
+
+
+  if(!win) {
+
+    a.click();
+
+  }
+
+
+  setTimeout(
+    () =>
+      URL.revokeObjectURL(url),
+    60000
+  );
+
+}
+
+
+/* =========================================================
+   RENDER RESULTS
+========================================================= */
+
+function renderResults() {
+
+  const filtered =
+    getFilteredResults();
+
+
+  const enrolledCount =
+    filtered.filter(
+      r => isStudentEnrolled(r.data)
+    ).length;
+
+
+  const notEnrolledCount =
+    filtered.length -
+    enrolledCount;
+
+
+  $("resultSummary").innerHTML = `
+
+    <span class="pill">
+      Total: ${filtered.length}
+    </span>
+
+    <span class="pill green">
+      Enrolled: ${enrolledCount}
+    </span>
+
+    <span class="pill red">
+      Not Enrolled: ${notEnrolledCount}
+    </span>
+
+  `;
+
+
+  if(!filtered.length) {
+
+    $("resultsTable").innerHTML =
+      `<div class="no-results">
+        No matching test results found.
+      </div>`;
+
+    return;
+
+  }
+
+
+  /*
+    GROUP:
+    Exam → Batch → Course → Subject → Test
+  */
+
+  const groups = {};
+
+
+  filtered.forEach(result => {
+
+    const x =
+      result.data;
+
+
+    const key = [
+
+      normalize(
+        getResultExam(x)
+      ),
+
+      normalize(
+        getResultBatch(x)
+      ),
+
+      normalize(
+        getResultCourseName(x)
+      ),
+
+      normalize(
+        getResultSubject(x)
+      ),
+
+      normalize(
+        getResultTestName(x)
+      )
+
+    ].join("|||");
+
+
+    if(!groups[key]) {
+
+      groups[key] = {
+
+        exam:
+          getResultExam(x),
+
+        batch:
+          getResultBatch(x),
+
+        course:
+          getResultCourseName(x),
+
+        subject:
+          getResultSubject(x),
+
+        test:
+          getResultTestName(x),
+
+        results:[]
+
+      };
+
+    }
+
+
+    groups[key]
+      .results
+      .push(result);
+
+  });
+
+
+  const html =
+
+    Object.values(groups)
+      .sort((a,b) => {
+
+        const aa = [
+          a.exam,
+          a.batch,
+          a.course,
+          a.subject,
+          a.test
+        ].join(" ");
+
+        const bb = [
+          b.exam,
+          b.batch,
+          b.course,
+          b.subject,
+          b.test
+        ].join(" ");
+
+        return aa.localeCompare(
+          bb,
+          undefined,
+          {
+            numeric:true,
+            sensitivity:"base"
+          }
+        );
+
+      })
+      .map(group => {
+
+        group.results.sort(
+          (a,b) =>
+            getResultStudentName(
+              a.data
+            ).localeCompare(
+              getResultStudentName(
+                b.data
+              )
+            )
+        );
+
+
+        return `
+
+          <div class="result-group">
+
+            <div class="result-group-title">
+
+              ${esc(group.exam || "Exam not set")}
+              →
+              ${esc(group.batch || "Batch not set")}
+              →
+              ${esc(group.course)}
+              →
+              ${esc(group.subject)}
+              →
+              ${esc(group.test)}
+
+            </div>
+
+
+            ${group.results.map(
+              result => {
+
+                const x =
+                  result.data;
+
+
+                const {
+                  score,
+                  total
+                } =
+                  getScore(x);
+
+
+                const percentage =
+                  getPercentage(x);
+
+
+                const enrolled =
+                  isStudentEnrolled(x);
+
+
+                return `
+
+                  <div class="result-item">
+
+                    <div class="result-main">
+
+                      <div>
+
+                        <b>
+                          ${esc(
+                            getResultStudentName(x)
+                          )}
+                        </b>
+
+                        <br>
+
+                        <span class="small">
+                          ${esc(
+                            getResultStudentEmail(x)
+                          )}
+                        </span>
+
+                      </div>
+
+
+                      <div>
+
+                        <b>
+                          ${esc(
+                            getResultCourseName(x)
+                          )}
+                        </b>
+
+                        <br>
+
+                        <span class="small">
+                          ${esc(
+                            getResultSubject(x)
+                          )}
+                        </span>
+
+                      </div>
+
+
+                      <div>
+
+                        <span class="score">
+                          ${esc(score)}
+                          /
+                          ${esc(total)}
+                        </span>
+
+                        <br>
+
+                        <span class="small">
+                          ${percentage.toFixed(2)}%
+                        </span>
+
+                      </div>
+
+
+                      <div>
+
+                        <span class="${
+                          enrolled
+                            ? "status-enrolled"
+                            : "status-not-enrolled"
+                        }">
+
+                          ${
+                            enrolled
+                              ? "ENROLLED"
+                              : "NOT ENROLLED"
+                          }
+
+                        </span>
+
+                      </div>
+
+
+                      <div>
+
+                        <span class="small">
+
+                          ${esc(
+                            getResultDate(
+                              x.submittedAt
+                            )
+                          )}
+
+                        </span>
+
+                      </div>
+
+
+                      <div>
+
+                        <button
+                          class="btn primary"
+                          data-download-result="${esc(
+                            result.id
+                          )}"
+                        >
+                          📄 PDF
+                        </button>
+
+                        <button
+                          class="btn danger"
+                          data-delete-result="${esc(
+                            result.id
+                          )}"
+                        >
+                          Delete
+                        </button>
+
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                `;
+
+              }
+            ).join("")}
 
           </div>
 
+        `;
 
-          <div>
-            ${esc(x.score || 0)}
-            /
-            ${esc(x.total || 0)}
-          </div>
+      })
+      .join("");
 
 
-          <div>
-            ${esc(ts)}
-          </div>
+  $("resultsTable").innerHTML =
+    html;
 
 
-          <button
-            class="btn danger"
-            data-delete-result="${esc(d.id)}">
-            Delete
-          </button>
+  document
+    .querySelectorAll(
+      "[data-download-result]"
+    )
+    .forEach(button => {
 
-        </div>
-
-      `);
+      button.onclick =
+        () =>
+          downloadResultPDF(
+            button.dataset.downloadResult
+          );
 
     });
 
 
-    $("resultsTable").innerHTML =
-      rows.join("") ||
+  document
+    .querySelectorAll(
+      "[data-delete-result]"
+    )
+    .forEach(button => {
 
-      `<p class="small">
-        No test results.
-      </p>`;
+      button.onclick =
+        async () => {
+
+          if(
+            !confirm(
+              "Delete this result?"
+            )
+          ) {
+
+            return;
+
+          }
 
 
-    document
-      .querySelectorAll(
-        "[data-delete-result]"
-      )
-      .forEach(b => {
-
-        b.onclick =
-          async () => {
-
-            if(
-              !confirm(
-                "Delete this result?"
-              )
-            ){
-
-              return;
-
-            }
-
+          try {
 
             await deleteDoc(
               doc(
                 db,
                 "testResults",
-                b.dataset.deleteResult
+                button.dataset.deleteResult
               )
             );
 
 
             await refreshResults();
 
-          };
+          }
+          catch(err) {
 
-      });
+            alert(
+              "Could not delete result: " +
+              err.message
+            );
+
+          }
+
+        };
+
+    });
+
+}
 
 
-  }catch(e){
+/* =========================================================
+   REFRESH RESULTS
+========================================================= */
 
-    console.error(e);
+async function refreshResults() {
+
+  try {
+
+    await loadResults();
+
+    renderResultFilters();
+
+    renderResults();
+
+  }
+  catch(err) {
+
+    console.error(err);
 
     $("resultsTable").innerHTML =
-      `<p class="small">
+      `<div class="no-results">
         Could not load results.
         Check Firestore rules.
-      </p>`;
+      </div>`;
 
   }
 
@@ -1798,6 +3691,10 @@ $("refreshResultsBtn").onclick =
   refreshResults;
 
 
+/* =========================================================
+   DELETE ALL RESULTS
+========================================================= */
+
 $("clearResultsBtn").onclick =
   async () => {
 
@@ -1805,38 +3702,60 @@ $("clearResultsBtn").onclick =
       !confirm(
         "Delete ALL testResults documents? This cannot be undone."
       )
-    ){
+    ) {
 
       return;
 
     }
 
 
-    const snap =
-      await getDocs(
-        collection(db,"testResults")
+    try {
+
+      const snap =
+        await getDocs(
+          collection(
+            db,
+            "testResults"
+          )
+        );
+
+
+      for(
+        const d of snap.docs
+      ) {
+
+        await deleteDoc(
+          d.ref
+        );
+
+      }
+
+
+      await refreshResults();
+
+
+      alert(
+        "All test results deleted."
       );
 
+    }
+    catch(err) {
 
-    for(
-      const d of snap.docs
-    ){
-
-      await deleteDoc(d.ref);
+      alert(
+        "Could not delete all results: " +
+        err.message
+      );
 
     }
-
-
-    await refreshResults();
 
   };
 
 
-// ======================================================
-// DEVICES
-// ======================================================
+/* =========================================================
+   DEVICES
+========================================================= */
 
-async function loadDevices(){
+async function loadDevices() {
 
   const host =
     $("deviceStudents");
@@ -1849,17 +3768,17 @@ async function loadDevices(){
   let html = "";
 
 
-  try{
+  try {
 
-    const us =
+    const usersSnap =
       await getDocs(
         collection(db,"users")
       );
 
 
     for(
-      const ud of us.docs
-    ){
+      const ud of usersSnap.docs
+    ) {
 
       const u =
         ud.data();
@@ -1868,7 +3787,7 @@ async function loadDevices(){
       if(!u.email) continue;
 
 
-      const ds =
+      const devicesSnap =
         await getDocs(
           collection(
             db,
@@ -1890,20 +3809,21 @@ async function loadDevices(){
       `;
 
 
-      if(ds.empty){
+      if(
+        devicesSnap.empty
+      ) {
 
-        html += `
-          <p class="small">
+        html +=
+          `<p class="small">
             No reserved devices.
-          </p>
-        `;
+          </p>`;
 
       }
 
 
       for(
-        const dd of ds.docs
-      ){
+        const dd of devicesSnap.docs
+      ) {
 
         const x =
           dd.data();
@@ -1915,13 +3835,18 @@ async function loadDevices(){
 
             <button
               class="btn danger"
-              data-release-device="${esc(ud.id)}|${esc(dd.id)}">
+              data-release-device="${esc(
+                ud.id
+              )}|${esc(dd.id)}"
+            >
               Release
             </button>
 
+
             <b>
               ${esc(
-                x.deviceType || "unknown"
+                x.deviceType ||
+                "unknown"
               )}
             </b>
 
@@ -1938,7 +3863,9 @@ async function loadDevices(){
               ${esc(
                 x.expiresAt
                   ? new Date(
-                      Number(x.expiresAt)
+                      Number(
+                        x.expiresAt
+                      )
                     ).toLocaleString()
                   : "-"
               )}
@@ -1952,14 +3879,14 @@ async function loadDevices(){
       }
 
 
-      html += `</div>`;
+      html +=
+        `</div>`;
 
     }
 
 
     host.innerHTML =
       html ||
-
       `<p class="small">
         No users/devices found.
         Device documents are created when students log in.
@@ -1970,16 +3897,16 @@ async function loadDevices(){
       .querySelectorAll(
         "[data-release-device]"
       )
-      .forEach(b => {
+      .forEach(button => {
 
-        b.onclick =
+        button.onclick =
           async () => {
 
             if(
               !confirm(
                 "Release this device reservation?"
               )
-            ){
+            ) {
 
               return;
 
@@ -1990,31 +3917,45 @@ async function loadDevices(){
               uid,
               did
             ] =
-              b.dataset.releaseDevice
+              button
+                .dataset
+                .releaseDevice
                 .split("|");
 
 
-            await deleteDoc(
-              doc(
-                db,
-                "users",
-                uid,
-                "devices",
-                did
-              )
-            );
+            try {
+
+              await deleteDoc(
+                doc(
+                  db,
+                  "users",
+                  uid,
+                  "devices",
+                  did
+                )
+              );
 
 
-            loadDevices();
+              loadDevices();
+
+            }
+            catch(err) {
+
+              alert(
+                "Could not release device: " +
+                err.message
+              );
+
+            }
 
           };
 
       });
 
+  }
+  catch(err) {
 
-  }catch(e){
-
-    console.error(e);
+    console.error(err);
 
     host.innerHTML =
       `<p class="small">
@@ -2027,9 +3968,9 @@ async function loadDevices(){
 }
 
 
-// ======================================================
-// IMPORT EXISTING DATA
-// ======================================================
+/* =========================================================
+   IMPORT DEFAULT DATA
+========================================================= */
 
 $("seedBtn").onclick =
   async () => {
@@ -2038,27 +3979,29 @@ $("seedBtn").onclick =
       !confirm(
         "Import the existing dashboard students and courses into Firestore? Existing documents with the same IDs will be overwritten."
       )
-    ){
+    ) {
 
       return;
 
     }
 
 
-    try{
+    try {
 
       for(
-        const [email,s]
-        of Object.entries(
+        const [
+          email,
+          s
+        ] of Object.entries(
           DEFAULT_STUDENTS
         )
-      ){
+      ) {
 
         if(
           ADMIN_EMAILS.includes(
             email.toLowerCase()
           )
-        ){
+        ) {
 
           continue;
 
@@ -2066,46 +4009,49 @@ $("seedBtn").onclick =
 
 
         await setDoc(
-
           doc(
             db,
             "students",
             studentDocId(email)
           ),
-
           {
+
             ...s,
+
             email,
+
             updatedAt:
               serverTimestamp()
-          }
 
+          }
         );
 
       }
 
 
       for(
-        const [id,c]
-        of Object.entries(
+        const [
+          id,
+          c
+        ] of Object.entries(
           DEFAULT_COURSES
         )
-      ){
+      ) {
 
         await setDoc(
-
           doc(
             db,
             "courses",
             id
           ),
-
           {
+
             ...c,
+
             updatedAt:
               serverTimestamp()
-          }
 
+          }
         );
 
       }
@@ -2118,18 +4064,14 @@ $("seedBtn").onclick =
         "Existing dashboard data imported successfully."
       );
 
-
-    }catch(err){
+    }
+    catch(err) {
 
       console.error(err);
 
       alert(
         "Import failed: " +
-        (
-          err.message ||
-          err.code ||
-          "Unknown error"
-        )
+        err.message
       );
 
     }
@@ -2137,52 +4079,8 @@ $("seedBtn").onclick =
   };
 
 
-// ======================================================
-// SEARCH EVENTS
-// ======================================================
-
-$("studentSearch")
-  ?.addEventListener(
-    "input",
-    () => renderStudents()
-  );
-
-
-$("clearStudentSearch")
-  ?.addEventListener(
-    "click",
-    () => {
-
-      $("studentSearch").value = "";
-
-      renderStudents();
-
-    }
-  );
-
-
-$("courseSearch")
-  ?.addEventListener(
-    "input",
-    () => renderCourses()
-  );
-
-
-$("clearCourseSearch")
-  ?.addEventListener(
-    "click",
-    () => {
-
-      $("courseSearch").value = "";
-
-      renderCourses();
-
-    }
-  );
-
-
-// ======================================================
-// INITIAL COURSE ROW
-// ======================================================
+/* =========================================================
+   INITIAL COURSE FORM
+========================================================= */
 
 clearCourse();
