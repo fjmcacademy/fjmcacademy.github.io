@@ -1,30 +1,657 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>FJMC Academy | Admin Panel</title>
-<style>
-*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#0f172a;color:#e5e7eb}.top{display:flex;justify-content:space-between;align-items:center;padding:16px 22px;background:#111827;position:sticky;top:0;z-index:5}.top h1{margin:0;font-size:22px}.top button,.btn{border:0;border-radius:9px;padding:10px 14px;cursor:pointer;font-weight:700}.primary{background:#2563eb;color:#fff}.danger{background:#dc2626;color:#fff}.muted{background:#334155;color:#fff}.layout{display:grid;grid-template-columns:230px 1fr;min-height:calc(100vh - 65px)}.side{background:#111827;padding:15px}.side button{width:100%;margin:5px 0;text-align:left;background:#1f2937;color:#fff;border:0;padding:12px;border-radius:9px;cursor:pointer}.side button.active{background:#2563eb}.main{padding:22px;max-width:1300px;width:100%;margin:auto}.section{display:none}.section.active{display:block}.card{background:#111827;border:1px solid #243047;border-radius:14px;padding:18px;margin-bottom:18px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}label{font-size:13px;color:#94a3b8}input,select,textarea{width:100%;margin-top:6px;padding:11px;border-radius:8px;border:1px solid #334155;background:#0b1220;color:#fff}textarea{min-height:80px;resize:vertical}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px;border-bottom:1px solid #263247;text-align:left;vertical-align:top}.pill{display:inline-block;background:#1e3a8a;padding:4px 8px;border-radius:99px;font-size:12px;margin:2px}.content-row{display:grid;grid-template-columns:130px 1fr 1fr auto;gap:8px;align-items:end;margin:8px 0}.content-row button{height:40px}.login{max-width:420px;margin:10vh auto;padding:24px}.notice{padding:12px;border-radius:9px;background:#172554;margin-bottom:14px}.error{background:#450a0a}.success{background:#064e3b}.hidden{display:none!important}.small{font-size:12px;color:#94a3b8}.stat{font-size:28px;font-weight:800}.result-row{display:grid;grid-template-columns:1fr 1fr 100px 120px 90px;gap:10px;padding:10px;border-bottom:1px solid #263247;align-items:center}.checklist{max-height:220px;overflow:auto;border:1px solid #334155;border-radius:8px;padding:8px}.check{display:flex;gap:8px;align-items:center;padding:6px}.check input{width:auto;margin:0}.device{padding:10px;border:1px solid #334155;border-radius:8px;margin:7px 0}.device button{float:right}.mobile-note{display:none}
-@media(max-width:800px){.layout{grid-template-columns:1fr}.side{display:flex;overflow:auto;gap:6px}.side button{min-width:max-content}.grid,.grid3{grid-template-columns:1fr}.content-row{grid-template-columns:1fr}.result-row{grid-template-columns:1fr 1fr}.mobile-note{display:block}.top h1{font-size:18px}}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FJMC Academy Admin</title>
+
+  <style>
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Arial,sans-serif;
+      background:#0b1220;
+      color:#e5e7eb;
+    }
+
+    button,input,select,textarea{font:inherit}
+
+    header{
+      height:64px;
+      background:#111827;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:0 22px;
+      border-bottom:1px solid #263244;
+    }
+
+    header h2{margin:0}
+
+    .logout{
+      background:#dc2626;
+      color:white;
+      border:0;
+      padding:9px 16px;
+      border-radius:7px;
+      cursor:pointer;
+    }
+
+    .layout{
+      display:flex;
+      min-height:calc(100vh - 64px);
+    }
+
+    aside{
+      width:230px;
+      background:#111827;
+      border-right:1px solid #263244;
+      padding:15px;
+    }
+
+    .nav-btn{
+      width:100%;
+      padding:12px;
+      margin-bottom:8px;
+      border:0;
+      border-radius:7px;
+      background:#1f2937;
+      color:#ddd;
+      text-align:left;
+      cursor:pointer;
+    }
+
+    .nav-btn:hover,
+    .nav-btn.active{
+      background:#2563eb;
+      color:#fff;
+    }
+
+    main{
+      flex:1;
+      padding:24px;
+      overflow:auto;
+    }
+
+    .section{display:none}
+    .section.active{display:block}
+
+    .card{
+      background:#111827;
+      border:1px solid #263244;
+      border-radius:10px;
+      padding:18px;
+      margin-bottom:18px;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:12px;
+    }
+
+    .grid-3{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:12px;
+    }
+
+    label{
+      display:block;
+      margin-bottom:5px;
+      color:#cbd5e1;
+      font-size:14px;
+    }
+
+    input,select,textarea{
+      width:100%;
+      background:#0f172a;
+      color:white;
+      border:1px solid #334155;
+      border-radius:7px;
+      padding:10px;
+      outline:none;
+    }
+
+    textarea{
+      min-height:90px;
+      resize:vertical;
+    }
+
+    input:focus,select:focus,textarea:focus{
+      border-color:#3b82f6;
+    }
+
+    .btn{
+      border:0;
+      padding:9px 14px;
+      border-radius:7px;
+      cursor:pointer;
+      color:#fff;
+      background:#2563eb;
+      margin:4px;
+    }
+
+    .btn.green{background:#16a34a}
+    .btn.red{background:#dc2626}
+    .btn.gray{background:#475569}
+    .btn.orange{background:#ea580c}
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+    }
+
+    th,td{
+      padding:10px;
+      border-bottom:1px solid #263244;
+      text-align:left;
+      vertical-align:top;
+    }
+
+    th{color:#93c5fd}
+
+    .small{
+      font-size:13px;
+      color:#94a3b8;
+    }
+
+    .question-box{
+      border:1px solid #334155;
+      border-radius:9px;
+      padding:15px;
+      margin-top:15px;
+      background:#0f172a;
+    }
+
+    .option-row{
+      display:grid;
+      grid-template-columns:55px 1fr;
+      gap:8px;
+      margin-top:8px;
+      align-items:center;
+    }
+
+    .correct-row{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      margin-top:10px;
+    }
+
+    .correct-row select{
+      max-width:130px;
+    }
+
+    .stats{
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      gap:12px;
+    }
+
+    .stat{
+      background:#111827;
+      border:1px solid #263244;
+      border-radius:10px;
+      padding:18px;
+    }
+
+    .stat strong{
+      display:block;
+      font-size:28px;
+      margin-top:8px;
+    }
+
+    .badge{
+      display:inline-block;
+      padding:4px 8px;
+      border-radius:20px;
+      background:#1e3a8a;
+      color:#bfdbfe;
+      font-size:12px;
+      margin:2px;
+    }
+
+    .search{
+      margin-bottom:15px;
+    }
+
+    .hidden{display:none!important}
+
+    @media(max-width:900px){
+      aside{width:180px}
+      .grid,.grid-3,.stats{
+        grid-template-columns:1fr;
+      }
+      table{
+        min-width:800px;
+      }
+    }
+  </style>
 </head>
+
 <body>
-<div id="loginView" class="card login">
-<h2>FJMC Academy Admin</h2><p class="small">Sign in with a Firebase Authentication admin account.</p>
-<div id="loginMsg" class="notice hidden"></div>
-<form id="adminLoginForm"><label>Email<input id="adminEmail" type="email" required></label><br><label>Password<input id="adminPassword" type="password" required></label><div class="actions"><button class="btn primary">Admin Login</button></div></form>
+
+<header>
+  <h2>FJMC Academy — Admin Panel</h2>
+  <button class="logout" id="logoutBtn">Logout</button>
+</header>
+
+<div class="layout">
+
+  <aside>
+    <button class="nav-btn active" data-section="overview">📊 Overview</button>
+    <button class="nav-btn" data-section="students">👨‍🎓 Students</button>
+    <button class="nav-btn" data-section="courses">📚 Courses</button>
+    <button class="nav-btn" data-section="tests">📝 Tests</button>
+    <button class="nav-btn" data-section="results">📈 Results</button>
+    <button class="nav-btn" data-section="devices">💻 Devices</button>
+  </aside>
+
+  <main>
+
+    <!-- OVERVIEW -->
+    <section id="overview" class="section active">
+      <h2>Dashboard</h2>
+
+      <div class="stats">
+        <div class="stat">
+          Students
+          <strong id="studentCount">0</strong>
+        </div>
+
+        <div class="stat">
+          Courses
+          <strong id="courseCount">0</strong>
+        </div>
+
+        <div class="stat">
+          Tests
+          <strong id="testCount">0</strong>
+        </div>
+
+        <div class="stat">
+          Results
+          <strong id="resultCount">0</strong>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- STUDENTS -->
+    <section id="students" class="section">
+      <h2>Student Management</h2>
+
+      <div class="card">
+
+        <input type="hidden" id="studentDocId">
+
+        <div class="grid">
+
+          <div>
+            <label>Student ID</label>
+            <input id="studentId" placeholder="FJMC001">
+          </div>
+
+          <div>
+            <label>Student Name</label>
+            <input id="studentName" placeholder="Student name">
+          </div>
+
+          <div>
+            <label>Gmail</label>
+            <input id="studentEmail" type="email" placeholder="student@gmail.com">
+          </div>
+
+          <div>
+            <label>Password — New Student</label>
+            <input id="studentPassword" type="password" placeholder="New student password">
+          </div>
+
+          <div>
+            <label>Exam</label>
+            <input id="studentExam" placeholder="CSIR NET">
+          </div>
+
+          <div>
+            <label>Batch</label>
+            <input id="studentBatch" placeholder="Batch 2026">
+          </div>
+
+          <div>
+            <label>Year</label>
+            <input id="studentYear" placeholder="2026">
+          </div>
+
+        </div>
+
+        <h3>Assign Courses</h3>
+
+        <div id="studentCourses"></div>
+
+        <button class="btn green" id="saveStudentBtn">
+          Save Student
+        </button>
+
+        <button class="btn gray" id="clearStudentBtn">
+          Clear
+        </button>
+      </div>
+
+      <div class="card">
+        <h3>Search Students</h3>
+
+        <input
+          class="search"
+          id="studentSearch"
+          placeholder="Search by Student ID, Gmail, Name, Exam or Batch..."
+        >
+
+        <div style="overflow:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Exam</th>
+                <th>Batch</th>
+                <th>Year</th>
+                <th>Courses</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+
+            <tbody id="studentsTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- COURSES -->
+    <section id="courses" class="section">
+
+      <h2>Course Management</h2>
+
+      <div class="card">
+
+        <input type="hidden" id="courseEditingId">
+
+        <div class="grid">
+
+          <div>
+            <label>Course ID</label>
+            <input id="courseId" placeholder="csir-real-analysis">
+          </div>
+
+          <div>
+            <label>Exam</label>
+            <input id="courseExam" placeholder="CSIR NET">
+          </div>
+
+          <div>
+            <label>Batch</label>
+            <input id="courseBatch" placeholder="Batch 2026">
+          </div>
+
+          <div>
+            <label>Year</label>
+            <input id="courseYear" placeholder="2026">
+          </div>
+
+          <div>
+            <label>Subject</label>
+            <input id="courseSubject" placeholder="Real Analysis">
+          </div>
+
+          <div>
+            <label>Title</label>
+            <input id="courseTitle" placeholder="CSIR NET Real Analysis">
+          </div>
+
+          <div>
+            <label>Test ID</label>
+            <input id="courseTestId" placeholder="test-real-analysis-01">
+          </div>
+
+        </div>
+
+        <br>
+
+        <label>Description</label>
+        <textarea id="courseDescription"></textarea>
+
+        <button class="btn green" id="saveCourseBtn">
+          Save Course
+        </button>
+
+        <button class="btn gray" id="clearCourseBtn">
+          Clear
+        </button>
+      </div>
+
+      <div class="card">
+
+        <input
+          class="search"
+          id="courseSearch"
+          placeholder="Search course, exam, batch, subject..."
+        >
+
+        <div style="overflow:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Course ID</th>
+                <th>Exam</th>
+                <th>Batch</th>
+                <th>Subject</th>
+                <th>Title</th>
+                <th>Test</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+
+            <tbody id="coursesTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- TESTS -->
+    <section id="tests" class="section">
+
+      <h2>Test Management</h2>
+
+      <div class="card">
+
+        <input type="hidden" id="testEditingId">
+
+        <div class="grid-3">
+
+          <div>
+            <label>Test ID</label>
+            <input id="testId" placeholder="test-real-analysis-01">
+          </div>
+
+          <div>
+            <label>Test Title</label>
+            <input id="testTitle" placeholder="Real Analysis Test 1">
+          </div>
+
+          <div>
+            <label>Exam</label>
+            <input id="testExam" placeholder="CSIR NET">
+          </div>
+
+          <div>
+            <label>Batch</label>
+            <input id="testBatch" placeholder="Batch 2026">
+          </div>
+
+          <div>
+            <label>Course ID</label>
+            <input id="testCourseId" placeholder="real-analysis">
+          </div>
+
+          <div>
+            <label>Lecture</label>
+            <input id="testLecture" placeholder="Lecture 1">
+          </div>
+
+          <div>
+            <label>Test Number</label>
+            <input id="testNumber" placeholder="1">
+          </div>
+
+          <div>
+            <label>Duration (minutes)</label>
+            <input id="testDuration" type="number" value="30">
+          </div>
+
+        </div>
+
+        <h3>Questions</h3>
+
+        <div id="questionsContainer"></div>
+
+        <button class="btn" id="addQuestionBtn">
+          + Add Question
+        </button>
+
+        <br><br>
+
+        <button class="btn green" id="saveTestBtn">
+          Save Test
+        </button>
+
+        <button class="btn gray" id="clearTestBtn">
+          Clear
+        </button>
+
+      </div>
+
+
+      <div class="card">
+
+        <input
+          class="search"
+          id="testSearch"
+          placeholder="Search Test ID, title, course, exam, batch..."
+        >
+
+        <div style="overflow:auto">
+
+          <table>
+            <thead>
+              <tr>
+                <th>Test ID</th>
+                <th>Title</th>
+                <th>Exam</th>
+                <th>Batch</th>
+                <th>Course</th>
+                <th>Lecture</th>
+                <th>Questions</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+
+            <tbody id="testsTable"></tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- RESULTS -->
+    <section id="results" class="section">
+
+      <h2>Test Results</h2>
+
+      <div class="card">
+
+        <input
+          class="search"
+          id="resultSearch"
+          placeholder="Search Student ID, Gmail, Name, Course, Test..."
+        >
+
+        <div style="overflow:auto">
+
+          <table>
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Email</th>
+                <th>Student ID</th>
+                <th>Course</th>
+                <th>Test</th>
+                <th>Score</th>
+                <th>%</th>
+                <th>Date</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+
+            <tbody id="resultsTable"></tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+      <div class="card hidden" id="resultDetails">
+        <h3>Result Details</h3>
+        <div id="resultDetailsContent"></div>
+      </div>
+
+    </section>
+
+
+    <!-- DEVICES -->
+    <section id="devices" class="section">
+
+      <h2>Student Devices</h2>
+
+      <div class="card">
+        <button class="btn" id="refreshDevicesBtn">
+          Refresh Devices
+        </button>
+
+        <div style="overflow:auto">
+
+          <table>
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Email</th>
+                <th>Device</th>
+                <th>Last Seen</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+
+            <tbody id="devicesTable"></tbody>
+
+          </table>
+
+        </div>
+      </div>
+
+    </section>
+
+  </main>
 </div>
-<div id="app" class="hidden">
-<header class="top"><h1>FJMC Academy — Admin Panel</h1><div><span id="adminUser" class="small"></span> <button id="logoutBtn" class="btn muted">Logout</button></div></header>
-<div class="layout"><aside class="side">
-<button data-section="home" class="active">🏠 Overview</button><button data-section="students">👨‍🎓 Students</button><button data-section="courses">📚 Courses & Content</button><button data-section="results">🏆 Test Results</button><button data-section="devices">📱 Devices</button>
-</aside><main class="main">
-<section id="home" class="section active"><div class="card"><h2>Admin Overview</h2><p>Student dashboard ab data Firestore se load karega. Yahan se students, course assignments, videos/PDF/live links aur device reservations manage karein.</p><div class="actions"><button id="seedBtn" class="btn primary">Import Existing Dashboard Data</button></div><p class="small">Ye existing sample students/courses ko Firestore me import karta hai. Admin account ko student list me import nahi kiya jayega. New student banate waqt password dene par Firebase Authentication account bhi create hoga.</p></div><div class="grid3"><div class="card"><div class="small">Students</div><div id="statStudents" class="stat">0</div></div><div class="card"><div class="small">Courses</div><div id="statCourses" class="stat">0</div></div><div class="card"><div class="small">Test Results</div><div id="statResults" class="stat">0</div></div></div></section>
-<section id="students" class="section"><div class="card"><h2>Student Management</h2><form id="studentForm"><div class="grid"><label>Email<input id="sEmail" type="email" required></label><label>Password (new student only)<input id="sPassword" type="password" minlength="6" placeholder="At least 6 characters"></label><label>Name<input id="sName" required></label><label>Exam<input id="sExam" placeholder="CSIR NET" required></label><label>Batch<input id="sBatch" placeholder="Batch 1" required></label><label>Year<input id="sYear" placeholder="2026" required></label></div><label style="display:block;margin-top:12px">Assign Courses</label><div id="courseChecklist" class="checklist"></div><div class="actions"><button class="btn primary">Save Student</button><button type="button" id="newStudentBtn" class="btn muted">New / Clear</button></div></form></div><div class="card"><h3>Students</h3><div id="studentsTable" class="table-wrap"></div></div></section>
-<section id="courses" class="section"><div class="card"><h2>Course & Content Management</h2><form id="courseForm"><div class="grid3"><label>Course ID<input id="cId" placeholder="csir-net-2026-batch1-real-analysis" required></label><label>Exam<input id="cExam" required></label><label>Batch<input id="cBatch" required></label><label>Year<input id="cYear" required></label><label>Subject<input id="cSubject" required></label><label>Title<input id="cTitle" required></label></div><label style="display:block;margin-top:12px">Description<textarea id="cDescription"></textarea></label><label style="display:block;margin-top:12px">Test ID (existing test.js ID)<input id="cTestId" placeholder="real-analysis"></label><h3>Course Content</h3><div id="contentsEditor"></div><div class="actions"><button type="button" id="addContentBtn" class="btn muted">+ Add Content</button><button class="btn primary">Save Course</button><button type="button" id="newCourseBtn" class="btn muted">New / Clear</button></div></form></div><div class="card"><h3>Courses</h3><div id="coursesTable" class="table-wrap"></div></div></section>
-<section id="results" class="section"><div class="card"><h2>Test Results / Leaderboard Data</h2><div class="actions"><button id="refreshResultsBtn" class="btn muted">Refresh</button><button id="clearResultsBtn" class="btn danger">Delete ALL Test Results</button></div><div id="resultsTable" class="table-wrap"></div></div></section>
-<section id="devices" class="section"><div class="card"><h2>Device Reservations</h2><p class="small">Logout se slot free nahi hota. Yahan se admin kisi student ka device reservation manually release kar sakta hai.</p><div id="deviceStudents"></div></div></section>
-</main></div></div>
+
+
 <script type="module" src="./admin.js"></script>
-</body></html>
+
+</body>
+</html>
