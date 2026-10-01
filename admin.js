@@ -1,113 +1,2151 @@
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-import { collection, doc, getDoc, getDocs, setDoc, deleteDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
-import { auth, db, app } from "./firebase.js";
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-import { DEFAULT_STUDENTS, DEFAULT_COURSES } from "./admin-default-data.js";
+import {
+  getAuth,
+  onAuthStateChanged,
+  signOut,
+  createUserWithEmailAndPassword
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 
-// IMPORTANT: change this to the Firebase Authentication email(s) you want to use as admins.
-const ADMIN_EMAILS = ["fjmcacademy1008@gmail.com"];
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  deleteDoc,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
-const $ = id => document.getElementById(id);
-let currentUser = null;
-let students = {};
-let courses = {};
-let editingStudentId = null;
-let editingCourseId = null;
-const secondaryApp = initializeApp(app.options, "fjmcStudentCreator");
+import {
+  initializeApp
+} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+
+import { app, auth, db } from "./firebase.js";
+
+
+/* =========================================================
+   ADMIN
+========================================================= */
+
+const ADMIN_EMAILS = [
+  "fjmcacademy1008@gmail.com"
+];
+
+const secondaryApp = initializeApp(
+  app.options,
+  "fjmcStudentCreator"
+);
+
 const secondaryAuth = getAuth(secondaryApp);
 
-function studentDocId(email){ return email.trim().toLowerCase().replaceAll("/","_"); }
-function showMsg(text, ok=false){ const el=$("loginMsg"); el.textContent=text; el.className="notice "+(ok?"success":"error"); }
-function isAdmin(user){ return user && ADMIN_EMAILS.includes((user.email||"").toLowerCase()); }
-function esc(v=""){ return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
 
-onAuthStateChanged(auth, async user=>{
-  if(!user){ $("loginView").classList.remove("hidden"); $("app").classList.add("hidden"); return; }
-  if(!isAdmin(user)){ showMsg("This Firebase account is not authorized as admin."); await signOut(auth); return; }
-  currentUser=user; $("loginView").classList.add("hidden"); $("app").classList.remove("hidden"); $("adminUser").textContent=user.email; await refreshAll();
-});
+/* =========================================================
+   GLOBAL DATA
+========================================================= */
 
-$("adminLoginForm").addEventListener("submit",async e=>{
-  e.preventDefault();
-  const email=$("adminEmail").value.trim().toLowerCase();
-  const password=$("adminPassword").value;
-  showMsg("Signing in...",true);
-  try {
-    await signInWithEmailAndPassword(auth,email,password);
-  } catch(err) {
-    console.error("Admin Firebase login error:",err);
-    const code=err?.code||"";
-    if(code==="auth/invalid-credential"||code==="auth/wrong-password") showMsg("Incorrect admin email or password.");
-    else if(code==="auth/user-not-found") showMsg("This Firebase Authentication account does not exist.");
-    else if(code==="auth/invalid-email") showMsg("Please enter a valid email address.");
-    else if(code==="auth/too-many-requests") showMsg("Too many attempts. Please try again later.");
-    else showMsg("Admin login failed: "+(err?.message||"Unknown Firebase error"));
+let students = [];
+let courses = [];
+let tests = [];
+let results = [];
+
+let questionCounter = 0;
+
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+function $(id){
+  return document.getElementById(id);
+}
+
+function escapeHTML(value){
+  return String(value ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+function studentDocId(email){
+  return email
+    .trim()
+    .toLowerCase()
+    .replaceAll("/","_");
+}
+
+function safeId(value){
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g,"-")
+    .replace(/[^a-zA-Z0-9_-]/g,"")
+    .toLowerCase();
+}
+
+function formatDate(value){
+
+  if(!value) return "-";
+
+  try{
+
+    if(value.toDate){
+      return value.toDate().toLocaleString();
+    }
+
+    return new Date(value).toLocaleString();
+
+  }catch{
+    return "-";
   }
+}
+
+
+/* =========================================================
+   AUTH CHECK
+========================================================= */
+
+onAuthStateChanged(auth, async(user)=>{
+
+  if(!user){
+
+    location.href = "login.html";
+    return;
+
+  }
+
+  const email = (user.email || "").toLowerCase();
+
+  if(!ADMIN_EMAILS.includes(email)){
+
+    alert("Admin access denied.");
+
+    await signOut(auth);
+
+    location.href = "login.html";
+
+    return;
+  }
+
+  await loadAll();
+
 });
-$("logoutBtn").onclick=()=>signOut(auth);
 
-document.querySelectorAll(".side button").forEach(btn=>btn.onclick=()=>{document.querySelectorAll(".side button").forEach(b=>b.classList.remove("active"));btn.classList.add("active");document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));$(btn.dataset.section).classList.add("active");if(btn.dataset.section==="devices") loadDevices();});
 
-async function loadData(){
-  students={}; courses={};
-  const [ss,cs]=await Promise.all([getDocs(collection(db,"students")),getDocs(collection(db,"courses"))]);
-  ss.forEach(d=>students[d.id]=d.data()); cs.forEach(d=>courses[d.id]=d.data());
+/* =========================================================
+   LOAD EVERYTHING
+========================================================= */
+
+async function loadAll(){
+
+  try{
+
+    await Promise.all([
+      loadStudents(),
+      loadCourses(),
+      loadTests(),
+      loadResults()
+    ]);
+
+    renderAll();
+
+  }catch(error){
+
+    console.error(error);
+
+    alert(
+      "Data load error: " +
+      error.message
+    );
+
+  }
+
 }
-async function refreshAll(){await loadData();renderStudents();renderCourses();renderCourseChecklist();await refreshResults();}
 
-function renderCourseChecklist(){
-  $("courseChecklist").innerHTML=Object.entries(courses).map(([id,c])=>`<label class="check"><input type="checkbox" value="${esc(id)}"> ${esc(c.title||id)} <span class="small">(${esc(c.exam||"")} • ${esc(c.batch||"")} • ${esc(c.year||"")})</span></label>`).join("")||'<div class="small">No courses yet. Create a course first.</div>';
+
+/* =========================================================
+   STUDENTS
+========================================================= */
+
+async function loadStudents(){
+
+  const snap = await getDocs(
+    collection(db,"students")
+  );
+
+  students = snap.docs.map(d=>({
+    docId:d.id,
+    ...d.data()
+  }));
+
 }
+
 function renderStudents(){
-  $("statStudents").textContent=Object.keys(students).length;
-  $("studentsTable").innerHTML=`<table class="table"><tr><th>Student</th><th>Exam / Batch / Year</th><th>Courses</th><th>Actions</th></tr>`+Object.entries(students).map(([id,s])=>`<tr><td><b>${esc(s.name)}</b><br><span class="small">${esc(s.email||id)}</span></td><td>${esc(s.exam)}<br>${esc(s.batch)} • ${esc(s.year)}</td><td>${(s.courses||[]).map(x=>`<span class="pill">${esc(courses[x]?.title||x)}</span>`).join("")}</td><td><button class="btn muted" data-edit-student="${esc(id)}">Edit</button> <button class="btn danger" data-delete-student="${esc(id)}">Delete</button></td></tr>`).join("")+`</table>`;
-  document.querySelectorAll("[data-edit-student]").forEach(b=>b.onclick=()=>editStudent(b.dataset.editStudent));
-  document.querySelectorAll("[data-delete-student]").forEach(b=>b.onclick=()=>deleteStudent(b.dataset.deleteStudent));
+
+  const search =
+    ($("studentSearch")?.value || "")
+      .toLowerCase()
+      .trim();
+
+  const tbody = $("studentsTable");
+
+  if(!tbody) return;
+
+  const filtered = students.filter(s=>{
+
+    const text = [
+
+      s.studentId,
+      s.name,
+      s.email,
+      s.exam,
+      s.batch,
+      s.year
+
+    ].join(" ").toLowerCase();
+
+    return text.includes(search);
+
+  });
+
+  tbody.innerHTML = filtered.map(s=>{
+
+    const courseList =
+      Array.isArray(s.courses)
+        ? s.courses
+        : [];
+
+    return `
+      <tr>
+
+        <td>
+          <b>${escapeHTML(s.studentId || "-")}</b>
+        </td>
+
+        <td>${escapeHTML(s.name || "-")}</td>
+
+        <td>${escapeHTML(s.email || "-")}</td>
+
+        <td>
+          <span class="badge">
+            ${escapeHTML(s.exam || "-")}
+          </span>
+        </td>
+
+        <td>
+          <span class="badge">
+            ${escapeHTML(s.batch || "-")}
+          </span>
+        </td>
+
+        <td>${escapeHTML(s.year || "-")}</td>
+
+        <td>
+          ${courseList.map(c=>{
+
+            const id =
+              typeof c === "string"
+                ? c
+                : (c.id || c.courseId || "");
+
+            return `
+              <span class="badge">
+                ${escapeHTML(id)}
+              </span>
+            `;
+
+          }).join("")}
+        </td>
+
+        <td>
+
+          <button
+            class="btn"
+            onclick="editStudent('${escapeHTML(s.docId)}')">
+            Edit
+          </button>
+
+          <button
+            class="btn red"
+            onclick="removeStudent('${escapeHTML(s.docId)}')">
+            Delete
+          </button>
+
+        </td>
+
+      </tr>
+    `;
+
+  }).join("");
+
 }
-function editStudent(id){let s=students[id];editingStudentId=id;$("sEmail").value=s.email||id;$("sName").value=s.name||"";$("sExam").value=s.exam||"";$("sBatch").value=s.batch||"";$("sYear").value=s.year||"";document.querySelectorAll("#courseChecklist input").forEach(x=>x.checked=(s.courses||[]).includes(x.value));window.scrollTo({top:0,behavior:"smooth"});}
-function clearStudent(){editingStudentId=null;$("studentForm").reset();document.querySelectorAll("#courseChecklist input").forEach(x=>x.checked=false);}
-$("newStudentBtn").onclick=clearStudent;
-$("studentForm").onsubmit=async e=>{
- e.preventDefault();
- const email=$("sEmail").value.trim().toLowerCase();
- const password=$("sPassword")?.value||"";
- const id=studentDocId(email);
- const selected=[...document.querySelectorAll("#courseChecklist input:checked")].map(x=>x.value);
- const wasEditing=!!editingStudentId;
- try {
-  if(!wasEditing && password){
-   if(password.length<6) throw new Error("Student password must be at least 6 characters.");
-   try { await createUserWithEmailAndPassword(secondaryAuth,email,password); }
-   catch(authErr){ if(authErr.code!=="auth/email-already-in-use") throw authErr; }
+
+
+/* =========================================================
+   COURSE CHECKBOXES FOR STUDENTS
+========================================================= */
+
+function renderCourseCheckboxes(){
+
+  const box = $("studentCourses");
+
+  if(!box) return;
+
+  if(!courses.length){
+
+    box.innerHTML =
+      `<p class="small">No courses found.</p>`;
+
+    return;
   }
-  await setDoc(doc(db,"students",id),{email,name:$("sName").value.trim(),exam:$("sExam").value.trim(),batch:$("sBatch").value.trim(),year:$("sYear").value.trim(),courses:selected,updatedAt:serverTimestamp()},{merge:true});
-  await loadData(); renderStudents(); renderCourseChecklist(); clearStudent();
-  alert(wasEditing?"Student profile updated.":"Student saved successfully.");
- } catch(err){ console.error(err); alert("Could not save student: "+(err.message||err.code||"Unknown error")); }
-};
-async function deleteStudent(id){if(!confirm("Delete this student profile? Firebase Authentication account will NOT be deleted."))return;await deleteDoc(doc(db,"students",id));await loadData();renderStudents();}
 
-function addContentRow(item={type:"video",title:"",url:""}){const row=document.createElement("div");row.className="content-row";row.innerHTML=`<label>Type<select class="ct-type"><option value="video">YouTube/Video</option><option value="local-video">Local Video</option><option value="pdf">PDF</option><option value="live">Live</option></select></label><label>Title<input class="ct-title"></label><label>URL<input class="ct-url"></label><button type="button" class="btn danger remove-content">×</button>`;row.querySelector(".ct-type").value=item.type||"video";row.querySelector(".ct-title").value=item.title||"";row.querySelector(".ct-url").value=item.url||"";row.querySelector(".remove-content").onclick=()=>row.remove();$("contentsEditor").appendChild(row);}
-$("addContentBtn").onclick=()=>addContentRow();
-function clearCourse(){editingCourseId=null;$("courseForm").reset();$("contentsEditor").innerHTML="";addContentRow();}
-$("newCourseBtn").onclick=clearCourse;
-function editCourse(id){let c=courses[id];editingCourseId=id;$("cId").value=id;$("cExam").value=c.exam||"";$("cBatch").value=c.batch||"";$("cYear").value=c.year||"";$("cSubject").value=c.subject||"";$("cTitle").value=c.title||"";$("cDescription").value=c.description||"";$("cTestId").value=c.testId||"";$("contentsEditor").innerHTML="";(c.contents||[]).forEach(addContentRow);if(!(c.contents||[]).length)addContentRow();window.scrollTo({top:0,behavior:"smooth"});}
-function renderCourses(){
- $("statCourses").textContent=Object.keys(courses).length;
- $("coursesTable").innerHTML=`<table class="table"><tr><th>Course</th><th>Exam / Batch / Year</th><th>Content</th><th>Actions</th></tr>`+Object.entries(courses).map(([id,c])=>`<tr><td><b>${esc(c.title||id)}</b><br><span class="small">${esc(id)}</span></td><td>${esc(c.exam)}<br>${esc(c.batch)} • ${esc(c.year)}</td><td>${(c.contents||[]).length} items</td><td><button class="btn muted" data-edit-course="${esc(id)}">Edit</button> <button class="btn danger" data-delete-course="${esc(id)}">Delete</button></td></tr>`).join("")+`</table>`;
- document.querySelectorAll("[data-edit-course]").forEach(b=>b.onclick=()=>editCourse(b.dataset.editCourse));document.querySelectorAll("[data-delete-course]").forEach(b=>b.onclick=()=>deleteCourse(b.dataset.deleteCourse));
+  box.innerHTML = courses.map(c=>{
+
+    return `
+      <label style="
+        display:block;
+        padding:8px;
+        background:#0f172a;
+        border-radius:6px;
+        margin-bottom:5px;
+      ">
+
+        <input
+          type="checkbox"
+          class="student-course"
+          value="${escapeHTML(c.docId)}"
+          style="width:auto"
+        >
+
+        ${escapeHTML(c.title || c.docId)}
+        —
+        ${escapeHTML(c.exam || "")}
+        —
+        ${escapeHTML(c.batch || "")}
+
+      </label>
+    `;
+
+  }).join("");
+
 }
-$("courseForm").onsubmit=async e=>{e.preventDefault();const id=$("cId").value.trim();const contents=[...document.querySelectorAll("#contentsEditor .content-row")].map(r=>({type:r.querySelector(".ct-type").value,title:r.querySelector(".ct-title").value.trim(),url:r.querySelector(".ct-url").value.trim()})).filter(x=>x.title||x.url);await setDoc(doc(db,"courses",id),{exam:$("cExam").value.trim(),batch:$("cBatch").value.trim(),year:$("cYear").value.trim(),subject:$("cSubject").value.trim(),title:$("cTitle").value.trim(),description:$("cDescription").value.trim(),testId:$("cTestId").value.trim()||id,contents,updatedAt:serverTimestamp()},{merge:true});await loadData();renderCourses();renderCourseChecklist();clearCourse();alert("Course saved.");};
-async function deleteCourse(id){if(!confirm("Delete this course? Student assignments containing this ID will remain until you edit them."))return;await deleteDoc(doc(db,"courses",id));await loadData();renderCourses();renderCourseChecklist();}
 
-async function refreshResults(){try{const snap=await getDocs(collection(db,"testResults"));$("statResults").textContent=snap.size;let rows=[];snap.forEach(d=>{let x=d.data();let ts=x.submittedAt?.toDate?x.submittedAt.toDate().toLocaleString():String(x.submittedAt||"");rows.push(`<div class="result-row"><div><b>${esc(x.name||"")}</b><br><span class="small">${esc(x.email||"")}</span></div><div>${esc(x.course||"")}<br><span class="small">${esc(x.testId||"")}</span></div><div>${esc(x.score||0)}/${esc(x.total||0)}</div><div>${esc(ts)}</div><button class="btn danger" data-delete-result="${esc(d.id)}">Delete</button></div>`)});$("resultsTable").innerHTML=rows.join("")||'<p class="small">No test results.</p>';document.querySelectorAll("[data-delete-result]").forEach(b=>b.onclick=async()=>{if(confirm("Delete this result?")){await deleteDoc(doc(db,"testResults",b.dataset.deleteResult));refreshResults();}});}catch(e){$("resultsTable").innerHTML='<p class="small">Could not load results. Check Firestore rules.</p>';}}
-$("refreshResultsBtn").onclick=refreshResults;
-$("clearResultsBtn").onclick=async()=>{if(!confirm("Delete ALL testResults documents? This cannot be undone."))return;const snap=await getDocs(collection(db,"testResults"));for(const d of snap.docs)await deleteDoc(d.ref);await refreshResults();};
 
-async function loadDevices(){const host=$("deviceStudents");host.innerHTML="Loading...";let html="";
-// Scan users once and group matching email/device subcollections.
-try{const us=await getDocs(collection(db,"users"));for(const ud of us.docs){const u=ud.data();if(!u.email)continue;const ds=await getDocs(collection(db,"users",ud.id,"devices"));html+=`<div class="card"><b>${esc(u.email)}</b>`;if(ds.empty)html+='<p class="small">No reserved devices.</p>';for(const dd of ds.docs){const x=dd.data();html+=`<div class="device"><button class="btn danger" data-release-device="${esc(ud.id)}|${esc(dd.id)}">Release</button><b>${esc(x.deviceType||"unknown")}</b><br><span class="small">Device: ${esc(dd.id)} | Expires: ${esc(x.expiresAt?new Date(Number(x.expiresAt)).toLocaleString():"-")}</span></div>`}html+='</div>';}host.innerHTML=html||'<p class="small">No users/devices found. Device documents are created when students log in.</p>';document.querySelectorAll("[data-release-device]").forEach(b=>b.onclick=async()=>{if(confirm("Release this device reservation?")){const [uid,did]=b.dataset.releaseDevice.split("|");await deleteDoc(doc(db,"users",uid,"devices",did));loadDevices();}});}catch(e){host.innerHTML='<p class="small">Could not load devices. Check Firestore rules.</p>';}}
+/* =========================================================
+   SAVE STUDENT
+========================================================= */
 
-$("seedBtn").onclick=async()=>{if(!confirm("Import the existing dashboard students and courses into Firestore? Existing documents with the same IDs will be overwritten."))return;for(const [email,s] of Object.entries(DEFAULT_STUDENTS)){if(ADMIN_EMAILS.includes(email.toLowerCase()))continue;await setDoc(doc(db,"students",studentDocId(email)),{...s,email,updatedAt:serverTimestamp()});}for(const [id,c] of Object.entries(DEFAULT_COURSES))await setDoc(doc(db,"courses",id),{...c,updatedAt:serverTimestamp()});await refreshAll();alert("Existing dashboard data imported successfully.");};
-clearCourse();
+$("saveStudentBtn")?.addEventListener(
+  "click",
+  saveStudent
+);
+
+async function saveStudent(){
+
+  try{
+
+    const editingDoc =
+      $("studentDocId").value.trim();
+
+    const studentId =
+      $("studentId").value.trim();
+
+    const name =
+      $("studentName").value.trim();
+
+    const email =
+      $("studentEmail").value.trim().toLowerCase();
+
+    const password =
+      $("studentPassword").value;
+
+    const exam =
+      $("studentExam").value.trim();
+
+    const batch =
+      $("studentBatch").value.trim();
+
+    const year =
+      $("studentYear").value.trim();
+
+    if(!studentId){
+      alert("Student ID डालो.");
+      return;
+    }
+
+    if(!name){
+      alert("Student name डालो.");
+      return;
+    }
+
+    if(!email){
+      alert("Gmail डालो.");
+      return;
+    }
+
+    let docId =
+      editingDoc || studentDocId(email);
+
+
+    /* -----------------------------------------
+       CREATE AUTH ACCOUNT FOR NEW STUDENT
+    ----------------------------------------- */
+
+    if(!editingDoc && password){
+
+      try{
+
+        const credential =
+          await createUserWithEmailAndPassword(
+            secondaryAuth,
+            email,
+            password
+          );
+
+        console.log(
+          "Student Auth created:",
+          credential.user.uid
+        );
+
+      }catch(error){
+
+        if(error.code !== "auth/email-already-in-use"){
+
+          throw error;
+
+        }
+
+      }
+
+    }
+
+
+    /* -----------------------------------------
+       SELECT COURSES
+    ----------------------------------------- */
+
+    const selectedCourses =
+      [...document.querySelectorAll(
+        ".student-course:checked"
+      )].map(el=>el.value);
+
+
+    /* -----------------------------------------
+       SAVE FIRESTORE
+    ----------------------------------------- */
+
+    await setDoc(
+      doc(db,"students",docId),
+      {
+
+        studentId,
+
+        name,
+
+        email,
+
+        exam,
+
+        batch,
+
+        year,
+
+        courses:selectedCourses,
+
+        updatedAt:serverTimestamp()
+
+      },
+      {merge:true}
+    );
+
+
+    alert("Student saved successfully.");
+
+    clearStudentForm();
+
+    await loadStudents();
+
+    renderStudents();
+
+    updateCounts();
+
+  }catch(error){
+
+    console.error(error);
+
+    alert(
+      "Student save error:\n" +
+      error.message
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   EDIT STUDENT
+========================================================= */
+
+window.editStudent = function(docId){
+
+  const s =
+    students.find(x=>x.docId === docId);
+
+  if(!s) return;
+
+  $("studentDocId").value =
+    s.docId || "";
+
+  $("studentId").value =
+    s.studentId || "";
+
+  $("studentName").value =
+    s.name || "";
+
+  $("studentEmail").value =
+    s.email || "";
+
+  $("studentPassword").value = "";
+
+  $("studentExam").value =
+    s.exam || "";
+
+  $("studentBatch").value =
+    s.batch || "";
+
+  $("studentYear").value =
+    s.year || "";
+
+
+  const assigned =
+    Array.isArray(s.courses)
+      ? s.courses
+      : [];
+
+
+  document.querySelectorAll(
+    ".student-course"
+  ).forEach(cb=>{
+
+    cb.checked =
+      assigned.includes(cb.value);
+
+  });
+
+
+  showSection("students");
+
+  window.scrollTo({
+    top:0,
+    behavior:"smooth"
+  });
+
+};
+
+
+/* =========================================================
+   DELETE STUDENT
+========================================================= */
+
+window.removeStudent = async function(docId){
+
+  if(!confirm(
+    "Delete this student Firestore record?"
+  )) return;
+
+  try{
+
+    await deleteDoc(
+      doc(db,"students",docId)
+    );
+
+    await loadStudents();
+
+    renderStudents();
+
+    updateCounts();
+
+  }catch(error){
+
+    alert(error.message);
+
+  }
+
+};
+
+
+/* =========================================================
+   CLEAR STUDENT
+========================================================= */
+
+function clearStudentForm(){
+
+  $("studentDocId").value = "";
+
+  $("studentId").value = "";
+
+  $("studentName").value = "";
+
+  $("studentEmail").value = "";
+
+  $("studentPassword").value = "";
+
+  $("studentExam").value = "";
+
+  $("studentBatch").value = "";
+
+  $("studentYear").value = "";
+
+  document.querySelectorAll(
+    ".student-course"
+  ).forEach(cb=>cb.checked=false);
+
+}
+
+$("clearStudentBtn")?.addEventListener(
+  "click",
+  clearStudentForm
+);
+
+
+/* =========================================================
+   COURSES
+========================================================= */
+
+async function loadCourses(){
+
+  const snap = await getDocs(
+    collection(db,"courses")
+  );
+
+  courses = snap.docs.map(d=>({
+
+    docId:d.id,
+
+    ...d.data()
+
+  }));
+
+}
+
+
+function renderCourses(){
+
+  const search =
+    ($("courseSearch")?.value || "")
+      .toLowerCase()
+      .trim();
+
+  const tbody = $("coursesTable");
+
+  if(!tbody) return;
+
+  const filtered =
+    courses.filter(c=>{
+
+      const text = [
+
+        c.docId,
+        c.exam,
+        c.batch,
+        c.year,
+        c.subject,
+        c.title,
+        c.testId
+
+      ].join(" ").toLowerCase();
+
+      return text.includes(search);
+
+    });
+
+
+  tbody.innerHTML =
+    filtered.map(c=>{
+
+      return `
+        <tr>
+
+          <td>
+            <b>${escapeHTML(c.docId)}</b>
+          </td>
+
+          <td>${escapeHTML(c.exam || "-")}</td>
+
+          <td>${escapeHTML(c.batch || "-")}</td>
+
+          <td>${escapeHTML(c.subject || "-")}</td>
+
+          <td>${escapeHTML(c.title || "-")}</td>
+
+          <td>
+            ${escapeHTML(c.testId || "-")}
+          </td>
+
+          <td>
+
+            <button
+              class="btn"
+              onclick="editCourse('${escapeHTML(c.docId)}')">
+              Edit
+            </button>
+
+            <button
+              class="btn red"
+              onclick="removeCourse('${escapeHTML(c.docId)}')">
+              Delete
+            </button>
+
+          </td>
+
+        </tr>
+      `;
+
+    }).join("");
+
+}
+
+
+/* =========================================================
+   SAVE COURSE
+========================================================= */
+
+$("saveCourseBtn")?.addEventListener(
+  "click",
+  saveCourse
+);
+
+async function saveCourse(){
+
+  try{
+
+    const courseId =
+      safeId($("courseId").value);
+
+    if(!courseId){
+
+      alert("Course ID डालो.");
+
+      return;
+    }
+
+    await setDoc(
+      doc(db,"courses",courseId),
+      {
+
+        exam:
+          $("courseExam").value.trim(),
+
+        batch:
+          $("courseBatch").value.trim(),
+
+        year:
+          $("courseYear").value.trim(),
+
+        subject:
+          $("courseSubject").value.trim(),
+
+        title:
+          $("courseTitle").value.trim(),
+
+        description:
+          $("courseDescription").value.trim(),
+
+        testId:
+          $("courseTestId").value.trim(),
+
+        updatedAt:
+          serverTimestamp()
+
+      },
+      {merge:true}
+    );
+
+
+    alert("Course saved.");
+
+    clearCourseForm();
+
+    await loadCourses();
+
+    renderCourses();
+
+    renderCourseCheckboxes();
+
+    updateCounts();
+
+  }catch(error){
+
+    console.error(error);
+
+    alert(error.message);
+
+  }
+
+}
+
+
+window.editCourse = function(courseId){
+
+  const c =
+    courses.find(x=>x.docId === courseId);
+
+  if(!c) return;
+
+  $("courseEditingId").value =
+    c.docId;
+
+  $("courseId").value =
+    c.docId;
+
+  $("courseExam").value =
+    c.exam || "";
+
+  $("courseBatch").value =
+    c.batch || "";
+
+  $("courseYear").value =
+    c.year || "";
+
+  $("courseSubject").value =
+    c.subject || "";
+
+  $("courseTitle").value =
+    c.title || "";
+
+  $("courseTestId").value =
+    c.testId || "";
+
+  $("courseDescription").value =
+    c.description || "";
+
+  showSection("courses");
+
+  window.scrollTo({
+    top:0,
+    behavior:"smooth"
+  });
+
+};
+
+
+window.removeCourse = async function(courseId){
+
+  if(!confirm(
+    "Delete this course?"
+  )) return;
+
+  await deleteDoc(
+    doc(db,"courses",courseId)
+  );
+
+  await loadCourses();
+
+  renderCourses();
+
+  renderCourseCheckboxes();
+
+  updateCounts();
+
+};
+
+
+function clearCourseForm(){
+
+  $("courseEditingId").value = "";
+
+  $("courseId").value = "";
+
+  $("courseExam").value = "";
+
+  $("courseBatch").value = "";
+
+  $("courseYear").value = "";
+
+  $("courseSubject").value = "";
+
+  $("courseTitle").value = "";
+
+  $("courseTestId").value = "";
+
+  $("courseDescription").value = "";
+
+}
+
+$("clearCourseBtn")?.addEventListener(
+  "click",
+  clearCourseForm
+);
+
+
+/* =========================================================
+   TESTS
+========================================================= */
+
+async function loadTests(){
+
+  const snap = await getDocs(
+    collection(db,"tests")
+  );
+
+  tests = snap.docs.map(d=>({
+
+    docId:d.id,
+
+    ...d.data()
+
+  }));
+
+}
+
+
+function renderTests(){
+
+  const search =
+    ($("testSearch")?.value || "")
+      .toLowerCase()
+      .trim();
+
+  const tbody = $("testsTable");
+
+  if(!tbody) return;
+
+
+  const filtered =
+    tests.filter(t=>{
+
+      const text = [
+
+        t.docId,
+        t.title,
+        t.exam,
+        t.batch,
+        t.courseId,
+        t.lecture,
+        t.testNumber
+
+      ].join(" ").toLowerCase();
+
+      return text.includes(search);
+
+    });
+
+
+  tbody.innerHTML =
+    filtered.map(t=>{
+
+      const questions =
+        Array.isArray(t.questions)
+          ? t.questions.length
+          : 0;
+
+
+      return `
+        <tr>
+
+          <td>
+            <b>${escapeHTML(t.docId)}</b>
+          </td>
+
+          <td>${escapeHTML(t.title || "-")}</td>
+
+          <td>${escapeHTML(t.exam || "-")}</td>
+
+          <td>${escapeHTML(t.batch || "-")}</td>
+
+          <td>${escapeHTML(t.courseId || "-")}</td>
+
+          <td>${escapeHTML(t.lecture || "-")}</td>
+
+          <td>${questions}</td>
+
+          <td>
+
+            <button
+              class="btn"
+              onclick="editTest('${escapeHTML(t.docId)}')">
+              Edit
+            </button>
+
+            <button
+              class="btn red"
+              onclick="removeTest('${escapeHTML(t.docId)}')">
+              Delete
+            </button>
+
+          </td>
+
+        </tr>
+      `;
+
+    }).join("");
+
+}
+
+
+/* =========================================================
+   QUESTION UI
+========================================================= */
+
+function addQuestion(data=null){
+
+  questionCounter++;
+
+  const index =
+    questionCounter;
+
+  const box =
+    document.createElement("div");
+
+  box.className =
+    "question-box";
+
+  box.dataset.index =
+    index;
+
+
+  const options =
+    data?.options || [
+      {},
+      {},
+      {},
+      {}
+    ];
+
+
+  box.innerHTML = `
+
+    <div style="
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    ">
+
+      <h4>
+        Question ${index}
+      </h4>
+
+      <button
+        type="button"
+        class="btn red remove-question">
+        Remove
+      </button>
+
+    </div>
+
+
+    <label>Question</label>
+
+    <textarea
+      class="q-text"
+      placeholder="Enter question..."
+    >${escapeHTML(data?.question || "")}</textarea>
+
+
+    <div class="option-row">
+      <b>A</b>
+      <input
+        class="q-option"
+        data-option="0"
+        placeholder="Option A"
+        value="${escapeHTML(options[0]?.text || "")}"
+      >
+    </div>
+
+
+    <div class="option-row">
+      <b>B</b>
+      <input
+        class="q-option"
+        data-option="1"
+        placeholder="Option B"
+        value="${escapeHTML(options[1]?.text || "")}"
+      >
+    </div>
+
+
+    <div class="option-row">
+      <b>C</b>
+      <input
+        class="q-option"
+        data-option="2"
+        placeholder="Option C"
+        value="${escapeHTML(options[2]?.text || "")}"
+      >
+    </div>
+
+
+    <div class="option-row">
+      <b>D</b>
+      <input
+        class="q-option"
+        data-option="3"
+        placeholder="Option D"
+        value="${escapeHTML(options[3]?.text || "")}"
+      >
+    </div>
+
+
+    <div class="correct-row">
+
+      <label style="margin:0">
+        Correct Answer
+      </label>
+
+      <select class="q-correct">
+
+        <option value="0">A</option>
+        <option value="1">B</option>
+        <option value="2">C</option>
+        <option value="3">D</option>
+
+      </select>
+
+    </div>
+
+
+    <br>
+
+    <label>Explanation / Solution</label>
+
+    <textarea
+      class="q-explanation"
+      placeholder="Explain why this answer is correct..."
+    >${escapeHTML(
+      data?.explanation ||
+      options.find(o=>o?.correct)?.solution ||
+      ""
+    )}</textarea>
+
+  `;
+
+
+  const correct =
+    data?.correctAnswer;
+
+
+  if(
+    correct !== undefined &&
+    correct !== null
+  ){
+
+    let correctIndex =
+      Number(correct);
+
+    if(
+      Number.isNaN(correctIndex)
+    ){
+
+      correctIndex =
+        {
+          A:0,
+          B:1,
+          C:2,
+          D:3
+        }[
+          String(correct).toUpperCase()
+        ];
+
+    }
+
+    if(
+      [0,1,2,3].includes(correctIndex)
+    ){
+
+      box.querySelector(
+        ".q-correct"
+      ).value =
+        String(correctIndex);
+
+    }
+
+  }
+
+
+  box.querySelector(
+    ".remove-question"
+  ).addEventListener(
+    "click",
+    ()=>{
+      box.remove();
+      renumberQuestions();
+    }
+  );
+
+
+  $("questionsContainer")
+    .appendChild(box);
+
+}
+
+
+function renumberQuestions(){
+
+  document.querySelectorAll(
+    ".question-box"
+  ).forEach((box,i)=>{
+
+    const heading =
+      box.querySelector("h4");
+
+    if(heading){
+      heading.textContent =
+        `Question ${i+1}`;
+    }
+
+  });
+
+}
+
+
+$("addQuestionBtn")?.addEventListener(
+  "click",
+  ()=>{
+    addQuestion();
+  }
+);
+
+
+/* =========================================================
+   GET QUESTIONS
+========================================================= */
+
+function collectQuestions(){
+
+  const boxes =
+    document.querySelectorAll(
+      ".question-box"
+    );
+
+  const questions = [];
+
+
+  boxes.forEach((box,index)=>{
+
+    const question =
+      box.querySelector(
+        ".q-text"
+      ).value.trim();
+
+
+    const optionInputs =
+      box.querySelectorAll(
+        ".q-option"
+      );
+
+
+    const options =
+      [...optionInputs].map(
+        (input,i)=>({
+
+          text:
+            input.value.trim(),
+
+          correct:
+            Number(
+              box.querySelector(
+                ".q-correct"
+              ).value
+            ) === i,
+
+          solution:
+            box.querySelector(
+              ".q-explanation"
+            ).value.trim()
+
+        })
+      );
+
+
+    const correctAnswer =
+      Number(
+        box.querySelector(
+          ".q-correct"
+        ).value
+      );
+
+
+    questions.push({
+
+      id:
+        `q${index+1}`,
+
+      question,
+
+      options,
+
+      correctAnswer
+
+    });
+
+  });
+
+
+  return questions;
+
+}
+
+
+/* =========================================================
+   SAVE TEST
+========================================================= */
+
+$("saveTestBtn")?.addEventListener(
+  "click",
+  saveTest
+);
+
+async function saveTest(){
+
+  try{
+
+    const testId =
+      safeId($("testId").value);
+
+    if(!testId){
+
+      alert("Test ID डालो.");
+
+      return;
+    }
+
+
+    const questions =
+      collectQuestions();
+
+
+    if(!questions.length){
+
+      alert(
+        "कम से कम 1 question add करो."
+      );
+
+      return;
+    }
+
+
+    for(const q of questions){
+
+      if(!q.question){
+
+        alert(
+          "हर question में question text डालो."
+        );
+
+        return;
+      }
+
+      if(
+        q.options.some(
+          option=>!option.text
+        )
+      ){
+
+        alert(
+          "हर question के चारों options भरो."
+        );
+
+        return;
+      }
+
+    }
+
+
+    const testData = {
+
+      title:
+        $("testTitle").value.trim(),
+
+      exam:
+        $("testExam").value.trim(),
+
+      batch:
+        $("testBatch").value.trim(),
+
+      courseId:
+        $("testCourseId").value.trim(),
+
+      lecture:
+        $("testLecture").value.trim(),
+
+      testNumber:
+        $("testNumber").value.trim(),
+
+      duration:
+        Number(
+          $("testDuration").value
+        ) || 30,
+
+      questions,
+
+      updatedAt:
+        serverTimestamp()
+
+    };
+
+
+    await setDoc(
+      doc(db,"tests",testId),
+      testData,
+      {merge:true}
+    );
+
+
+    alert(
+      "Test saved successfully."
+    );
+
+
+    clearTestForm();
+
+    await loadTests();
+
+    renderTests();
+
+    updateCounts();
+
+
+  }catch(error){
+
+    console.error(error);
+
+    alert(
+      "Test save error:\n" +
+      error.message
+    );
+
+  }
+
+}
+
+
+/* =========================================================
+   EDIT TEST
+========================================================= */
+
+window.editTest = function(testId){
+
+  const t =
+    tests.find(x=>x.docId === testId);
+
+  if(!t) return;
+
+
+  $("testEditingId").value =
+    t.docId;
+
+  $("testId").value =
+    t.docId;
+
+  $("testTitle").value =
+    t.title || "";
+
+  $("testExam").value =
+    t.exam || "";
+
+  $("testBatch").value =
+    t.batch || "";
+
+  $("testCourseId").value =
+    t.courseId || "";
+
+  $("testLecture").value =
+    t.lecture || "";
+
+  $("testNumber").value =
+    t.testNumber || "";
+
+  $("testDuration").value =
+    t.duration || 30;
+
+
+  $("questionsContainer").innerHTML = "";
+
+  questionCounter = 0;
+
+
+  const questions =
+    Array.isArray(t.questions)
+      ? t.questions
+      : [];
+
+
+  questions.forEach(q=>{
+    addQuestion(q);
+  });
+
+
+  showSection("tests");
+
+  window.scrollTo({
+    top:0,
+    behavior:"smooth"
+  });
+
+};
+
+
+/* =========================================================
+   DELETE TEST
+========================================================= */
+
+window.removeTest = async function(testId){
+
+  if(!confirm(
+    "Delete this test and all its questions?"
+  )) return;
+
+
+  try{
+
+    await deleteDoc(
+      doc(db,"tests",testId)
+    );
+
+    await loadTests();
+
+    renderTests();
+
+    updateCounts();
+
+  }catch(error){
+
+    alert(error.message);
+
+  }
+
+};
+
+
+/* =========================================================
+   CLEAR TEST
+========================================================= */
+
+function clearTestForm(){
+
+  $("testEditingId").value = "";
+
+  $("testId").value = "";
+
+  $("testTitle").value = "";
+
+  $("testExam").value = "";
+
+  $("testBatch").value = "";
+
+  $("testCourseId").value = "";
+
+  $("testLecture").value = "";
+
+  $("testNumber").value = "";
+
+  $("testDuration").value = 30;
+
+  $("questionsContainer").innerHTML = "";
+
+  questionCounter = 0;
+
+}
+
+$("clearTestBtn")?.addEventListener(
+  "click",
+  clearTestForm
+);
+
+
+/* =========================================================
+   RESULTS
+========================================================= */
+
+async function loadResults(){
+
+  const snap =
+    await getDocs(
+      collection(db,"testResults")
+    );
+
+  results =
+    snap.docs.map(d=>({
+
+      docId:d.id,
+
+      ...d.data()
+
+    }));
+
+}
+
+
+function renderResults(){
+
+  const search =
+    ($("resultSearch")?.value || "")
+      .toLowerCase()
+      .trim();
+
+  const tbody =
+    $("resultsTable");
+
+  if(!tbody) return;
+
+
+  const filtered =
+    results.filter(r=>{
+
+      const text = [
+
+        r.studentId,
+        r.name,
+        r.email,
+        r.course,
+        r.testId,
+        r.testTitle,
+        r.exam,
+        r.batch
+
+      ].join(" ").toLowerCase();
+
+      return text.includes(search);
+
+    });
+
+
+  tbody.innerHTML =
+    filtered.map(r=>{
+
+      return `
+        <tr>
+
+          <td>${escapeHTML(r.name || "-")}</td>
+
+          <td>${escapeHTML(r.email || "-")}</td>
+
+          <td>${escapeHTML(r.studentId || "-")}</td>
+
+          <td>${escapeHTML(r.course || "-")}</td>
+
+          <td>
+            ${escapeHTML(
+              r.testTitle ||
+              r.testId ||
+              "-"
+            )}
+          </td>
+
+          <td>
+            ${escapeHTML(
+              r.score ?? 0
+            )}
+            /
+            ${escapeHTML(
+              r.total ?? 0
+            )}
+          </td>
+
+          <td>
+            ${escapeHTML(
+              r.percentage ??
+              "-"
+            )}%
+          </td>
+
+          <td>
+            ${formatDate(
+              r.submittedAt
+            )}
+          </td>
+
+          <td>
+
+            <button
+              class="btn"
+              onclick="viewResult('${escapeHTML(r.docId)}')">
+              View
+            </button>
+
+            <button
+              class="btn red"
+              onclick="deleteResult('${escapeHTML(r.docId)}')">
+              Delete
+            </button>
+
+          </td>
+
+        </tr>
+      `;
+
+    }).join("");
+
+}
+
+
+/* =========================================================
+   RESULT DETAILS
+========================================================= */
+
+window.viewResult = function(resultId){
+
+  const r =
+    results.find(
+      x=>x.docId === resultId
+    );
+
+  if(!r) return;
+
+
+  $("resultDetails").classList.remove(
+    "hidden"
+  );
+
+
+  const answers =
+    Array.isArray(r.answers)
+      ? r.answers
+      : [];
+
+
+  $("resultDetailsContent").innerHTML = `
+
+    <p>
+      <b>Student:</b>
+      ${escapeHTML(r.name || "-")}
+    </p>
+
+    <p>
+      <b>Email:</b>
+      ${escapeHTML(r.email || "-")}
+    </p>
+
+    <p>
+      <b>Student ID:</b>
+      ${escapeHTML(r.studentId || "-")}
+    </p>
+
+    <p>
+      <b>Test:</b>
+      ${escapeHTML(r.testTitle || r.testId || "-")}
+    </p>
+
+    <p>
+      <b>Score:</b>
+      ${escapeHTML(r.score || 0)}
+      /
+      ${escapeHTML(r.total || 0)}
+    </p>
+
+    <hr>
+
+    ${
+      answers.map((a,i)=>`
+
+        <div style="
+          padding:12px;
+          border:1px solid #334155;
+          border-radius:8px;
+          margin-bottom:10px;
+        ">
+
+          <b>
+            Q${i+1}.
+            ${escapeHTML(a.question || "")}
+          </b>
+
+          <p>
+            <b>Student Answer:</b>
+            ${escapeHTML(
+              a.selectedAnswer ?? "-"
+            )}
+          </p>
+
+          <p>
+            <b>Correct Answer:</b>
+            ${escapeHTML(
+              a.correctAnswer ?? "-"
+            )}
+          </p>
+
+          <p>
+            <b>Explanation:</b>
+            ${escapeHTML(
+              a.explanation || "-"
+            )}
+          </p>
+
+          <span class="badge">
+            ${
+              a.isCorrect
+                ? "Correct"
+                : "Wrong"
+            }
+          </span>
+
+        </div>
+
+      `).join("")
+    }
+
+  `;
+
+};
+
+
+window.deleteResult = async function(resultId){
+
+  if(!confirm(
+    "Delete this result?"
+  )) return;
+
+
+  await deleteDoc(
+    doc(db,"testResults",resultId)
+  );
+
+
+  $("resultDetails")
+    .classList.add("hidden");
+
+
+  await loadResults();
+
+  renderResults();
+
+  updateCounts();
+
+};
+
+
+/* =========================================================
+   DEVICES
+========================================================= */
+
+async function renderDevices(){
+
+  const tbody =
+    $("devicesTable");
+
+  if(!tbody) return;
+
+
+  tbody.innerHTML =
+    `<tr>
+      <td colspan="5">
+        Loading...
+      </td>
+    </tr>`;
+
+
+  const rows = [];
+
+
+  for(const student of students){
+
+    if(!student.email) continue;
+
+
+    const id =
+      student.docId ||
+      studentDocId(student.email);
+
+
+    const userRef =
+      collection(
+        db,
+        "users",
+        id,
+        "devices"
+      );
+
+
+    try{
+
+      const snap =
+        await getDocs(userRef);
+
+
+      snap.forEach(d=>{
+
+        rows.push({
+
+          student,
+
+          deviceId:d.id,
+
+          data:d.data()
+
+        });
+
+      });
+
+    }catch(error){
+
+      console.warn(
+        "Device read error",
+        id,
+        error
+      );
+
+    }
+
+  }
+
+
+  tbody.innerHTML =
+    rows.map(row=>{
+
+      return `
+        <tr>
+
+          <td>
+            ${escapeHTML(
+              row.student.name || "-"
+            )}
+          </td>
+
+          <td>
+            ${escapeHTML(
+              row.student.email || "-"
+            )}
+          </td>
+
+          <td>
+            ${escapeHTML(
+              row.data.type ||
+              row.deviceId
+            )}
+          </td>
+
+          <td>
+            ${formatDate(
+              row.data.lastSeen ||
+              row.data.updatedAt
+            )}
+          </td>
+
+          <td>
+
+            <button
+              class="btn red"
+              onclick="deleteDevice(
+                '${escapeHTML(
+                  row.student.docId
+                )}',
+                '${escapeHTML(
+                  row.deviceId
+                )}'
+              )">
+              Remove
+            </button>
+
+          </td>
+
+        </tr>
+      `;
+
+    }).join("");
+
+
+  if(!rows.length){
+
+    tbody.innerHTML =
+      `<tr>
+        <td colspan="5">
+          No devices found.
+        </td>
+      </tr>`;
+
+  }
+
+}
+
+
+window.deleteDevice =
+  async function(studentDoc,deviceId){
+
+    if(!confirm(
+      "Remove this device?"
+    )) return;
+
+
+    await deleteDoc(
+      doc(
+        db,
+        "users",
+        studentDoc,
+        "devices",
+        deviceId
+      )
+    );
+
+
+    renderDevices();
+
+  };
+
+
+$("refreshDevicesBtn")?.addEventListener(
+  "click",
+  renderDevices
+);
+
+
+/* =========================================================
+   NAVIGATION
+========================================================= */
+
+function showSection(id){
+
+  document
+    .querySelectorAll(".section")
+    .forEach(section=>{
+
+      section.classList.toggle(
+        "active",
+        section.id === id
+      );
+
+    });
+
+
+  document
+    .querySelectorAll(".nav-btn")
+    .forEach(button=>{
+
+      button.classList.toggle(
+        "active",
+        button.dataset.section === id
+      );
+
+    });
+
+
+  if(id === "students"){
+    renderStudents();
+    renderCourseCheckboxes();
+  }
+
+  if(id === "courses"){
+    renderCourses();
+  }
+
+  if(id === "tests"){
+    renderTests();
+  }
+
+  if(id === "results"){
+    renderResults();
+  }
+
+  if(id === "devices"){
+    renderDevices();
+  }
+
+}
+
+
+document
+  .querySelectorAll(".nav-btn")
+  .forEach(button=>{
+
+    button.addEventListener(
+      "click",
+      ()=>{
+
+        showSection(
+          button.dataset.section
+        );
+
+      }
+    );
+
+  });
+
+
+/* =========================================================
+   SEARCH EVENTS
+========================================================= */
+
+$("studentSearch")?.addEventListener(
+  "input",
+  renderStudents
+);
+
+$("courseSearch")?.addEventListener(
+  "input",
+  renderCourses
+);
+
+$("testSearch")?.addEventListener(
+  "input",
+  renderTests
+);
+
+$("resultSearch")?.addEventListener(
+  "input",
+  renderResults
+);
+
+
+/* =========================================================
+   LOGOUT
+========================================================= */
+
+$("logoutBtn")?.addEventListener(
+  "click",
+  async()=>{
+
+    await signOut(auth);
+
+    location.href =
+      "login.html";
+
+  }
+);
+
+
+/* =========================================================
+   COUNTS
+========================================================= */
+
+function updateCounts(){
+
+  $("studentCount").textContent =
+    students.length;
+
+  $("courseCount").textContent =
+    courses.length;
+
+  $("testCount").textContent =
+    tests.length;
+
+  $("resultCount").textContent =
+    results.length;
+
+}
+
+
+/* =========================================================
+   RENDER ALL
+========================================================= */
+
+function renderAll(){
+
+  renderStudents();
+
+  renderCourses();
+
+  renderTests();
+
+  renderResults();
+
+  renderCourseCheckboxes();
+
+  updateCounts();
+
+}
+
+
+/* =========================================================
+   START WITH ONE EMPTY QUESTION
+========================================================= */
+
+addQuestion();
