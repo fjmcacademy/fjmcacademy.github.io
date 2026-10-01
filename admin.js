@@ -1,44 +1,69 @@
 import {
-    signInWithEmailAndPassword,
-    signOut,
-    onAuthStateChanged,
-    createUserWithEmailAndPassword,
-    initializeAuth,
-    browserLocalPersistence,
-    browserSessionPersistence
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  createUserWithEmailAndPassword,
+  initializeAuth,
+  browserLocalPersistence,
+  browserSessionPersistence
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
 
 import {
-    getDocs,
-    getDoc,
-    collection,
-    doc,
-    setDoc,
-    updateDoc,
-    deleteDoc
+  getDocs,
+  getDoc,
+  collection,
+  doc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  orderBy
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 import {
-    initializeApp
+  initializeApp
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 
 import {
-    auth,
-    db
+  auth,
+  db
 } from "./firebase.js";
 
 
-/* =========================================================
-   ADMIN
-   ========================================================= */
+// =====================================================
+// CONFIG
+// =====================================================
 
-const ADMIN_EMAIL =
-    "fjmcacademy1008@gmail.com";
+const ADMIN_EMAIL = "fjmcacademy1008@gmail.com";
 
 
-/* =========================================================
-   STATE
-   ========================================================= */
+// =====================================================
+// SECONDARY FIREBASE APP
+// Used for creating student accounts without logging
+// the admin out.
+// =====================================================
+
+const secondaryApp = initializeApp(
+  {
+    apiKey: "AIzaSyA19k56JFSzdeCvS1DthDcqTNYprtJTw8I",
+    authDomain: "fjmcacademy.firebaseapp.com",
+    projectId: "fjmcacademy",
+    storageBucket: "fjmcacademy.firebasestorage.app",
+    messagingSenderId: "474981170098",
+    appId: "1:474981170098:web:8ca392cfc54708a09082ab",
+    measurementId: "G-45N1FRFSMJ"
+  },
+  "secondaryAdminApp"
+);
+
+const secondaryAuth = initializeAuth(secondaryApp, {
+  persistence: browserSessionPersistence
+});
+
+
+// =====================================================
+// STATE
+// =====================================================
 
 let students = [];
 let courses = [];
@@ -48,4257 +73,3322 @@ let devices = [];
 
 let editingStudentId = null;
 let editingCourseId = null;
-let editingTestId = null;
 
 let assignedCourseIds = new Set();
 
 
-/* =========================================================
-   SECONDARY AUTH
-   ========================================================= */
+// =====================================================
+// DOM HELPERS
+// =====================================================
 
-const firebaseConfig = {
+const $ = id => document.getElementById(id);
 
-    apiKey:
-        "AIzaSyA19k56JFSzdeCvS1DthDcqTNYprtJTw8I",
+function show(id) {
+  const el = $(id);
+  if (el) el.classList.remove("hidden");
+}
 
-    authDomain:
-        "fjmcacademy.firebaseapp.com",
+function hide(id) {
+  const el = $(id);
+  if (el) el.classList.add("hidden");
+}
 
-    projectId:
-        "fjmcacademy",
+function value(id) {
+  return ($(id)?.value || "").trim();
+}
 
-    storageBucket:
-        "fjmcacademy.firebasestorage.app",
-
-    messagingSenderId:
-        "474981170098",
-
-    appId:
-        "1:474981170098:web:8ca392cfc54708a09082ab",
-
-    measurementId:
-        "G-45N1FRFSMJ"
-
-};
-
-
-const secondaryAdminApp =
-    initializeApp(
-        firebaseConfig,
-        "secondaryAdminApp"
-    );
-
-
-const secondaryAuth =
-    initializeAuth(
-        secondaryAdminApp,
-        {
-            persistence:
-                browserSessionPersistence
-        }
-    );
-
-
-/* =========================================================
-   HELPERS
-   ========================================================= */
+function setValue(id, val) {
+  if ($(id)) $(id).value = val ?? "";
+}
 
 function esc(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
 
-    return String(
-        value ?? ""
-    )
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
+function lower(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
 
+function normalize(value) {
+  return lower(value);
+}
+
+function uniqueSorted(arr) {
+  return [...new Set(
+    arr
+      .map(x => String(x ?? "").trim())
+      .filter(Boolean)
+  )].sort((a, b) =>
+    a.localeCompare(b, undefined, {
+      numeric: true,
+      sensitivity: "base"
+    })
+  );
+}
+
+function groupKey(...parts) {
+  return parts.map(x => normalize(x)).join("|||");
+}
+
+function display(value, fallback = "—") {
+  const v = String(value ?? "").trim();
+  return v || fallback;
 }
 
 
-function val(id) {
+// =====================================================
+// LOGIN MESSAGE
+// =====================================================
 
-    const element =
-        document.getElementById(id);
+function loginMessage(message, type = "notice") {
+  const box = $("loginMsg");
 
-    return element
-        ? element.value.trim()
-        : "";
+  if (!box) return;
 
+  box.className = "notice";
+
+  if (type === "error") {
+    box.classList.add("error");
+  }
+
+  if (type === "success") {
+    box.classList.add("success");
+  }
+
+  box.textContent = message;
+  box.classList.remove("hidden");
 }
 
 
-function setVal(id, value) {
+// =====================================================
+// AUTH
+// =====================================================
 
-    const element =
-        document.getElementById(id);
-
-    if (element) {
-
-        element.value =
-            value ?? "";
-
-    }
-
-}
-
-
-function showLoginMessage(
-    message,
-    type = "notice"
-) {
-
-    const box =
-        document.getElementById(
-            "loginMsg"
-        );
-
-    if (!box) return;
-
-    box.textContent =
-        message;
-
-    box.className =
-        "notice " +
-        (
-            type === "error"
-                ? "error"
-                : type === "success"
-                    ? "success"
-                    : ""
-        );
-
-}
-
-
-function isAdminUser(user) {
-
-    return (
-        user &&
-        (
-            user.email || ""
-        ).toLowerCase() ===
-        ADMIN_EMAIL.toLowerCase()
-    );
-
-}
-
-
-/* =========================================================
-   LOGIN
-   ========================================================= */
-
-const loginForm =
-    document.getElementById(
-        "adminLoginForm"
-    );
-
+const loginForm = $("adminLoginForm");
 
 if (loginForm) {
 
-    loginForm.addEventListener(
-        "submit",
-        async function(event) {
+  loginForm.addEventListener("submit", async event => {
 
-            event.preventDefault();
+    event.preventDefault();
 
-            const email =
-                val("adminEmail");
+    const email = value("adminEmail").toLowerCase();
+    const password = $("adminPassword")?.value || "";
 
-            const password =
-                document.getElementById(
-                    "adminPassword"
-                ).value;
-
-
-            if (
-                email.toLowerCase() !==
-                ADMIN_EMAIL.toLowerCase()
-            ) {
-
-                showLoginMessage(
-                    "Sirf admin account login kar sakta hai.",
-                    "error"
-                );
-
-                return;
-
-            }
-
-
-            try {
-
-                showLoginMessage(
-                    "Login ho raha hai..."
-                );
-
-
-                await signInWithEmailAndPassword(
-                    auth,
-                    email,
-                    password
-                );
-
-
-                showLoginMessage(
-                    "Login successful.",
-                    "success"
-                );
-
-
-            } catch (error) {
-
-                console.error(
-                    error
-                );
-
-
-                showLoginMessage(
-                    error.message ||
-                    "Login failed.",
-                    "error"
-                );
-
-            }
-
-        }
-    );
-
-}
-
-
-/* =========================================================
-   AUTH STATE
-   ========================================================= */
-
-onAuthStateChanged(
-    auth,
-    async function(user) {
-
-        const loginView =
-            document.getElementById(
-                "loginView"
-            );
-
-        const app =
-            document.getElementById(
-                "app"
-            );
-
-
-        if (!user) {
-
-            loginView?.classList.remove(
-                "hidden"
-            );
-
-            app?.classList.add(
-                "hidden"
-            );
-
-            return;
-
-        }
-
-
-        if (!isAdminUser(user)) {
-
-            await signOut(auth);
-
-            loginView?.classList.remove(
-                "hidden"
-            );
-
-            app?.classList.add(
-                "hidden"
-            );
-
-            showLoginMessage(
-                "Ye account admin nahi hai.",
-                "error"
-            );
-
-            return;
-
-        }
-
-
-        loginView?.classList.add(
-            "hidden"
-        );
-
-        app?.classList.remove(
-            "hidden"
-        );
-
-
-        const adminUser =
-            document.getElementById(
-                "adminUser"
-            );
-
-
-        if (adminUser) {
-
-            adminUser.textContent =
-                user.email || "";
-
-        }
-
-
-        await loadAllData();
-
+    if (!email || !password) {
+      loginMessage("Email aur password dono enter karo.", "error");
+      return;
     }
-);
 
+    if (email !== ADMIN_EMAIL) {
+      loginMessage(
+        "Ye email Admin account nahi hai.",
+        "error"
+      );
+      return;
+    }
 
-/* =========================================================
-   LOGOUT
-   ========================================================= */
+    const button = loginForm.querySelector("button");
 
-document
-    .getElementById("logoutBtn")
-    ?.addEventListener(
-        "click",
-        async function() {
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Logging in...";
+    }
 
-            await signOut(auth);
-
-        }
-    );
-
-
-/* =========================================================
-   NAVIGATION
-   ========================================================= */
-
-document
-    .querySelectorAll(
-        "[data-section]"
-    )
-    .forEach(
-        function(button) {
-
-            button.addEventListener(
-                "click",
-                function() {
-
-                    const sectionId =
-                        button.dataset.section;
-
-
-                    document
-                        .querySelectorAll(
-                            ".section"
-                        )
-                        .forEach(
-                            section => {
-
-                                section.classList.toggle(
-                                    "active",
-                                    section.id ===
-                                    sectionId
-                                );
-
-                            }
-                        );
-
-
-                    document
-                        .querySelectorAll(
-                            "[data-section]"
-                        )
-                        .forEach(
-                            item => {
-
-                                item.classList.toggle(
-                                    "active",
-                                    item === button
-                                );
-
-                            }
-                        );
-
-                }
-            );
-
-        }
-    );
-
-
-/* =========================================================
-   LOAD ALL DATA
-   ========================================================= */
-
-async function loadAllData() {
+    loginMessage("Firebase se login ho raha hai...");
 
     try {
 
-        const [
-            studentSnap,
-            courseSnap,
-            resultSnap,
-            testSnap
-        ] = await Promise.all([
+      await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
 
-            getDocs(
-                collection(
-                    db,
-                    "students"
-                )
-            ),
-
-            getDocs(
-                collection(
-                    db,
-                    "courses"
-                )
-            ),
-
-            getDocs(
-                collection(
-                    db,
-                    "testResults"
-                )
-            ),
-
-            getDocs(
-                collection(
-                    db,
-                    "tests"
-                )
-            )
-
-        ]);
-
-
-        students =
-            studentSnap.docs.map(
-                d => ({
-                    id: d.id,
-                    ...d.data()
-                })
-            );
-
-
-        courses =
-            courseSnap.docs.map(
-                d => ({
-                    id: d.id,
-                    ...d.data()
-                })
-            );
-
-
-        results =
-            resultSnap.docs.map(
-                d => ({
-                    id: d.id,
-                    ...d.data()
-                })
-            );
-
-
-        tests =
-            testSnap.docs.map(
-                d => ({
-                    id: d.id,
-                    ...d.data()
-                })
-            );
-
-
-        renderEverything();
-
+      loginMessage(
+        "Login successful.",
+        "success"
+      );
 
     } catch (error) {
 
-        console.error(
-            "Load error:",
-            error
-        );
+      console.error("ADMIN LOGIN ERROR:", error);
 
-        alert(
-            "Data load error:\n" +
-            error.message
-        );
+      let msg = "Login failed.";
+
+      switch (error.code) {
+
+        case "auth/invalid-credential":
+          msg = "Email ya password galat hai.";
+          break;
+
+        case "auth/wrong-password":
+          msg = "Password galat hai.";
+          break;
+
+        case "auth/user-not-found":
+          msg = "Ye admin email Firebase Authentication me registered nahi hai.";
+          break;
+
+        case "auth/invalid-email":
+          msg = "Email address invalid hai.";
+          break;
+
+        case "auth/too-many-requests":
+          msg = "Bahut baar login attempt hua. Thodi der baad try karo.";
+          break;
+
+        case "auth/network-request-failed":
+          msg = "Internet connection check karo.";
+          break;
+
+        case "auth/user-disabled":
+          msg = "Ye Firebase account disabled hai.";
+          break;
+
+        default:
+          msg = error.message || "Login failed.";
+      }
+
+      loginMessage(msg, "error");
+
+    } finally {
+
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Admin Login";
+      }
 
     }
+
+  });
 
 }
 
 
-/* =========================================================
-   RENDER EVERYTHING
-   ========================================================= */
+// =====================================================
+// AUTH STATE
+// =====================================================
+
+onAuthStateChanged(auth, async user => {
+
+  console.log("Auth state:", user?.email || "signed out");
+
+  if (!user) {
+
+    show("loginView");
+    hide("app");
+
+    return;
+  }
+
+
+  const email = lower(user.email);
+
+  if (email !== ADMIN_EMAIL) {
+
+    await signOut(auth);
+
+    show("loginView");
+    hide("app");
+
+    loginMessage(
+      "Access denied. Sirf authorized Admin account allowed hai.",
+      "error"
+    );
+
+    return;
+  }
+
+
+  // Admin verified
+
+  hide("loginView");
+  show("app");
+
+  if ($("adminUser")) {
+    $("adminUser").textContent = user.email;
+  }
+
+  try {
+
+    await loadAllData();
+
+  } catch (error) {
+
+    console.error("LOAD ERROR:", error);
+
+    alert(
+      "Admin login ho gaya, lekin data load nahi hua.\n\n" +
+      (error.message || "")
+    );
+
+  }
+
+});
+
+
+// =====================================================
+// LOGOUT
+// =====================================================
+
+$("logoutBtn")?.addEventListener("click", async () => {
+
+  try {
+
+    await signOut(auth);
+
+  } catch (error) {
+
+    console.error(error);
+
+  }
+
+});
+
+
+// =====================================================
+// NAVIGATION
+// =====================================================
+
+document.querySelectorAll(".side button[data-section]")
+  .forEach(button => {
+
+    button.addEventListener("click", () => {
+
+      const section = button.dataset.section;
+
+      document
+        .querySelectorAll(".side button")
+        .forEach(btn =>
+          btn.classList.remove("active")
+        );
+
+      button.classList.add("active");
+
+      document
+        .querySelectorAll(".section")
+        .forEach(sec =>
+          sec.classList.remove("active")
+        );
+
+      $(section)?.classList.add("active");
+
+    });
+
+  });
+
+
+// =====================================================
+// LOAD ALL DATA
+// =====================================================
+
+async function loadAllData() {
+
+  const [
+    studentSnap,
+    courseSnap,
+    resultSnap
+  ] = await Promise.all([
+
+    getDocs(collection(db, "students")),
+
+    getDocs(collection(db, "courses")),
+
+    getDocs(collection(db, "testResults"))
+
+  ]);
+
+
+  students = studentSnap.docs.map(d => ({
+    id: d.id,
+    ...d.data()
+  }));
+
+
+  courses = courseSnap.docs.map(d => ({
+    id: d.id,
+    ...d.data()
+  }));
+
+
+  results = resultSnap.docs.map(d => ({
+    id: d.id,
+    ...d.data()
+  }));
+
+
+  tests = [];
+
+
+  renderEverything();
+
+}
+
+
+// =====================================================
+// RENDER EVERYTHING
+// =====================================================
 
 function renderEverything() {
 
-    renderStats();
+  updateStats();
 
-    fillAllFilters();
+  renderStudentFilters();
 
-    renderStudents();
+  renderCourseFilters();
 
-    renderCourses();
+  renderResultFilters();
 
-    renderCourseChecklist();
+  renderStudents();
 
-    renderTests();
+  renderCourses();
 
-    renderResults();
+  renderCourseChecklist();
 
-    renderDevices();
+  renderResults();
 
-}
-
-
-/* =========================================================
-   STATS
-   ========================================================= */
-
-function renderStats() {
-
-    document.getElementById(
-        "statStudents"
-    ).textContent =
-        students.length;
-
-
-    document.getElementById(
-        "statCourses"
-    ).textContent =
-        courses.length;
-
-
-    document.getElementById(
-        "statResults"
-    ).textContent =
-        results.length;
-
-
-    document.getElementById(
-        "statTests"
-    ).textContent =
-        tests.length;
+  renderDevices();
 
 }
 
 
-/* =========================================================
-   UNIQUE VALUES
-   ========================================================= */
+// =====================================================
+// STATS
+// =====================================================
 
-function uniqueValues(
-    array,
-    key
-) {
+function updateStats() {
 
-    return [
-        ...new Set(
-            array
-                .map(
-                    item =>
-                        String(
-                            item[key] ?? ""
-                        ).trim()
-                )
-                .filter(Boolean)
-        )
-    ].sort(
-        (a,b) =>
-            a.localeCompare(
-                b
-            )
+  if ($("statStudents")) {
+    $("statStudents").textContent =
+      students.length;
+  }
+
+  if ($("statCourses")) {
+    $("statCourses").textContent =
+      courses.length;
+  }
+
+  if ($("statResults")) {
+    $("statResults").textContent =
+      results.length;
+  }
+
+  if ($("statTests")) {
+
+    const ids = new Set();
+
+    courses.forEach(course => {
+
+      if (course.testId) {
+        ids.add(course.testId);
+      }
+
+      if (course.testID) {
+        ids.add(course.testID);
+      }
+
+    });
+
+    results.forEach(result => {
+
+      if (result.testId) {
+        ids.add(result.testId);
+      }
+
+      if (result.testID) {
+        ids.add(result.testID);
+      }
+
+      if (result.test) {
+        ids.add(result.test);
+      }
+
+    });
+
+    $("statTests").textContent =
+      ids.size;
+
+  }
+
+}
+
+
+// =====================================================
+// STUDENT FILTERS
+// =====================================================
+
+function fillSelect(id, values, firstLabel) {
+
+  const select = $(id);
+
+  if (!select) return;
+
+  const old = select.value;
+
+  select.innerHTML =
+    `<option value="">${esc(firstLabel)}</option>`;
+
+  uniqueSorted(values).forEach(item => {
+
+    const option = document.createElement("option");
+
+    option.value = item;
+    option.textContent = item;
+
+    select.appendChild(option);
+
+  });
+
+  if (
+    [...select.options]
+      .some(option => option.value === old)
+  ) {
+    select.value = old;
+  }
+
+}
+
+
+function renderStudentFilters() {
+
+  fillSelect(
+    "studentExamFilter",
+    students.map(s => s.exam),
+    "All Exams"
+  );
+
+  fillSelect(
+    "studentBatchFilter",
+    students.map(s => s.batch),
+    "All Batches"
+  );
+
+  fillSelect(
+    "studentYearFilter",
+    students.map(s => s.year),
+    "All Years"
+  );
+
+}
+
+
+// =====================================================
+// COURSE FILTERS
+// =====================================================
+
+function renderCourseFilters() {
+
+  fillSelect(
+    "courseExamFilter",
+    courses.map(c => c.exam),
+    "All Exams"
+  );
+
+  fillSelect(
+    "courseBatchFilter",
+    courses.map(c => c.batch),
+    "All Batches"
+  );
+
+  fillSelect(
+    "courseYearFilter",
+    courses.map(c => c.year),
+    "All Years"
+  );
+
+
+  fillSelect(
+    "courseAssignExamFilter",
+    courses.map(c => c.exam),
+    "All Exams"
+  );
+
+  fillSelect(
+    "courseAssignBatchFilter",
+    courses.map(c => c.batch),
+    "All Batches"
+  );
+
+  fillSelect(
+    "courseAssignYearFilter",
+    courses.map(c => c.year),
+    "All Years"
+  );
+
+}
+
+
+// =====================================================
+// STUDENT SEARCH
+// =====================================================
+
+function filteredStudents() {
+
+  const search =
+    normalize(value("studentSearch"));
+
+  const exam =
+    normalize(value("studentExamFilter"));
+
+  const batch =
+    normalize(value("studentBatchFilter"));
+
+  const year =
+    normalize(value("studentYearFilter"));
+
+
+  return students.filter(student => {
+
+    const haystack = [
+      student.name,
+      student.email,
+      student.exam,
+      student.batch,
+      student.year
+    ]
+      .map(normalize)
+      .join(" ");
+
+
+    return (
+      (!search || haystack.includes(search)) &&
+      (!exam || normalize(student.exam) === exam) &&
+      (!batch || normalize(student.batch) === batch) &&
+      (!year || normalize(student.year) === year)
     );
 
+  });
+
 }
 
 
-/* =========================================================
-   FILL SELECT
-   ========================================================= */
+// =====================================================
+// STUDENT GROUPING
+// EXAM → BATCH → YEAR → STUDENTS
+// =====================================================
 
-function fillSelect(
-    id,
-    values,
-    firstText
-) {
+function renderStudents() {
 
-    const select =
-        document.getElementById(id);
+  const container = $("studentsTable");
 
-    if (!select) return;
+  if (!container) return;
 
 
-    const oldValue =
-        select.value;
+  const list = filteredStudents();
+
+  if (!list.length) {
+
+    container.innerHTML =
+      `<div class="no-results">No students found.</div>`;
+
+    return;
+  }
 
 
-    select.innerHTML =
-        `<option value="">${firstText}</option>`;
+  const examGroups = new Map();
 
 
-    values.forEach(
-        value => {
+  list.forEach(student => {
 
-            const option =
-                document.createElement(
-                    "option"
-                );
+    const exam = display(student.exam);
+    const batch = display(student.batch);
+    const year = display(student.year);
 
-            option.value =
-                value;
+    if (!examGroups.has(exam)) {
+      examGroups.set(exam, new Map());
+    }
 
-            option.textContent =
-                value;
+    const batchMap = examGroups.get(exam);
 
-            select.appendChild(
-                option
-            );
+    if (!batchMap.has(batch)) {
+      batchMap.set(batch, new Map());
+    }
 
-        }
-    );
+    const yearMap = batchMap.get(batch);
+
+    if (!yearMap.has(year)) {
+      yearMap.set(year, []);
+    }
+
+    yearMap.get(year).push(student);
+
+  });
 
 
-    if (
-        values.includes(
-            oldValue
-        )
-    ) {
+  let html = "";
 
-        select.value =
-            oldValue;
+
+  for (const [exam, batchMap] of examGroups) {
+
+    html += `
+      <div class="group-card">
+
+        <div class="group-header">
+          <div class="group-title">
+            📘 Exam: ${esc(exam)}
+          </div>
+
+          <div class="group-count">
+            ${[...batchMap.values()]
+              .flatMap(x => [...x.values()])
+              .reduce((a,b) => a + b.length, 0)}
+          </div>
+        </div>
+    `;
+
+
+    for (const [batch, yearMap] of batchMap) {
+
+      html += `
+        <div style="padding:12px 15px 0;font-weight:800">
+          📦 Batch: ${esc(batch)}
+        </div>
+      `;
+
+
+      for (const [year, studentList] of yearMap) {
+
+        html += `
+          <div style="padding:10px 15px 0;color:#60a5fa;font-weight:800">
+            📅 Year: ${esc(year)}
+          </div>
+
+          <div class="table-wrap">
+            <table class="table">
+
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Courses</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+        `;
+
+
+        studentList.forEach(student => {
+
+          const studentCourses =
+            Array.isArray(student.courses)
+              ? student.courses
+              : [];
+
+          html += `
+            <tr>
+
+              <td>
+                <strong>${esc(display(student.name))}</strong>
+              </td>
+
+              <td>
+                ${esc(display(student.email))}
+              </td>
+
+              <td>
+                ${
+                  studentCourses.length
+                    ? studentCourses.map(id =>
+                        `<span class="pill">${esc(id)}</span>`
+                      ).join("")
+                    : `<span class="pill gray">No courses</span>`
+                }
+              </td>
+
+              <td>
+
+                <button
+                  class="btn muted"
+                  onclick="window.editStudent('${esc(student.id)}')"
+                >
+                  Edit
+                </button>
+
+                <button
+                  class="btn danger"
+                  onclick="window.deleteStudent('${esc(student.id)}')"
+                >
+                  Delete
+                </button>
+
+              </td>
+
+            </tr>
+          `;
+
+        });
+
+
+        html += `
+              </tbody>
+            </table>
+          </div>
+        `;
+
+      }
 
     }
 
-}
+
+    html += `</div>`;
+
+  }
 
 
-/* =========================================================
-   ALL FILTERS
-   ========================================================= */
-
-function fillAllFilters() {
-
-    const allItems =
-        [
-            ...students,
-            ...courses,
-            ...tests
-        ];
-
-
-    const exams =
-        uniqueValues(
-            allItems,
-            "exam"
-        );
-
-
-    const batches =
-        uniqueValues(
-            allItems,
-            "batch"
-        );
-
-
-    const years =
-        uniqueValues(
-            allItems,
-            "year"
-        );
-
-
-    fillSelect(
-        "studentExamFilter",
-        exams,
-        "All Exams"
-    );
-
-    fillSelect(
-        "studentBatchFilter",
-        batches,
-        "All Batches"
-    );
-
-    fillSelect(
-        "studentYearFilter",
-        years,
-        "All Years"
-    );
-
-
-    fillSelect(
-        "courseExamFilter",
-        exams,
-        "All Exams"
-    );
-
-    fillSelect(
-        "courseBatchFilter",
-        batches,
-        "All Batches"
-    );
-
-    fillSelect(
-        "courseYearFilter",
-        years,
-        "All Years"
-    );
-
-
-    fillSelect(
-        "courseAssignExamFilter",
-        uniqueValues(
-            courses,
-            "exam"
-        ),
-        "All Exams"
-    );
-
-    fillSelect(
-        "courseAssignBatchFilter",
-        uniqueValues(
-            courses,
-            "batch"
-        ),
-        "All Batches"
-    );
-
-    fillSelect(
-        "courseAssignYearFilter",
-        uniqueValues(
-            courses,
-            "year"
-        ),
-        "All Years"
-    );
-
-
-    fillSelect(
-        "testExamFilter",
-        uniqueValues(
-            tests,
-            "exam"
-        ),
-        "All Exams"
-    );
-
-    fillSelect(
-        "testBatchFilter",
-        uniqueValues(
-            tests,
-            "batch"
-        ),
-        "All Batches"
-    );
-
-    fillSelect(
-        "testYearFilter",
-        uniqueValues(
-            tests,
-            "year"
-        ),
-        "All Years"
-    );
-
-
-    const courseIds =
-        [
-            ...new Set(
-                tests
-                    .map(
-                        t =>
-                            t.courseId
-                    )
-                    .filter(Boolean)
-            )
-        ];
-
-
-    fillSelect(
-        "testCourseFilter",
-        courseIds,
-        "All Courses"
-    );
+  container.innerHTML = html;
 
 }
 
 
-/* =========================================================
-   STUDENT FORM
-   ========================================================= */
+// =====================================================
+// COURSE FILTERING
+// =====================================================
 
-document
-    .getElementById("studentForm")
-    ?.addEventListener(
-        "submit",
-        saveStudent
+function filteredCourses() {
+
+  const search =
+    normalize(value("courseSearch"));
+
+  const exam =
+    normalize(value("courseExamFilter"));
+
+  const batch =
+    normalize(value("courseBatchFilter"));
+
+  const year =
+    normalize(value("courseYearFilter"));
+
+
+  return courses.filter(course => {
+
+    const haystack = [
+      course.id,
+      course.courseId,
+      course.title,
+      course.subject,
+      course.description,
+      course.exam,
+      course.batch,
+      course.year,
+      course.testId
+    ]
+      .map(normalize)
+      .join(" ");
+
+
+    return (
+      (!search || haystack.includes(search)) &&
+      (!exam || normalize(course.exam) === exam) &&
+      (!batch || normalize(course.batch) === batch) &&
+      (!year || normalize(course.year) === year)
     );
 
+  });
 
-async function saveStudent(event) {
+}
+
+
+// =====================================================
+// COURSE GROUPING
+// EXAM → BATCH → YEAR → COURSE
+// =====================================================
+
+function renderCourses() {
+
+  const container = $("coursesTable");
+
+  if (!container) return;
+
+
+  const list = filteredCourses();
+
+  if (!list.length) {
+
+    container.innerHTML =
+      `<div class="no-results">No courses found.</div>`;
+
+    return;
+  }
+
+
+  const examGroups = new Map();
+
+
+  list.forEach(course => {
+
+    const exam = display(course.exam);
+    const batch = display(course.batch);
+    const year = display(course.year);
+
+    if (!examGroups.has(exam)) {
+      examGroups.set(exam, new Map());
+    }
+
+    const batchMap = examGroups.get(exam);
+
+    if (!batchMap.has(batch)) {
+      batchMap.set(batch, new Map());
+    }
+
+    const yearMap = batchMap.get(batch);
+
+    if (!yearMap.has(year)) {
+      yearMap.set(year, []);
+    }
+
+    yearMap.get(year).push(course);
+
+  });
+
+
+  let html = "";
+
+
+  for (const [exam, batchMap] of examGroups) {
+
+    html += `
+      <div class="group-card">
+
+        <div class="group-header">
+          <div class="group-title">
+            📘 Exam: ${esc(exam)}
+          </div>
+
+          <div class="group-count">
+            ${[...batchMap.values()]
+              .flatMap(x => [...x.values()])
+              .reduce((a,b) => a + b.length, 0)}
+          </div>
+        </div>
+    `;
+
+
+    for (const [batch, yearMap] of batchMap) {
+
+      html += `
+        <div style="padding:12px 15px 0;font-weight:800">
+          📦 Batch: ${esc(batch)}
+        </div>
+      `;
+
+
+      for (const [year, courseList] of yearMap) {
+
+        html += `
+          <div style="padding:10px 15px 0;color:#60a5fa;font-weight:800">
+            📅 Year: ${esc(year)}
+          </div>
+
+          <div class="table-wrap">
+            <table class="table">
+
+              <thead>
+                <tr>
+                  <th>Course</th>
+                  <th>Subject</th>
+                  <th>Test</th>
+                  <th>Description</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+        `;
+
+
+        courseList.forEach(course => {
+
+          const id =
+            course.id ||
+            course.courseId ||
+            "";
+
+
+          html += `
+            <tr>
+
+              <td>
+                <strong>
+                  ${esc(display(course.title, id))}
+                </strong>
+
+                <div class="small">
+                  ${esc(id)}
+                </div>
+              </td>
+
+              <td>
+                ${esc(display(course.subject))}
+              </td>
+
+              <td>
+                ${esc(
+                  display(
+                    course.testId ||
+                    course.testID ||
+                    course.test
+                  )
+                )}
+              </td>
+
+              <td>
+                ${esc(
+                  display(
+                    course.description,
+                    ""
+                  )
+                )}
+              </td>
+
+              <td>
+
+                <button
+                  class="btn muted"
+                  onclick="window.editCourse('${esc(id)}')"
+                >
+                  Edit
+                </button>
+
+                <button
+                  class="btn danger"
+                  onclick="window.deleteCourse('${esc(id)}')"
+                >
+                  Delete
+                </button>
+
+              </td>
+
+            </tr>
+          `;
+
+        });
+
+
+        html += `
+              </tbody>
+            </table>
+          </div>
+        `;
+
+      }
+
+    }
+
+
+    html += `</div>`;
+
+  }
+
+
+  container.innerHTML = html;
+
+}
+
+
+// =====================================================
+// COURSE ASSIGNMENT
+// =====================================================
+
+function filteredAssignmentCourses() {
+
+  const search =
+    normalize(value("courseAssignSearch"));
+
+  const exam =
+    normalize(value("courseAssignExamFilter"));
+
+  const batch =
+    normalize(value("courseAssignBatchFilter"));
+
+  const year =
+    normalize(value("courseAssignYearFilter"));
+
+
+  return courses.filter(course => {
+
+    const haystack = [
+      course.id,
+      course.courseId,
+      course.title,
+      course.subject,
+      course.exam,
+      course.batch,
+      course.year
+    ]
+      .map(normalize)
+      .join(" ");
+
+
+    return (
+      (!search || haystack.includes(search)) &&
+      (!exam || normalize(course.exam) === exam) &&
+      (!batch || normalize(course.batch) === batch) &&
+      (!year || normalize(course.year) === year)
+    );
+
+  });
+
+}
+
+
+function renderCourseChecklist() {
+
+  const container = $("courseChecklist");
+
+  if (!container) return;
+
+
+  const list = filteredAssignmentCourses();
+
+
+  if (!list.length) {
+
+    container.innerHTML =
+      `<div class="empty">No courses found.</div>`;
+
+    return;
+  }
+
+
+  const groups = new Map();
+
+
+  list.forEach(course => {
+
+    const exam = display(course.exam);
+    const batch = display(course.batch);
+    const year = display(course.year);
+
+    const key = groupKey(
+      exam,
+      batch,
+      year
+    );
+
+    if (!groups.has(key)) {
+
+      groups.set(key, {
+        exam,
+        batch,
+        year,
+        courses: []
+      });
+
+    }
+
+    groups.get(key).courses.push(course);
+
+  });
+
+
+  let html = "";
+
+
+  for (const group of groups.values()) {
+
+    html += `
+      <div class="assign-group">
+
+        <div class="assign-group-header">
+          📘 ${esc(group.exam)}
+          →
+          📦 ${esc(group.batch)}
+          →
+          📅 ${esc(group.year)}
+        </div>
+    `;
+
+
+    group.courses.forEach(course => {
+
+      const id =
+        course.id ||
+        course.courseId ||
+        "";
+
+      const checked =
+        assignedCourseIds.has(id)
+          ? "checked"
+          : "";
+
+
+      html += `
+        <label class="check">
+
+          <input
+            type="checkbox"
+            class="course-check"
+            value="${esc(id)}"
+            ${checked}
+          >
+
+          <div class="check-info">
+
+            <strong>
+              ${esc(
+                display(
+                  course.title,
+                  id
+                )
+              )}
+            </strong>
+
+            <div class="small">
+              ${esc(display(course.subject))}
+              ${course.testId
+                ? " • Test: " + esc(course.testId)
+                : ""}
+            </div>
+
+          </div>
+
+        </label>
+      `;
+
+    });
+
+
+    html += `</div>`;
+
+  }
+
+
+  container.innerHTML = html;
+
+
+  container
+    .querySelectorAll(".course-check")
+    .forEach(check => {
+
+      check.addEventListener("change", () => {
+
+        const id = check.value;
+
+        if (check.checked) {
+          assignedCourseIds.add(id);
+        } else {
+          assignedCourseIds.delete(id);
+        }
+
+      });
+
+    });
+
+}
+
+
+// =====================================================
+// STUDENT FORM
+// =====================================================
+
+$("studentForm")?.addEventListener(
+  "submit",
+  async event => {
 
     event.preventDefault();
 
 
     const email =
-        val("sEmail");
+      value("sEmail").toLowerCase();
 
     const password =
-        document.getElementById(
-            "sPassword"
-        ).value;
+      $("sPassword")?.value || "";
 
     const name =
-        val("sName");
+      value("sName");
 
     const exam =
-        val("sExam");
+      value("sExam");
 
     const batch =
-        val("sBatch");
+      value("sBatch");
 
     const year =
-        val("sYear");
+      value("sYear");
 
 
-    const selectedCourses =
-        [
-            ...document.querySelectorAll(
-                "#courseChecklist input[type=checkbox]:checked"
-            )
-        ]
-        .map(
-            input =>
-                input.value
-        );
+    if (!email || !name || !exam || !batch || !year) {
+
+      alert(
+        "Email, Name, Exam, Batch aur Year required hain."
+      );
+
+      return;
+    }
+
+
+    const button =
+      $("studentForm")
+        .querySelector("button[type='submit']");
+
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Saving...";
+    }
 
 
     try {
 
-        /* =========================================
-           EDIT EXISTING
-           ========================================= */
-
-        if (editingStudentId) {
-
-            await updateDoc(
-                doc(
-                    db,
-                    "students",
-                    editingStudentId
-                ),
-                {
-
-                    email,
-                    name,
-                    exam,
-                    batch,
-                    year,
-
-                    courses:
-                        selectedCourses,
-
-                    updatedAt:
-                        Date.now()
-
-                }
-            );
+      let studentId = editingStudentId;
 
 
-            alert(
-                "Student updated successfully."
-            );
+      // ---------------------------------------------
+      // CREATE NEW AUTH USER
+      // ---------------------------------------------
 
-        }
+      if (!studentId) {
 
-        /* =========================================
-           NEW STUDENT
-           ========================================= */
+        if (!password || password.length < 6) {
 
-        else {
+          alert(
+            "New student ke liye password minimum 6 characters ka hona chahiye."
+          );
 
-            if (!password) {
-
-                alert(
-                    "New student ke liye password required hai."
-                );
-
-                return;
-
-            }
-
-
-            const credential =
-                await createUserWithEmailAndPassword(
-                    secondaryAuth,
-                    email,
-                    password
-                );
-
-
-            const uid =
-                credential.user.uid;
-
-
-            await setDoc(
-                doc(
-                    db,
-                    "students",
-                    uid
-                ),
-                {
-
-                    email,
-                    name,
-                    exam,
-                    batch,
-                    year,
-
-                    courses:
-                        selectedCourses,
-
-                    createdAt:
-                        Date.now(),
-
-                    updatedAt:
-                        Date.now()
-
-                }
-            );
-
-
-            alert(
-                "Student created successfully."
-            );
-
+          return;
         }
 
 
-        clearStudentForm();
+        const credential =
+          await createUserWithEmailAndPassword(
+            secondaryAuth,
+            email,
+            password
+          );
 
-        await loadAllData();
+
+        studentId =
+          credential.user.uid;
+
+
+        await signOut(secondaryAuth);
+
+      }
+
+
+      const studentData = {
+
+        email,
+
+        name,
+
+        exam,
+
+        batch,
+
+        year,
+
+        courses: [...assignedCourseIds],
+
+        updatedAt: new Date().toISOString()
+
+      };
+
+
+      if (!editingStudentId) {
+        studentData.createdAt =
+          new Date().toISOString();
+      }
+
+
+      await setDoc(
+        doc(db, "students", studentId),
+        studentData,
+        { merge: true }
+      );
+
+
+      alert(
+        editingStudentId
+          ? "Student updated successfully."
+          : "Student created successfully."
+      );
+
+
+      clearStudentForm();
+
+      await loadAllData();
 
 
     } catch (error) {
 
-        console.error(
-            error
-        );
+      console.error(
+        "STUDENT SAVE ERROR:",
+        error
+      );
 
-        alert(
-            "Student save error:\n" +
-            error.message
-        );
+
+      let message =
+        error.message ||
+        "Student save failed.";
+
+
+      if (
+        error.code ===
+        "auth/email-already-in-use"
+      ) {
+        message =
+          "Ye email Firebase Authentication me already registered hai.";
+      }
+
+
+      alert(message);
+
+
+    } finally {
+
+      if (button) {
+
+        button.disabled = false;
+        button.textContent =
+          "Save Student";
+
+      }
 
     }
 
-}
+  }
+);
 
 
-/* =========================================================
-   CLEAR STUDENT
-   ========================================================= */
+// =====================================================
+// CLEAR STUDENT
+// =====================================================
 
 function clearStudentForm() {
 
-    editingStudentId =
-        null;
+  editingStudentId = null;
 
-    document
-        .getElementById(
-            "studentForm"
-        )
-        ?.reset();
+  assignedCourseIds =
+    new Set();
 
-    assignedCourseIds =
-        new Set();
 
-    renderCourseChecklist();
+  setValue("sEmail", "");
+  setValue("sPassword", "");
+  setValue("sName", "");
+  setValue("sExam", "");
+  setValue("sBatch", "");
+  setValue("sYear", "");
+
+
+  renderCourseChecklist();
 
 }
 
 
-document
-    .getElementById(
-        "newStudentBtn"
-    )
-    ?.addEventListener(
-        "click",
-        clearStudentForm
-    );
-
-
-/* =========================================================
-   STUDENT FILTER EVENTS
-   ========================================================= */
-
-[
-    "studentSearch",
-    "studentExamFilter",
-    "studentBatchFilter",
-    "studentYearFilter"
-]
-.forEach(
-    id => {
-
-        document
-            .getElementById(id)
-            ?.addEventListener(
-                "input",
-                renderStudents
-            );
-
-        document
-            .getElementById(id)
-            ?.addEventListener(
-                "change",
-                renderStudents
-            );
-
-    }
+$("newStudentBtn")?.addEventListener(
+  "click",
+  clearStudentForm
 );
 
 
-/* =========================================================
-   RENDER STUDENTS
-   ========================================================= */
+// =====================================================
+// EDIT STUDENT
+// =====================================================
 
-function renderStudents() {
+window.editStudent = function(id) {
 
-    const area =
-        document.getElementById(
-            "studentsTable"
-        );
+  const student =
+    students.find(s => s.id === id);
 
-    if (!area) return;
+  if (!student) return;
 
 
-    const search =
-        val("studentSearch")
-            .toLowerCase();
-
-    const exam =
-        val("studentExamFilter");
-
-    const batch =
-        val("studentBatchFilter");
-
-    const year =
-        val("studentYearFilter");
+  editingStudentId = id;
 
 
-    const filtered =
-        students.filter(
-            student => {
+  setValue(
+    "sEmail",
+    student.email
+  );
 
-                const text =
-                    [
-                        student.name,
-                        student.email,
-                        student.exam,
-                        student.batch,
-                        student.year
-                    ]
-                    .join(" ")
-                    .toLowerCase();
+  setValue(
+    "sName",
+    student.name
+  );
 
+  setValue(
+    "sExam",
+    student.exam
+  );
 
-                return (
+  setValue(
+    "sBatch",
+    student.batch
+  );
 
-                    (!search ||
-                        text.includes(
-                            search
-                        )
-                    )
+  setValue(
+    "sYear",
+    student.year
+  );
 
-                    &&
-
-                    (!exam ||
-                        student.exam ===
-                        exam
-                    )
-
-                    &&
-
-                    (!batch ||
-                        student.batch ===
-                        batch
-                    )
-
-                    &&
-
-                    (!year ||
-                        String(
-                            student.year
-                        ) ===
-                        String(year)
-                    )
-
-                );
-
-            }
-        );
+  setValue(
+    "sPassword",
+    ""
+  );
 
 
-    if (!filtered.length) {
-
-        area.innerHTML =
-            `<div class="empty">No students found.</div>`;
-
-        return;
-
-    }
-
-
-    let html = `
-
-        <table class="table">
-
-            <thead>
-
-                <tr>
-
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Exam</th>
-                    <th>Batch</th>
-                    <th>Year</th>
-                    <th>Courses</th>
-                    <th>Actions</th>
-
-                </tr>
-
-            </thead>
-
-            <tbody>
-
-    `;
-
-
-    filtered.forEach(
-        student => {
-
-            const courseCount =
-                Array.isArray(
-                    student.courses
-                )
-                    ? student.courses.length
-                    : 0;
-
-
-            html += `
-
-                <tr>
-
-                    <td>
-                        ${esc(
-                            student.name
-                        )}
-                    </td>
-
-                    <td>
-                        ${esc(
-                            student.email
-                        )}
-                    </td>
-
-                    <td>
-                        ${esc(
-                            student.exam
-                        )}
-                    </td>
-
-                    <td>
-                        ${esc(
-                            student.batch
-                        )}
-                    </td>
-
-                    <td>
-                        ${esc(
-                            student.year
-                        )}
-                    </td>
-
-                    <td>
-                        <span class="pill">
-                            ${courseCount}
-                        </span>
-                    </td>
-
-                    <td>
-
-                        <button
-                            class="btn muted"
-                            data-edit-student="${esc(student.id)}"
-                        >
-                            Edit
-                        </button>
-
-                        <button
-                            class="btn danger"
-                            data-delete-student="${esc(student.id)}"
-                        >
-                            Delete
-                        </button>
-
-                    </td>
-
-                </tr>
-
-            `;
-
-        }
+  assignedCourseIds =
+    new Set(
+      Array.isArray(student.courses)
+        ? student.courses
+        : []
     );
 
 
-    html += `
-            </tbody>
-        </table>
-    `;
+  renderCourseChecklist();
 
 
-    area.innerHTML =
-        html;
+  document
+    .querySelector('[data-section="students"]')
+    ?.click();
 
 
-    area
-        .querySelectorAll(
-            "[data-edit-student]"
-        )
-        .forEach(
-            button => {
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
 
-                button.addEventListener(
-                    "click",
-                    () =>
-                        editStudent(
-                            button.dataset.editStudent
-                        )
-                );
-
-            }
-        );
+};
 
 
-    area
-        .querySelectorAll(
-            "[data-delete-student]"
-        )
-        .forEach(
-            button => {
+// =====================================================
+// DELETE STUDENT
+// =====================================================
 
-                button.addEventListener(
-                    "click",
-                    () =>
-                        deleteStudent(
-                            button.dataset.deleteStudent
-                        )
-                );
+window.deleteStudent = async function(id) {
 
-            }
-        );
+  const student =
+    students.find(s => s.id === id);
 
-}
+  if (!student) return;
 
 
-/* =========================================================
-   EDIT STUDENT
-   ========================================================= */
-
-function editStudent(id) {
-
-    const student =
-        students.find(
-            s => s.id === id
-        );
-
-    if (!student) return;
-
-
-    editingStudentId =
-        id;
-
-
-    setVal(
-        "sEmail",
-        student.email
-    );
-
-    setVal(
-        "sName",
-        student.name
-    );
-
-    setVal(
-        "sExam",
-        student.exam
-    );
-
-    setVal(
-        "sBatch",
-        student.batch
-    );
-
-    setVal(
-        "sYear",
-        student.year
+  const ok =
+    confirm(
+      `Student "${student.name || student.email}" ko delete karna hai?`
     );
 
 
-    setVal(
-        "sPassword",
-        ""
+  if (!ok) return;
+
+
+  try {
+
+    await deleteDoc(
+      doc(db, "students", id)
     );
 
 
-    assignedCourseIds =
-        new Set(
-            Array.isArray(
-                student.courses
-            )
-                ? student.courses
-                : []
-        );
+    alert("Student profile deleted.");
 
+    await loadAllData();
 
-    renderCourseChecklist();
 
+  } catch (error) {
 
-    document
-        .getElementById(
-            "students"
-        )
-        ?.scrollIntoView({
-            behavior:"smooth"
-        });
+    console.error(error);
 
-}
-
-
-/* =========================================================
-   DELETE STUDENT
-   ========================================================= */
-
-async function deleteStudent(id) {
-
-    if (
-        !confirm(
-            "Student Firestore record delete karna hai?"
-        )
-    ) {
-
-        return;
-
-    }
-
-
-    try {
-
-        await deleteDoc(
-            doc(
-                db,
-                "students",
-                id
-            )
-        );
-
-
-        await loadAllData();
-
-
-    } catch (error) {
-
-        alert(
-            "Delete error:\n" +
-            error.message
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   COURSE CHECKLIST
-   ========================================================= */
-
-[
-    "courseAssignSearch",
-    "courseAssignExamFilter",
-    "courseAssignBatchFilter",
-    "courseAssignYearFilter"
-]
-.forEach(
-    id => {
-
-        document
-            .getElementById(id)
-            ?.addEventListener(
-                "input",
-                renderCourseChecklist
-            );
-
-        document
-            .getElementById(id)
-            ?.addEventListener(
-                "change",
-                renderCourseChecklist
-            );
-
-    }
-);
-
-
-function renderCourseChecklist() {
-
-    const area =
-        document.getElementById(
-            "courseChecklist"
-        );
-
-    if (!area) return;
-
-
-    const search =
-        val(
-            "courseAssignSearch"
-        )
-        .toLowerCase();
-
-    const exam =
-        val(
-            "courseAssignExamFilter"
-        );
-
-    const batch =
-        val(
-            "courseAssignBatchFilter"
-        );
-
-    const year =
-        val(
-            "courseAssignYearFilter"
-        );
-
-
-    const filtered =
-        courses.filter(
-            course => {
-
-                const text =
-                    [
-                        course.id,
-                        course.courseId,
-                        course.title,
-                        course.subject,
-                        course.exam,
-                        course.batch,
-                        course.year
-                    ]
-                    .join(" ")
-                    .toLowerCase();
-
-
-                return (
-
-                    (!search ||
-                        text.includes(
-                            search
-                        )
-                    )
-
-                    &&
-
-                    (!exam ||
-                        course.exam === exam
-                    )
-
-                    &&
-
-                    (!batch ||
-                        course.batch === batch
-                    )
-
-                    &&
-
-                    (!year ||
-                        String(
-                            course.year
-                        ) ===
-                        String(year)
-                    )
-
-                );
-
-            }
-        );
-
-
-    if (!filtered.length) {
-
-        area.innerHTML =
-            `<div class="empty">No courses found.</div>`;
-
-        return;
-
-    }
-
-
-    let html = "";
-
-
-    filtered.forEach(
-        course => {
-
-            const id =
-                course.id ||
-                course.courseId;
-
-
-            const checked =
-                assignedCourseIds.has(
-                    id
-                )
-                    ? "checked"
-                    : "";
-
-
-            html += `
-
-                <label class="check">
-
-                    <input
-                        type="checkbox"
-                        value="${esc(id)}"
-                        ${checked}
-                    >
-
-                    <div class="check-info">
-
-                        <strong>
-                            ${esc(
-                                course.title ||
-                                id
-                            )}
-                        </strong>
-
-                        <div class="small">
-
-                            ${esc(
-                                course.subject || ""
-                            )}
-
-                            ·
-
-                            ${esc(
-                                course.exam || ""
-                            )}
-
-                            ·
-
-                            ${esc(
-                                course.batch || ""
-                            )}
-
-                            ·
-
-                            ${esc(
-                                course.year || ""
-                            )}
-
-                        </div>
-
-                    </div>
-
-                </label>
-
-            `;
-
-        }
+    alert(
+      error.message ||
+      "Student delete failed."
     );
 
+  }
 
-    area.innerHTML =
-        html;
-
-
-    area
-        .querySelectorAll(
-            "input[type=checkbox]"
-        )
-        .forEach(
-            checkbox => {
-
-                checkbox.addEventListener(
-                    "change",
-                    function() {
-
-                        if (
-                            checkbox.checked
-                        ) {
-
-                            assignedCourseIds.add(
-                                checkbox.value
-                            );
-
-                        } else {
-
-                            assignedCourseIds.delete(
-                                checkbox.value
-                            );
-
-                        }
-
-                    }
-                );
-
-            }
-        );
-
-}
+};
 
 
-/* =========================================================
-   SELECT VISIBLE COURSES
-   ========================================================= */
+// =====================================================
+// SELECT VISIBLE COURSES
+// =====================================================
 
-document
-    .getElementById(
-        "selectVisibleCoursesBtn"
-    )
-    ?.addEventListener(
-        "click",
-        function() {
+$("selectVisibleCoursesBtn")
+  ?.addEventListener("click", () => {
 
-            document
-                .querySelectorAll(
-                    "#courseChecklist input[type=checkbox]"
-                )
-                .forEach(
-                    checkbox => {
-
-                        checkbox.checked =
-                            true;
-
-                        assignedCourseIds.add(
-                            checkbox.value
-                        );
-
-                    }
-                );
-
-        }
-    );
-
-
-/* =========================================================
-   COURSE FORM
-   ========================================================= */
-
-document
-    .getElementById("courseForm")
-    ?.addEventListener(
-        "submit",
-        saveCourse
-    );
-
-
-async function saveCourse(event) {
-
-    event.preventDefault();
-
-
-    const courseId =
-        val("cId");
-
-
-    const data = {
-
-        courseId,
-
-        exam:
-            val("cExam"),
-
-        batch:
-            val("cBatch"),
-
-        year:
-            val("cYear"),
-
-        subject:
-            val("cSubject"),
-
-        title:
-            val("cTitle"),
-
-        description:
-            val("cDescription"),
-
-        testId:
-            val("cTestId"),
-
-        contents:
-            readContents(),
-
-        updatedAt:
-            Date.now()
-
-    };
-
-
-    try {
+    filteredAssignmentCourses()
+      .forEach(course => {
 
         const id =
-            editingCourseId ||
-            courseId;
+          course.id ||
+          course.courseId;
 
-
-        await setDoc(
-            doc(
-                db,
-                "courses",
-                id
-            ),
-            data,
-            {
-                merge:true
-            }
-        );
-
-
-        alert(
-            "Course saved successfully."
-        );
-
-
-        clearCourseForm();
-
-        await loadAllData();
-
-
-    } catch (error) {
-
-        alert(
-            "Course save error:\n" +
-            error.message
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   CONTENT EDITOR
-   ========================================================= */
-
-function readContents() {
-
-    return [
-        ...document.querySelectorAll(
-            "#contentsEditor .content-row"
-        )
-    ]
-    .map(
-        row => {
-
-            const inputs =
-                row.querySelectorAll(
-                    "input,select"
-                );
-
-
-            return {
-
-                type:
-                    inputs[0]?.value || "",
-
-                title:
-                    inputs[1]?.value || "",
-
-                url:
-                    inputs[2]?.value || ""
-
-            };
-
+        if (id) {
+          assignedCourseIds.add(id);
         }
-    );
 
-}
-
-
-function addContentRow(
-    content = {}
-) {
-
-    const editor =
-        document.getElementById(
-            "contentsEditor"
-        );
-
-    if (!editor) return;
+      });
 
 
-    const row =
-        document.createElement(
-            "div"
-        );
+    renderCourseChecklist();
+
+  });
 
 
-    row.className =
-        "content-row";
+// =====================================================
+// COURSE SEARCH / FILTER EVENTS
+// =====================================================
+
+[
+  "courseAssignSearch",
+  "courseAssignExamFilter",
+  "courseAssignBatchFilter",
+  "courseAssignYearFilter"
+].forEach(id => {
+
+  $(id)?.addEventListener(
+    "input",
+    renderCourseChecklist
+  );
+
+  $(id)?.addEventListener(
+    "change",
+    renderCourseChecklist
+  );
+
+});
 
 
-    row.innerHTML = `
+[
+  "studentSearch",
+  "studentExamFilter",
+  "studentBatchFilter",
+  "studentYearFilter"
+].forEach(id => {
 
-        <select>
+  $(id)?.addEventListener(
+    "input",
+    renderStudents
+  );
 
-            <option value="video">
-                Video
-            </option>
+  $(id)?.addEventListener(
+    "change",
+    renderStudents
+  );
 
-            <option value="pdf">
-                PDF
-            </option>
+});
 
-            <option value="link">
-                Link
-            </option>
 
-            <option value="notes">
-                Notes
-            </option>
+[
+  "courseSearch",
+  "courseExamFilter",
+  "courseBatchFilter",
+  "courseYearFilter"
+].forEach(id => {
 
-        </select>
+  $(id)?.addEventListener(
+    "input",
+    renderCourses
+  );
+
+  $(id)?.addEventListener(
+    "change",
+    renderCourses
+  );
+
+});
+
+
+// =====================================================
+// COURSE CONTENT EDITOR
+// =====================================================
+
+let contentRows = [];
+
+
+function renderContentEditor() {
+
+  const container =
+    $("contentsEditor");
+
+  if (!container) return;
+
+
+  if (!contentRows.length) {
+
+    container.innerHTML =
+      `<div class="empty">
+        No content added.
+      </div>`;
+
+    return;
+  }
+
+
+  container.innerHTML =
+    contentRows.map((item, index) => `
+
+      <div class="content-row">
 
         <input
-            placeholder="Content title"
-            value="${esc(
-                content.title || ""
-            )}"
+          class="content-type"
+          data-index="${index}"
+          placeholder="video/pdf"
+          value="${esc(item.type || "")}"
         >
 
         <input
-            placeholder="URL"
-            value="${esc(
-                content.url || ""
-            )}"
+          class="content-title"
+          data-index="${index}"
+          placeholder="Title"
+          value="${esc(item.title || "")}"
+        >
+
+        <input
+          class="content-url"
+          data-index="${index}"
+          placeholder="URL"
+          value="${esc(item.url || "")}"
         >
 
         <button
-            type="button"
-            class="btn danger"
+          type="button"
+          class="btn danger remove-content"
+          data-index="${index}"
         >
-            Remove
+          Delete
         </button>
 
-    `;
+      </div>
+
+    `).join("");
 
 
-    const select =
-        row.querySelector(
-            "select"
-        );
-
-
-    if (content.type) {
-
-        select.value =
-            content.type;
-
-    }
-
-
-    row
-        .querySelector(
-            "button"
-        )
-        .addEventListener(
-            "click",
-            () =>
-                row.remove()
-        );
-
-
-    editor.appendChild(
-        row
-    );
-
-}
-
-
-document
-    .getElementById(
-        "addContentBtn"
+  container
+    .querySelectorAll(
+      ".content-type,.content-title,.content-url"
     )
-    ?.addEventListener(
+    .forEach(input => {
+
+      input.addEventListener("input", () => {
+
+        const i =
+          Number(input.dataset.index);
+
+        const row =
+          contentRows[i];
+
+        if (!row) return;
+
+
+        if (
+          input.classList.contains(
+            "content-type"
+          )
+        ) {
+          row.type = input.value;
+        }
+
+        if (
+          input.classList.contains(
+            "content-title"
+          )
+        ) {
+          row.title = input.value;
+        }
+
+        if (
+          input.classList.contains(
+            "content-url"
+          )
+        ) {
+          row.url = input.value;
+        }
+
+      });
+
+    });
+
+
+  container
+    .querySelectorAll(".remove-content")
+    .forEach(button => {
+
+      button.addEventListener(
         "click",
-        () =>
-            addContentRow()
-    );
+        () => {
 
+          const index =
+            Number(button.dataset.index);
 
-function clearCourseForm() {
+          contentRows.splice(
+            index,
+            1
+          );
 
-    editingCourseId =
-        null;
-
-    document
-        .getElementById(
-            "courseForm"
-        )
-        ?.reset();
-
-    document
-        .getElementById(
-            "contentsEditor"
-        ).innerHTML =
-        "";
-
-}
-
-
-document
-    .getElementById(
-        "newCourseBtn"
-    )
-    ?.addEventListener(
-        "click",
-        clearCourseForm
-    );
-
-
-/* =========================================================
-   COURSE FILTERS
-   ========================================================= */
-
-[
-    "courseSearch",
-    "courseExamFilter",
-    "courseBatchFilter",
-    "courseYearFilter"
-]
-.forEach(
-    id => {
-
-        document
-            .getElementById(id)
-            ?.addEventListener(
-                "input",
-                renderCourses
-            );
-
-        document
-            .getElementById(id)
-            ?.addEventListener(
-                "change",
-                renderCourses
-            );
-
-    }
-);
-
-
-/* =========================================================
-   RENDER COURSES
-   ========================================================= */
-
-function renderCourses() {
-
-    const area =
-        document.getElementById(
-            "coursesTable"
-        );
-
-    if (!area) return;
-
-
-    const search =
-        val("courseSearch")
-            .toLowerCase();
-
-    const exam =
-        val("courseExamFilter");
-
-    const batch =
-        val("courseBatchFilter");
-
-    const year =
-        val("courseYearFilter");
-
-
-    const filtered =
-        courses.filter(
-            course => {
-
-                const text =
-                    [
-                        course.id,
-                        course.courseId,
-                        course.title,
-                        course.subject,
-                        course.exam,
-                        course.batch,
-                        course.year
-                    ]
-                    .join(" ")
-                    .toLowerCase();
-
-
-                return (
-
-                    (!search ||
-                        text.includes(
-                            search
-                        )
-                    )
-
-                    &&
-
-                    (!exam ||
-                        course.exam === exam
-                    )
-
-                    &&
-
-                    (!batch ||
-                        course.batch === batch
-                    )
-
-                    &&
-
-                    (!year ||
-                        String(
-                            course.year
-                        ) ===
-                        String(year)
-                    )
-
-                );
-
-            }
-        );
-
-
-    if (!filtered.length) {
-
-        area.innerHTML =
-            `<div class="empty">No courses found.</div>`;
-
-        return;
-
-    }
-
-
-    let html = `
-
-        <table class="table">
-
-            <thead>
-
-                <tr>
-
-                    <th>Course</th>
-                    <th>Exam</th>
-                    <th>Batch</th>
-                    <th>Year</th>
-                    <th>Subject</th>
-                    <th>Content</th>
-                    <th>Actions</th>
-
-                </tr>
-
-            </thead>
-
-            <tbody>
-
-    `;
-
-
-    filtered.forEach(
-        course => {
-
-            html += `
-
-                <tr>
-
-                    <td>
-                        <strong>
-                            ${esc(
-                                course.title ||
-                                course.id
-                            )}
-                        </strong>
-
-                        <div class="small">
-                            ${esc(
-                                course.id
-                            )}
-                        </div>
-                    </td>
-
-                    <td>
-                        ${esc(
-                            course.exam
-                        )}
-                    </td>
-
-                    <td>
-                        ${esc(
-                            course.batch
-                        )}
-                    </td>
-
-                    <td>
-                        ${esc(
-                            course.year
-                        )}
-                    </td>
-
-                    <td>
-                        ${esc(
-                            course.subject
-                        )}
-                    </td>
-
-                    <td>
-                        ${
-                            Array.isArray(
-                                course.contents
-                            )
-                                ? course.contents.length
-                                : 0
-                        }
-                    </td>
-
-                    <td>
-
-                        <button
-                            class="btn muted"
-                            data-edit-course="${esc(course.id)}"
-                        >
-                            Edit
-                        </button>
-
-                        <button
-                            class="btn danger"
-                            data-delete-course="${esc(course.id)}"
-                        >
-                            Delete
-                        </button>
-
-                    </td>
-
-                </tr>
-
-            `;
+          renderContentEditor();
 
         }
-    );
+      );
 
-
-    html += `
-            </tbody>
-        </table>
-    `;
-
-
-    area.innerHTML =
-        html;
-
-
-    area
-        .querySelectorAll(
-            "[data-edit-course]"
-        )
-        .forEach(
-            button => {
-
-                button.addEventListener(
-                    "click",
-                    () =>
-                        editCourse(
-                            button.dataset.editCourse
-                        )
-                );
-
-            }
-        );
-
-
-    area
-        .querySelectorAll(
-            "[data-delete-course]"
-        )
-        .forEach(
-            button => {
-
-                button.addEventListener(
-                    "click",
-                    () =>
-                        deleteCourse(
-                            button.dataset.deleteCourse
-                        )
-                );
-
-            }
-        );
+    });
 
 }
 
 
-/* =========================================================
-   EDIT COURSE
-   ========================================================= */
+$("addContentBtn")
+  ?.addEventListener("click", () => {
 
-function editCourse(id) {
+    contentRows.push({
+      type: "",
+      title: "",
+      url: ""
+    });
 
-    const course =
-        courses.find(
-            c => c.id === id
-        );
+    renderContentEditor();
 
-    if (!course) return;
-
-
-    editingCourseId =
-        id;
+  });
 
 
-    setVal(
-        "cId",
-        course.courseId ||
-        id
-    );
+// =====================================================
+// COURSE SAVE
+// =====================================================
 
-    setVal(
-        "cExam",
-        course.exam
-    );
-
-    setVal(
-        "cBatch",
-        course.batch
-    );
-
-    setVal(
-        "cYear",
-        course.year
-    );
-
-    setVal(
-        "cSubject",
-        course.subject
-    );
-
-    setVal(
-        "cTitle",
-        course.title
-    );
-
-    setVal(
-        "cDescription",
-        course.description
-    );
-
-    setVal(
-        "cTestId",
-        course.testId
-    );
-
-
-    const editor =
-        document.getElementById(
-            "contentsEditor"
-        );
-
-
-    editor.innerHTML =
-        "";
-
-
-    (
-        course.contents || []
-    )
-    .forEach(
-        content =>
-            addContentRow(
-                content
-            )
-    );
-
-
-    document
-        .getElementById(
-            "courses"
-        )
-        ?.scrollIntoView({
-            behavior:"smooth"
-        });
-
-}
-
-
-/* =========================================================
-   DELETE COURSE
-   ========================================================= */
-
-async function deleteCourse(id) {
-
-    if (
-        !confirm(
-            "Course delete karna hai?"
-        )
-    ) {
-
-        return;
-
-    }
-
-
-    try {
-
-        await deleteDoc(
-            doc(
-                db,
-                "courses",
-                id
-            )
-        );
-
-
-        await loadAllData();
-
-
-    } catch (error) {
-
-        alert(
-            "Delete error:\n" +
-            error.message
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   ================= TEST MANAGEMENT =======================
-   ========================================================= */
-
-
-/* =========================================================
-   TEST FORM
-   ========================================================= */
-
-document
-    .getElementById(
-        "testForm"
-    )
-    ?.addEventListener(
-        "submit",
-        saveTest
-    );
-
-
-async function saveTest(event) {
+$("courseForm")?.addEventListener(
+  "submit",
+  async event => {
 
     event.preventDefault();
 
 
-    const testId =
-        val("tId");
-
-
-    const questions =
-        readQuestions();
-
-
-    if (!questions.length) {
-
-        alert(
-            "At least 1 question add karo."
-        );
-
-        return;
-
-    }
-
-
-    const hasCorrect =
-        questions.every(
-            question =>
-                question.options.some(
-                    option =>
-                        option.correct === true
-                )
-        );
-
-
-    if (!hasCorrect) {
-
-        alert(
-            "Har question me correct answer select karo."
-        );
-
-        return;
-
-    }
-
-
-    const data = {
-
-        testId,
-
-        exam:
-            val("tExam"),
-
-        batch:
-            val("tBatch"),
-
-        year:
-            val("tYear"),
-
-        courseId:
-            val("tCourseId"),
-
-        lectureId:
-            val("tLectureId"),
-
-        lectureTitle:
-            val("tLectureTitle"),
-
-        testNumber:
-            Number(
-                val("tTestNumber")
-            ),
-
-        title:
-            val("tTitle"),
-
-        duration:
-            Number(
-                val("tDuration")
-            ),
-
-        active:
-            document.getElementById(
-                "tActive"
-            ).checked,
-
-        questions,
-
-        updatedAt:
-            Date.now()
-
-    };
-
-
-    try {
-
-        const id =
-            editingTestId ||
-            testId;
-
-
-        await setDoc(
-            doc(
-                db,
-                "tests",
-                id
-            ),
-            data,
-            {
-                merge:true
-            }
-        );
-
-
-        alert(
-            "Test saved successfully."
-        );
-
-
-        clearTestForm();
-
-        await loadAllData();
-
-
-    } catch (error) {
-
-        console.error(
-            error
-        );
-
-        alert(
-            "Test save error:\n" +
-            error.message
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   QUESTIONS
-   ========================================================= */
-
-function addQuestion(
-    question = {}
-) {
-
-    const editor =
-        document.getElementById(
-            "questionsEditor"
-        );
-
-    if (!editor) return;
-
-
-    const index =
-        editor.children.length;
-
-
-    const options =
-        Array.isArray(
-            question.options
-        )
-            ? question.options
-            : [];
-
-
-    const optionData = [];
-
-
-    for (
-        let i = 0;
-        i < 4;
-        i++
-    ) {
-
-        optionData.push(
-            options[i] || {
-
-                text:"",
-                correct:false,
-                solution:""
-
-            }
-        );
-
-    }
-
-
-    const wrapper =
-        document.createElement(
-            "div"
-        );
-
-
-    wrapper.className =
-        "question-editor";
-
-
-    wrapper.innerHTML = `
-
-        <div class="question-header">
-
-            <div class="question-number">
-                Question ${index + 1}
-            </div>
-
-            <button
-                type="button"
-                class="btn danger remove-question"
-            >
-                Remove
-            </button>
-
-        </div>
-
-
-        <label>
-
-            Question
-
-            <textarea
-                class="q-text"
-                placeholder="Enter question"
-                required
-            >${esc(
-                question.question || ""
-            )}</textarea>
-
-        </label>
-
-
-        <div class="q-options"></div>
-
-    `;
-
-
-    const optionsArea =
-        wrapper.querySelector(
-            ".q-options"
-        );
-
-
-    optionData.forEach(
-        function(
-            option,
-            optionIndex
-        ) {
-
-            const row =
-                document.createElement(
-                    "div"
-                );
-
-
-            row.className =
-                "option-editor";
-
-
-            row.innerHTML = `
-
-                <input
-                    type="radio"
-                    name="correct-${Date.now()}-${Math.random()}"
-                    class="correct-option"
-                    ${option.correct ? "checked" : ""}
-                    title="Correct answer"
-                >
-
-                <input
-                    class="option-text"
-                    placeholder="Option ${optionIndex + 1}"
-                    value="${esc(
-                        option.text || ""
-                    )}"
-                >
-
-                <input
-                    class="option-solution"
-                    placeholder="Explanation / solution"
-                    value="${esc(
-                        option.solution || ""
-                    )}"
-                >
-
-                <span class="small">
-                    Correct
-                </span>
-
-            `;
-
-
-            optionsArea.appendChild(
-                row
-            );
-
-        }
-    );
-
-
-    wrapper
-        .querySelector(
-            ".remove-question"
-        )
-        .addEventListener(
-            "click",
-            function() {
-
-                wrapper.remove();
-
-                renumberQuestions();
-
-            }
-        );
-
-
-    editor.appendChild(
-        wrapper
-    );
-
-
-    renumberQuestions();
-
-}
-
-
-function renumberQuestions() {
-
-    document
-        .querySelectorAll(
-            "#questionsEditor .question-editor"
-        )
-        .forEach(
-            function(wrapper,index) {
-
-                const title =
-                    wrapper.querySelector(
-                        ".question-number"
-                    );
-
-                if (title) {
-
-                    title.textContent =
-                        "Question " +
-                        (
-                            index + 1
-                        );
-
-                }
-
-            }
-        );
-
-}
-
-
-function readQuestions() {
-
-    return [
-        ...
-        document.querySelectorAll(
-            "#questionsEditor .question-editor"
-        )
-    ]
-    .map(
-        wrapper => {
-
-            const question =
-                wrapper
-                    .querySelector(
-                        ".q-text"
-                    )
-                    .value
-                    .trim();
-
-
-            const optionRows =
-                wrapper.querySelectorAll(
-                    ".option-editor"
-                );
-
-
-            const options =
-                [
-                    ...optionRows
-                ]
-                .map(
-                    row => {
-
-                        return {
-
-                            text:
-                                row
-                                    .querySelector(
-                                        ".option-text"
-                                    )
-                                    .value
-                                    .trim(),
-
-                            correct:
-                                row
-                                    .querySelector(
-                                        ".correct-option"
-                                    )
-                                    .checked,
-
-                            solution:
-                                row
-                                    .querySelector(
-                                        ".option-solution"
-                                    )
-                                    .value
-                                    .trim()
-
-                        };
-
-                    }
-                );
-
-
-            return {
-
-                question,
-                options
-
-            };
-
-        }
-    );
-
-}
-
-
-/* =========================================================
-   ADD QUESTION
-   ========================================================= */
-
-document
-    .getElementById(
-        "addQuestionBtn"
-    )
-    ?.addEventListener(
-        "click",
-        () =>
-            addQuestion()
-    );
-
-
-/* =========================================================
-   NEW TEST
-   ========================================================= */
-
-function clearTestForm() {
-
-    editingTestId =
-        null;
-
-
-    document
-        .getElementById(
-            "testForm"
-        )
-        ?.reset();
-
-
-    document
-        .getElementById(
-            "questionsEditor"
-        ).innerHTML =
-        "";
-
-
-    document.getElementById(
-        "tActive"
-    ).checked =
-        true;
-
-
-    setVal(
-        "tDuration",
-        "30"
-    );
-
-    setVal(
-        "tTestNumber",
-        "1"
-    );
-
-}
-
-
-document
-    .getElementById(
-        "newTestBtn"
-    )
-    ?.addEventListener(
-        "click",
-        clearTestForm
-    );
-
-
-/* =========================================================
-   TEST FILTERS
-   ========================================================= */
-
-[
-    "testSearch",
-    "testExamFilter",
-    "testBatchFilter",
-    "testYearFilter",
-    "testCourseFilter"
-]
-.forEach(
-    id => {
-
-        document
-            .getElementById(id)
-            ?.addEventListener(
-                "input",
-                renderTests
-            );
-
-        document
-            .getElementById(id)
-            ?.addEventListener(
-                "change",
-                renderTests
-            );
-
-    }
-);
-
-
-/* =========================================================
-   RENDER TESTS
-   ========================================================= */
-
-function renderTests() {
-
-    const area =
-        document.getElementById(
-            "testsList"
-        );
-
-    if (!area) return;
-
-
-    const search =
-        val("testSearch")
-            .toLowerCase();
+    const id =
+      value("cId");
 
     const exam =
-        val("testExamFilter");
+      value("cExam");
 
     const batch =
-        val("testBatchFilter");
+      value("cBatch");
 
     const year =
-        val("testYearFilter");
+      value("cYear");
 
-    const course =
-        val("testCourseFilter");
+    const subject =
+      value("cSubject");
 
+    const title =
+      value("cTitle");
 
-    const filtered =
-        tests.filter(
-            test => {
+    const description =
+      value("cDescription");
 
-                const text =
-                    [
-                        test.id,
-                        test.testId,
-                        test.title,
-                        test.exam,
-                        test.batch,
-                        test.year,
-                        test.courseId,
-                        test.lectureId
-                    ]
-                    .join(" ")
-                    .toLowerCase();
+    const testId =
+      value("cTestId");
 
-
-                return (
-
-                    (!search ||
-                        text.includes(
-                            search
-                        )
-                    )
-
-                    &&
-
-                    (!exam ||
-                        test.exam === exam
-                    )
-
-                    &&
-
-                    (!batch ||
-                        test.batch === batch
-                    )
-
-                    &&
-
-                    (!year ||
-                        String(
-                            test.year
-                        ) ===
-                        String(year)
-                    )
-
-                    &&
-
-                    (!course ||
-                        test.courseId ===
-                        course
-                    )
-
-                );
-
-            }
-        );
-
-
-    if (!filtered.length) {
-
-        area.innerHTML =
-            `<div class="empty">No tests found.</div>`;
-
-        return;
-
-    }
-
-
-    filtered.sort(
-        (a,b) =>
-            String(
-                a.courseId || ""
-            )
-            .localeCompare(
-                String(
-                    b.courseId || ""
-                )
-            )
-    );
-
-
-    let html = "";
-
-
-    filtered.forEach(
-        test => {
-
-            const questionCount =
-                Array.isArray(
-                    test.questions
-                )
-                    ? test.questions.length
-                    : 0;
-
-
-            const active =
-                test.active !== false;
-
-
-            html += `
-
-                <div class="test-list-card">
-
-                    <div class="test-list-top">
-
-                        <div>
-
-                            <strong>
-                                ${esc(
-                                    test.title ||
-                                    test.id
-                                )}
-                            </strong>
-
-                            <div class="small">
-                                ${esc(
-                                    test.id
-                                )}
-                            </div>
-
-                        </div>
-
-
-                        <div>
-
-                            ${
-                                active
-                                    ? `
-                                        <span class="pill green">
-                                            Active
-                                        </span>
-                                      `
-                                    : `
-                                        <span class="pill red">
-                                            Disabled
-                                        </span>
-                                      `
-                            }
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="test-meta">
-
-                        <span class="pill">
-                            Exam: ${esc(
-                                test.exam
-                            )}
-                        </span>
-
-                        <span class="pill">
-                            Batch: ${esc(
-                                test.batch
-                            )}
-                        </span>
-
-                        <span class="pill">
-                            Year: ${esc(
-                                test.year
-                            )}
-                        </span>
-
-                        <span class="pill">
-                            Course: ${esc(
-                                test.courseId
-                            )}
-                        </span>
-
-                        <span class="pill">
-                            Lecture: ${esc(
-                                test.lectureId
-                            )}
-                        </span>
-
-                        <span class="pill">
-                            Test: ${esc(
-                                test.testNumber
-                            )}
-                        </span>
-
-                        <span class="pill">
-                            ${esc(
-                                test.duration
-                            )} min
-                        </span>
-
-                        <span class="pill">
-                            ${questionCount} questions
-                        </span>
-
-                    </div>
-
-
-                    <div class="test-actions"
-                         style="margin-top:12px">
-
-                        <button
-                            class="btn muted"
-                            data-edit-test="${esc(test.id)}"
-                        >
-                            Edit
-                        </button>
-
-                        <button
-                            class="btn ${active ? "danger" : "green-btn"}"
-                            data-toggle-test="${esc(test.id)}"
-                        >
-                            ${
-                                active
-                                    ? "Disable"
-                                    : "Enable"
-                            }
-                        </button>
-
-                        <button
-                            class="btn danger"
-                            data-delete-test="${esc(test.id)}"
-                        >
-                            Delete
-                        </button>
-
-                    </div>
-
-                </div>
-
-            `;
-
-        }
-    );
-
-
-    area.innerHTML =
-        html;
-
-
-    area
-        .querySelectorAll(
-            "[data-edit-test]"
-        )
-        .forEach(
-            button => {
-
-                button.addEventListener(
-                    "click",
-                    () =>
-                        editTest(
-                            button.dataset.editTest
-                        )
-                );
-
-            }
-        );
-
-
-    area
-        .querySelectorAll(
-            "[data-toggle-test]"
-        )
-        .forEach(
-            button => {
-
-                button.addEventListener(
-                    "click",
-                    () =>
-                        toggleTest(
-                            button.dataset.toggleTest
-                        )
-                );
-
-            }
-        );
-
-
-    area
-        .querySelectorAll(
-            "[data-delete-test]"
-        )
-        .forEach(
-            button => {
-
-                button.addEventListener(
-                    "click",
-                    () =>
-                        deleteTest(
-                            button.dataset.deleteTest
-                        )
-                );
-
-            }
-        );
-
-}
-
-
-/* =========================================================
-   EDIT TEST
-   ========================================================= */
-
-function editTest(id) {
-
-    const test =
-        tests.find(
-            t => t.id === id
-        );
-
-    if (!test) return;
-
-
-    editingTestId =
-        id;
-
-
-    setVal(
-        "tId",
-        test.testId ||
-        id
-    );
-
-    setVal(
-        "tExam",
-        test.exam
-    );
-
-    setVal(
-        "tBatch",
-        test.batch
-    );
-
-    setVal(
-        "tYear",
-        test.year
-    );
-
-    setVal(
-        "tCourseId",
-        test.courseId
-    );
-
-    setVal(
-        "tLectureId",
-        test.lectureId
-    );
-
-    setVal(
-        "tLectureTitle",
-        test.lectureTitle
-    );
-
-    setVal(
-        "tTestNumber",
-        test.testNumber
-    );
-
-    setVal(
-        "tDuration",
-        test.duration
-    );
-
-    setVal(
-        "tTitle",
-        test.title
-    );
-
-
-    document.getElementById(
-        "tActive"
-    ).checked =
-        test.active !== false;
-
-
-    const editor =
-        document.getElementById(
-            "questionsEditor"
-        );
-
-
-    editor.innerHTML =
-        "";
-
-
-    (
-        test.questions || []
-    )
-    .forEach(
-        question =>
-            addQuestion(
-                question
-            )
-    );
-
-
-    document
-        .getElementById(
-            "tests"
-        )
-        ?.scrollIntoView({
-            behavior:"smooth"
-        });
-
-}
-
-
-/* =========================================================
-   ENABLE / DISABLE
-   ========================================================= */
-
-async function toggleTest(id) {
-
-    const test =
-        tests.find(
-            t => t.id === id
-        );
-
-    if (!test) return;
-
-
-    const newStatus =
-        test.active === false;
-
-
-    try {
-
-        await updateDoc(
-            doc(
-                db,
-                "tests",
-                id
-            ),
-            {
-
-                active:
-                    newStatus,
-
-                updatedAt:
-                    Date.now()
-
-            }
-        );
-
-
-        await loadAllData();
-
-
-    } catch (error) {
-
-        alert(
-            "Status update error:\n" +
-            error.message
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   DELETE TEST
-   ========================================================= */
-
-async function deleteTest(id) {
 
     if (
-        !confirm(
-            "Test delete karna hai?\n\nExisting student results delete nahi honge."
-        )
+      !id ||
+      !exam ||
+      !batch ||
+      !year ||
+      !subject ||
+      !title
     ) {
 
-        return;
+      alert(
+        "Course ID, Exam, Batch, Year, Subject aur Title required hain."
+      );
 
+      return;
     }
 
 
     try {
 
-        await deleteDoc(
-            doc(
-                db,
-                "tests",
-                id
-            )
-        );
+      await setDoc(
+        doc(db, "courses", id),
+        {
+
+          courseId: id,
+
+          exam,
+          batch,
+          year,
+
+          subject,
+          title,
+
+          description,
+
+          testId,
+
+          contents: contentRows,
+
+          updatedAt:
+            new Date().toISOString()
+
+        },
+        { merge: true }
+      );
 
 
-        await loadAllData();
+      alert(
+        editingCourseId
+          ? "Course updated successfully."
+          : "Course saved successfully."
+      );
+
+
+      clearCourseForm();
+
+      await loadAllData();
 
 
     } catch (error) {
 
-        alert(
-            "Test delete error:\n" +
-            error.message
-        );
+      console.error(
+        "COURSE SAVE ERROR:",
+        error
+      );
+
+      alert(
+        error.message ||
+        "Course save failed."
+      );
 
     }
 
-}
-
-
-/* =========================================================
-   RESULTS
-   ========================================================= */
-
-[
-    "resultSearch",
-    "resultExamFilter",
-    "resultBatchFilter",
-    "resultCourseFilter",
-    "resultSubjectFilter"
-]
-.forEach(
-    id => {
-
-        document
-            .getElementById(id)
-            ?.addEventListener(
-                "input",
-                renderResults
-            );
-
-        document
-            .getElementById(id)
-            ?.addEventListener(
-                "change",
-                renderResults
-            );
-
-    }
+  }
 );
 
 
-document
-    .getElementById(
-        "refreshResultsBtn"
-    )
-    ?.addEventListener(
-        "click",
-        loadAllData
+// =====================================================
+// CLEAR COURSE
+// =====================================================
+
+function clearCourseForm() {
+
+  editingCourseId = null;
+
+  setValue("cId", "");
+  setValue("cExam", "");
+  setValue("cBatch", "");
+  setValue("cYear", "");
+  setValue("cSubject", "");
+  setValue("cTitle", "");
+  setValue("cDescription", "");
+  setValue("cTestId", "");
+
+  contentRows = [];
+
+  renderContentEditor();
+
+}
+
+
+$("newCourseBtn")
+  ?.addEventListener(
+    "click",
+    clearCourseForm
+  );
+
+
+// =====================================================
+// EDIT COURSE
+// =====================================================
+
+window.editCourse = function(id) {
+
+  const course =
+    courses.find(c =>
+      c.id === id ||
+      c.courseId === id
     );
 
+  if (!course) return;
+
+
+  editingCourseId = id;
+
+
+  setValue(
+    "cId",
+    course.id || course.courseId
+  );
+
+  setValue(
+    "cExam",
+    course.exam
+  );
+
+  setValue(
+    "cBatch",
+    course.batch
+  );
+
+  setValue(
+    "cYear",
+    course.year
+  );
+
+  setValue(
+    "cSubject",
+    course.subject
+  );
+
+  setValue(
+    "cTitle",
+    course.title
+  );
+
+  setValue(
+    "cDescription",
+    course.description
+  );
+
+  setValue(
+    "cTestId",
+    course.testId ||
+    course.testID ||
+    ""
+  );
+
+
+  contentRows =
+    Array.isArray(course.contents)
+      ? JSON.parse(
+          JSON.stringify(course.contents)
+        )
+      : [];
+
+
+  renderContentEditor();
+
+
+  document
+    .querySelector('[data-section="courses"]')
+    ?.click();
+
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+
+};
+
+
+// =====================================================
+// DELETE COURSE
+// =====================================================
+
+window.deleteCourse = async function(id) {
+
+  const course =
+    courses.find(c =>
+      c.id === id ||
+      c.courseId === id
+    );
+
+  if (!course) return;
+
+
+  const ok =
+    confirm(
+      `Course "${course.title || id}" delete karna hai?`
+    );
+
+
+  if (!ok) return;
+
+
+  try {
+
+    await deleteDoc(
+      doc(db, "courses", id)
+    );
+
+
+    alert("Course deleted.");
+
+    await loadAllData();
+
+
+  } catch (error) {
+
+    console.error(error);
+
+    alert(
+      error.message ||
+      "Course delete failed."
+    );
+
+  }
+
+};
+
+
+// =====================================================
+// RESULT HELPERS
+// =====================================================
 
 function resultStudent(result) {
 
-    return students.find(
-        student =>
-            student.id ===
-                result.studentId ||
-            student.id ===
-                result.uid ||
-            student.email ===
-                result.email
+  const id =
+    result.studentId ||
+    result.studentID ||
+    result.userId ||
+    result.uid;
+
+
+  if (id) {
+
+    const found =
+      students.find(
+        student => student.id === id
+      );
+
+    if (found) return found;
+
+  }
+
+
+  const email =
+    lower(
+      result.studentEmail ||
+      result.email
     );
+
+
+  if (email) {
+
+    const found =
+      students.find(
+        student =>
+          lower(student.email) === email
+      );
+
+    if (found) return found;
+
+  }
+
+
+  return null;
 
 }
 
 
 function resultCourse(result) {
 
-    return (
-        result.courseId ||
-        result.courseID ||
-        result.course ||
-        ""
-    );
+  const id =
+    result.courseId ||
+    result.courseID ||
+    result.course;
+
+
+  if (id) {
+
+    const found =
+      courses.find(course =>
+        course.id === id ||
+        course.courseId === id
+      );
+
+    if (found) return found;
+
+  }
+
+
+  return null;
+
+}
+
+
+function resultExam(result) {
+
+  const student =
+    resultStudent(result);
+
+  const course =
+    resultCourse(result);
+
+
+  return display(
+    result.exam ||
+    course?.exam ||
+    student?.exam
+  );
+
+}
+
+
+function resultBatch(result) {
+
+  const student =
+    resultStudent(result);
+
+  const course =
+    resultCourse(result);
+
+
+  return display(
+    result.batch ||
+    course?.batch ||
+    student?.batch
+  );
+
+}
+
+
+function resultCourseName(result) {
+
+  const course =
+    resultCourse(result);
+
+
+  return display(
+    result.courseTitle ||
+    result.courseName ||
+    course?.title ||
+    result.courseId ||
+    result.courseID ||
+    result.course
+  );
+
+}
+
+
+function resultSubject(result) {
+
+  const course =
+    resultCourse(result);
+
+
+  return display(
+    result.subject ||
+    course?.subject
+  );
 
 }
 
 
 function resultTest(result) {
 
-    return (
-        result.testId ||
-        result.testID ||
-        result.testName ||
-        result.testTitle ||
-        result.test ||
-        ""
-    );
+  const course =
+    resultCourse(result);
+
+
+  return display(
+    result.testName ||
+    result.testTitle ||
+    result.testId ||
+    result.testID ||
+    result.test ||
+    course?.testId
+  );
 
 }
 
+
+function resultStudentName(result) {
+
+  const student =
+    resultStudent(result);
+
+
+  return display(
+    result.studentName ||
+    result.name ||
+    student?.name
+  );
+
+}
+
+
+function resultStudentEmail(result) {
+
+  const student =
+    resultStudent(result);
+
+
+  return display(
+    result.studentEmail ||
+    result.email ||
+    student?.email
+  );
+
+}
+
+
+function resultScore(result) {
+
+  if (
+    result.score !== undefined &&
+    result.score !== null
+  ) {
+    return result.score;
+  }
+
+  if (
+    result.marks !== undefined &&
+    result.marks !== null
+  ) {
+    return result.marks;
+  }
+
+  return "—";
+
+}
+
+
+function isEnrolled(result) {
+
+  const student =
+    resultStudent(result);
+
+
+  if (!student) {
+    return false;
+  }
+
+
+  const courseId =
+    result.courseId ||
+    result.courseID ||
+    result.course;
+
+
+  if (!courseId) {
+
+    return true;
+
+  }
+
+
+  const assigned =
+    Array.isArray(student.courses)
+      ? student.courses
+      : [];
+
+
+  return assigned.includes(courseId);
+
+}
+
+
+// =====================================================
+// RESULT FILTERS
+// =====================================================
+
+function renderResultFilters() {
+
+  fillSelect(
+    "resultExamFilter",
+    results.map(resultExam),
+    "All Exams"
+  );
+
+  fillSelect(
+    "resultBatchFilter",
+    results.map(resultBatch),
+    "All Batches"
+  );
+
+  fillSelect(
+    "resultCourseFilter",
+    results.map(resultCourseName),
+    "All Courses"
+  );
+
+  fillSelect(
+    "resultSubjectFilter",
+    results.map(resultSubject),
+    "All Subjects"
+  );
+
+}
+
+
+function filteredResults() {
+
+  const search =
+    normalize(value("resultSearch"));
+
+  const exam =
+    normalize(value("resultExamFilter"));
+
+  const batch =
+    normalize(value("resultBatchFilter"));
+
+  const course =
+    normalize(value("resultCourseFilter"));
+
+  const subject =
+    normalize(value("resultSubjectFilter"));
+
+
+  return results.filter(result => {
+
+    const haystack = [
+
+      resultStudentName(result),
+
+      resultStudentEmail(result),
+
+      resultExam(result),
+
+      resultBatch(result),
+
+      resultCourseName(result),
+
+      resultSubject(result),
+
+      resultTest(result)
+
+    ]
+      .map(normalize)
+      .join(" ");
+
+
+    return (
+
+      (!search ||
+        haystack.includes(search))
+
+      &&
+
+      (!exam ||
+        normalize(resultExam(result)) === exam)
+
+      &&
+
+      (!batch ||
+        normalize(resultBatch(result)) === batch)
+
+      &&
+
+      (!course ||
+        normalize(resultCourseName(result)) === course)
+
+      &&
+
+      (!subject ||
+        normalize(resultSubject(result)) === subject)
+
+    );
+
+  });
+
+}
+
+
+// =====================================================
+// RESULT GROUPING
+// EXAM → BATCH → COURSE → SUBJECT → TEST
+// =====================================================
 
 function renderResults() {
 
-    const area =
-        document.getElementById(
-            "resultsTable"
-        );
+  const container =
+    $("resultsTable");
 
-    const summary =
-        document.getElementById(
-            "resultSummary"
-        );
+  if (!container) return;
 
 
-    if (!area) return;
+  const list =
+    filteredResults();
 
 
-    const search =
-        val("resultSearch")
-            .toLowerCase();
-
-    const examFilter =
-        val("resultExamFilter");
-
-    const batchFilter =
-        val("resultBatchFilter");
-
-    const courseFilter =
-        val("resultCourseFilter");
-
-    const subjectFilter =
-        val("resultSubjectFilter");
+  let enrolledCount = 0;
+  let notEnrolledCount = 0;
 
 
-    const filtered =
-        results.filter(
-            result => {
+  list.forEach(result => {
 
-                const student =
-                    resultStudent(
-                        result
-                    );
-
-
-                const courseId =
-                    resultCourse(
-                        result
-                    );
-
-
-                const course =
-                    courses.find(
-                        c =>
-                            c.id ===
-                            courseId ||
-                            c.courseId ===
-                            courseId
-                    );
-
-
-                const text =
-                    [
-                        result.name,
-                        result.email,
-                        result.course,
-                        result.courseId,
-                        result.testId,
-                        result.testName,
-                        result.testTitle,
-                        course?.title,
-                        course?.subject,
-                        course?.exam,
-                        course?.batch
-                    ]
-                    .join(" ")
-                    .toLowerCase();
-
-
-                const exam =
-                    course?.exam ||
-                    result.exam ||
-                    "";
-
-
-                const batch =
-                    course?.batch ||
-                    result.batch ||
-                    "";
-
-
-                const subject =
-                    course?.subject ||
-                    result.subject ||
-                    "";
-
-
-                return (
-
-                    (!search ||
-                        text.includes(
-                            search
-                        )
-                    )
-
-                    &&
-
-                    (!examFilter ||
-                        exam === examFilter
-                    )
-
-                    &&
-
-                    (!batchFilter ||
-                        batch === batchFilter
-                    )
-
-                    &&
-
-                    (!courseFilter ||
-                        courseId === courseFilter
-                    )
-
-                    &&
-
-                    (!subjectFilter ||
-                        subject === subjectFilter
-                    )
-
-                );
-
-            }
-        );
-
-
-    if (summary) {
-
-        summary.innerHTML = `
-
-            <span class="pill">
-                Showing: ${filtered.length}
-            </span>
-
-            <span class="pill green">
-                Total Results: ${results.length}
-            </span>
-
-        `;
-
+    if (isEnrolled(result)) {
+      enrolledCount++;
+    } else {
+      notEnrolledCount++;
     }
 
-
-    if (!filtered.length) {
-
-        area.innerHTML =
-            `<div class="no-results">No results found.</div>`;
-
-        return;
-
-    }
+  });
 
 
-    let html = `
+  if ($("resultSummary")) {
 
-        <div class="table-wrap">
+    $("resultSummary").innerHTML = `
 
-        <table class="table">
+      <span class="pill">
+        Total: ${list.length}
+      </span>
 
-            <thead>
+      <span class="pill green">
+        Enrolled: ${enrolledCount}
+      </span>
 
-                <tr>
-
-                    <th>Student</th>
-                    <th>Email</th>
-                    <th>Course</th>
-                    <th>Test</th>
-                    <th>Score</th>
-                    <th>Percentage</th>
-                    <th>Submitted</th>
-                    <th>Action</th>
-
-                </tr>
-
-            </thead>
-
-            <tbody>
+      <span class="pill red">
+        Not Enrolled: ${notEnrolledCount}
+      </span>
 
     `;
 
-
-    filtered.forEach(
-        result => {
-
-            const percentage =
-                result.percentage ??
-                (
-                    Number(result.total || 0) > 0
-                        ? (
-                            Number(result.score || 0) /
-                            Number(result.total || 1) *
-                            100
-                        ).toFixed(2)
-                        : "0"
-                );
+  }
 
 
-            const date =
-                result.submittedAt
-                    ? new Date(
-                        Number(
-                            result.submittedAt
-                        )
-                    ).toLocaleString()
-                    : "-";
+  if (!list.length) {
+
+    container.innerHTML =
+      `<div class="no-results">
+        No test results found.
+      </div>`;
+
+    return;
+
+  }
 
 
-            html += `
+  const examGroups = new Map();
 
-                <tr>
 
-                    <td>
-                        ${esc(
-                            result.name ||
-                            "Student"
-                        )}
-                    </td>
+  list.forEach(result => {
 
-                    <td>
-                        ${esc(
-                            result.email
-                        )}
-                    </td>
+    const exam =
+      resultExam(result);
 
-                    <td>
-                        ${esc(
-                            resultCourse(
-                                result
-                            )
-                        )}
-                    </td>
+    const batch =
+      resultBatch(result);
 
-                    <td>
-                        ${esc(
-                            resultTest(
-                                result
-                            )
-                        )}
-                    </td>
+    const course =
+      resultCourseName(result);
 
-                    <td>
+    const subject =
+      resultSubject(result);
 
-                        <span class="score">
-                            ${esc(
-                                result.score
-                            )}
-                            /
-                            ${esc(
-                                result.total
-                            )}
-                        </span>
+    const test =
+      resultTest(result);
 
-                    </td>
 
-                    <td>
-                        ${esc(
-                            percentage
-                        )}%
-                    </td>
+    if (!examGroups.has(exam)) {
 
-                    <td>
-                        ${esc(
-                            date
-                        )}
-                    </td>
+      examGroups.set(
+        exam,
+        new Map()
+      );
 
-                    <td>
+    }
 
-                        <button
-                            class="btn danger"
-                            data-delete-result="${esc(result.id)}"
-                        >
-                            Delete
-                        </button>
 
-                    </td>
+    const batchMap =
+      examGroups.get(exam);
 
-                </tr>
 
-            `;
+    if (!batchMap.has(batch)) {
 
-        }
-    );
+      batchMap.set(
+        batch,
+        new Map()
+      );
+
+    }
+
+
+    const courseMap =
+      batchMap.get(batch);
+
+
+    if (!courseMap.has(course)) {
+
+      courseMap.set(
+        course,
+        new Map()
+      );
+
+    }
+
+
+    const subjectMap =
+      courseMap.get(course);
+
+
+    if (!subjectMap.has(subject)) {
+
+      subjectMap.set(
+        subject,
+        new Map()
+      );
+
+    }
+
+
+    const testMap =
+      subjectMap.get(subject);
+
+
+    if (!testMap.has(test)) {
+
+      testMap.set(
+        test,
+        []
+      );
+
+    }
+
+
+    testMap.get(test).push(result);
+
+  });
+
+
+  let html = "";
+
+
+  for (const [
+    exam,
+    batchMap
+  ] of examGroups) {
 
 
     html += `
+      <div class="result-group">
 
-            </tbody>
-
-        </table>
-
+        <div class="result-group-title">
+          📘 Exam: ${esc(exam)}
         </div>
-
     `;
 
 
-    area.innerHTML =
-        html;
+    for (const [
+      batch,
+      courseMap
+    ] of batchMap) {
 
 
-    area
-        .querySelectorAll(
-            "[data-delete-result]"
-        )
-        .forEach(
-            button => {
-
-                button.addEventListener(
-                    "click",
-                    () =>
-                        deleteResult(
-                            button.dataset.deleteResult
-                        )
-                );
-
-            }
-        );
-
-}
+      html += `
+        <div style="
+          padding:10px;
+          background:#111827;
+          border:1px solid #334155;
+          border-top:0;
+          font-weight:800;
+        ">
+          📦 Batch: ${esc(batch)}
+        </div>
+      `;
 
 
-/* =========================================================
-   RESULT FILTER VALUES
-   ========================================================= */
-
-function refreshResultFilters() {
-
-    const examValues =
-        [
-            ...new Set(
-                courses
-                    .map(
-                        c => c.exam
-                    )
-                    .filter(Boolean)
-            )
-        ]
-        .sort();
+      for (const [
+        course,
+        subjectMap
+      ] of courseMap) {
 
 
-    const batchValues =
-        [
-            ...new Set(
-                courses
-                    .map(
-                        c => c.batch
-                    )
-                    .filter(Boolean)
-            )
-        ]
-        .sort();
+        html += `
+          <div style="
+            padding:10px;
+            background:#0f172a;
+            border:1px solid #334155;
+            border-top:0;
+            color:#60a5fa;
+            font-weight:800;
+          ">
+            📚 Course: ${esc(course)}
+          </div>
+        `;
 
 
-    const courseValues =
-        [
-            ...new Set(
-                results
-                    .map(
-                        resultCourse
-                    )
-                    .filter(Boolean)
-            )
-        ]
-        .sort();
+        for (const [
+          subject,
+          testMap
+        ] of subjectMap) {
 
 
-    const subjectValues =
-        [
-            ...new Set(
-                courses
-                    .map(
-                        c => c.subject
-                    )
-                    .filter(Boolean)
-            )
-        ]
-        .sort();
+          html += `
+            <div style="
+              padding:9px 12px;
+              background:#0b1220;
+              border:1px solid #334155;
+              border-top:0;
+              font-weight:700;
+            ">
+              📖 Subject: ${esc(subject)}
+            </div>
+          `;
 
 
-    fillSelect(
-        "resultExamFilter",
-        examValues,
-        "All Exams"
-    );
-
-    fillSelect(
-        "resultBatchFilter",
-        batchValues,
-        "All Batches"
-    );
-
-    fillSelect(
-        "resultCourseFilter",
-        courseValues,
-        "All Courses"
-    );
-
-    fillSelect(
-        "resultSubjectFilter",
-        subjectValues,
-        "All Subjects"
-    );
-
-}
+          for (const [
+            test,
+            resultList
+          ] of testMap) {
 
 
-async function deleteResult(id) {
+            html += `
+              <div style="
+                padding:9px 12px;
+                background:#172033;
+                border:1px solid #334155;
+                border-top:0;
+                font-weight:800;
+              ">
+                📝 Test: ${esc(test)}
+                <span class="group-count">
+                  ${resultList.length}
+                </span>
+              </div>
+            `;
 
-    if (
-        !confirm(
-            "Ye result delete karna hai?"
-        )
-    ) {
 
-        return;
+            resultList.forEach(result => {
+
+              const enrolled =
+                isEnrolled(result);
+
+
+              const status =
+                enrolled
+                  ? "ENROLLED"
+                  : "NOT ENROLLED";
+
+
+              const statusClass =
+                enrolled
+                  ? "status-enrolled"
+                  : "status-not-enrolled";
+
+
+              html += `
+
+                <div class="result-item">
+
+                  <div class="result-main">
+
+                    <div>
+                      <strong>
+                        ${esc(
+                          resultStudentName(result)
+                        )}
+                      </strong>
+
+                      <div class="small">
+                        ${esc(
+                          resultStudentEmail(result)
+                        )}
+                      </div>
+                    </div>
+
+
+                    <div>
+                      <span class="${statusClass}">
+                        ${status}
+                      </span>
+                    </div>
+
+
+                    <div>
+                      Score:
+                      <span class="score">
+                        ${esc(
+                          resultScore(result)
+                        )}
+                      </span>
+                    </div>
+
+
+                    <div>
+                      ${
+                        result.totalMarks ??
+                        result.maxMarks ??
+                        result.total ??
+                        "—"
+                      }
+                    </div>
+
+
+                    <div class="small">
+                      ${esc(
+                        result.id
+                      )}
+                    </div>
+
+
+                    <div class="actions">
+
+                      <button
+                        class="btn primary"
+                        onclick="window.downloadResultPDF('${esc(result.id)}')"
+                      >
+                        PDF
+                      </button>
+
+                      <button
+                        class="btn danger"
+                        onclick="window.deleteResult('${esc(result.id)}')"
+                      >
+                        Delete
+                      </button>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+              `;
+
+            });
+
+          }
+
+        }
+
+      }
 
     }
 
 
-    try {
+    html += `</div>`;
 
-        await deleteDoc(
-            doc(
-                db,
-                "testResults",
-                id
-            )
+  }
+
+
+  container.innerHTML = html;
+
+}
+
+
+// =====================================================
+// RESULT EVENTS
+// =====================================================
+
+[
+  "resultSearch",
+  "resultExamFilter",
+  "resultBatchFilter",
+  "resultCourseFilter",
+  "resultSubjectFilter"
+].forEach(id => {
+
+  $(id)?.addEventListener(
+    "input",
+    renderResults
+  );
+
+  $(id)?.addEventListener(
+    "change",
+    renderResults
+  );
+
+});
+
+
+$("refreshResultsBtn")
+  ?.addEventListener(
+    "click",
+    loadAllData
+  );
+
+
+// =====================================================
+// DELETE RESULT
+// =====================================================
+
+window.deleteResult = async function(id) {
+
+  const ok =
+    confirm(
+      "Ye test result permanently delete karna hai?"
+    );
+
+
+  if (!ok) return;
+
+
+  try {
+
+    await deleteDoc(
+      doc(db, "testResults", id)
+    );
+
+
+    await loadAllData();
+
+
+  } catch (error) {
+
+    console.error(error);
+
+    alert(
+      error.message ||
+      "Result delete failed."
+    );
+
+  }
+
+};
+
+
+// =====================================================
+// DELETE ALL RESULTS
+// =====================================================
+
+$("clearResultsBtn")
+  ?.addEventListener(
+    "click",
+    async () => {
+
+      if (!results.length) {
+
+        alert("Delete karne ke liye koi result nahi hai.");
+
+        return;
+      }
+
+
+      const first =
+        confirm(
+          `Kya tum ${results.length} test results delete karna chahte ho?`
         );
 
+
+      if (!first) return;
+
+
+      const second =
+        confirm(
+          "WARNING: Ye action undo nahi ho sakta. Continue?"
+        );
+
+
+      if (!second) return;
+
+
+      try {
+
+        for (const result of results) {
+
+          await deleteDoc(
+            doc(
+              db,
+              "testResults",
+              result.id
+            )
+          );
+
+        }
+
+
+        alert("All test results deleted.");
 
         await loadAllData();
 
 
-    } catch (error) {
+      } catch (error) {
+
+        console.error(error);
 
         alert(
-            "Result delete error:\n" +
-            error.message
+          error.message ||
+          "Delete all failed."
         );
 
-    }
+      }
 
+    }
+  );
+
+
+// =====================================================
+// RESULT PDF
+// =====================================================
+
+window.downloadResultPDF = function(id) {
+
+  const result =
+    results.find(
+      r => r.id === id
+    );
+
+  if (!result) return;
+
+
+  const student =
+    resultStudent(result);
+
+  const course =
+    resultCourse(result);
+
+
+  const enrolled =
+    isEnrolled(result);
+
+
+  const html = `
+
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>FJMC Academy Test Result</title>
+
+<style>
+
+body{
+  font-family:Arial,sans-serif;
+  padding:35px;
+  color:#111;
 }
 
+h1{
+  margin-bottom:5px;
+}
 
-document
-    .getElementById(
-        "clearResultsBtn"
-    )
-    ?.addEventListener(
-        "click",
-        async function() {
+.box{
+  border:1px solid #ccc;
+  padding:15px;
+  margin:12px 0;
+  border-radius:8px;
+}
 
-            if (
-                !confirm(
-                    "WARNING:\n\nSaare test results permanently delete honge.\n\nContinue?"
-                )
-            ) {
+.row{
+  margin:7px 0;
+}
 
-                return;
+.label{
+  font-weight:bold;
+}
 
-            }
+.status{
+  font-weight:bold;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>FJMC Academy</h1>
+
+<p>Test Result</p>
+
+<div class="box">
+
+<div class="row">
+<span class="label">Student:</span>
+${esc(
+  resultStudentName(result)
+)}
+</div>
+
+<div class="row">
+<span class="label">Email:</span>
+${esc(
+  resultStudentEmail(result)
+)}
+</div>
+
+<div class="row">
+<span class="label">Exam:</span>
+${esc(
+  resultExam(result)
+)}
+</div>
+
+<div class="row">
+<span class="label">Batch:</span>
+${esc(
+  resultBatch(result)
+)}
+</div>
+
+<div class="row">
+<span class="label">Course:</span>
+${esc(
+  resultCourseName(result)
+)}
+</div>
+
+<div class="row">
+<span class="label">Subject:</span>
+${esc(
+  resultSubject(result)
+)}
+</div>
+
+<div class="row">
+<span class="label">Test:</span>
+${esc(
+  resultTest(result)
+)}
+</div>
+
+<div class="row">
+<span class="label">Score:</span>
+${esc(
+  resultScore(result)
+)}
+</div>
+
+<div class="row">
+<span class="label">Enrollment:</span>
+
+<span class="status">
+${enrolled
+  ? "ENROLLED"
+  : "NOT ENROLLED"}
+</span>
+
+</div>
+
+</div>
+
+</body>
+
+</html>
+
+`;
 
 
-            try {
-
-                for (
-                    const result
-                    of results
-                ) {
-
-                    await deleteDoc(
-                        doc(
-                            db,
-                            "testResults",
-                            result.id
-                        )
-                    );
-
-                }
-
-
-                await loadAllData();
-
-
-                alert(
-                    "All test results deleted."
-                );
-
-
-            } catch (error) {
-
-                alert(
-                    "Delete error:\n" +
-                    error.message
-                );
-
-            }
-
-        }
+  const win =
+    window.open(
+      "",
+      "_blank"
     );
 
 
-/* =========================================================
-   DEVICES
-   ========================================================= */
+  if (!win) {
+
+    alert(
+      "Popup blocked hai. Browser me popup allow karo."
+    );
+
+    return;
+  }
+
+
+  win.document.write(html);
+
+  win.document.close();
+
+
+  setTimeout(() => {
+
+    win.print();
+
+  }, 500);
+
+};
+
+
+// =====================================================
+// DEVICES
+// =====================================================
 
 async function renderDevices() {
 
-    const area =
-        document.getElementById(
-            "deviceStudents"
-        );
+  const container =
+    $("deviceStudents");
 
-    if (!area) return;
+  if (!container) return;
 
 
-    try {
+  try {
 
-        const snapshot =
-            await getDocs(
-                collection(
-                    db,
-                    "users"
-                )
-            );
+    const usersSnap =
+      await getDocs(
+        collection(db, "users")
+      );
 
 
-        let html = "";
+    devices = [];
 
 
-        snapshot.forEach(
-            userDoc => {
+    usersSnap.forEach(userDoc => {
 
-                const data =
-                    userDoc.data();
-
-
-                const userDevices =
-                    Array.isArray(
-                        data.devices
-                    )
-                        ? data.devices
-                        : [];
+      const data =
+        userDoc.data();
 
 
-                if (!userDevices.length) {
+      if (data.devices) {
 
-                    return;
+        devices.push({
+          userId: userDoc.id,
+          ...data
+        });
 
-                }
+      }
 
-
-                html += `
-
-                    <div class="device">
-
-                        <strong>
-                            ${esc(
-                                data.email ||
-                                userDoc.id
-                            )}
-                        </strong>
-
-                        <div class="small">
-
-                            ${userDevices.length}
-                            device(s)
-
-                        </div>
-
-                        <button
-                            class="btn danger"
-                            data-release-devices="${esc(userDoc.id)}"
-                        >
-                            Release All
-                        </button>
-
-                    </div>
-
-                `;
-
-            }
-        );
+    });
 
 
-        area.innerHTML =
-            html ||
-            `<div class="empty">No reserved devices.</div>`;
+    if (!devices.length) {
 
+      container.innerHTML =
+        `<div class="empty">
+          No device data found.
+        </div>`;
 
-        area
-            .querySelectorAll(
-                "[data-release-devices]"
-            )
-            .forEach(
-                button => {
-
-                    button.addEventListener(
-                        "click",
-                        () =>
-                            releaseDevices(
-                                button.dataset.releaseDevices
-                            )
-                    );
-
-                }
-            );
-
-
-    } catch (error) {
-
-        console.error(
-            "Device load error:",
-            error
-        );
-
-
-        area.innerHTML =
-            `<div class="empty">
-                Device data load nahi hua.
-            </div>`;
-
-    }
-
-}
-
-
-async function releaseDevices(uid) {
-
-    if (
-        !confirm(
-            "Student ke saare device reservations release karne hain?"
-        )
-    ) {
-
-        return;
-
+      return;
     }
 
 
-    try {
+    container.innerHTML =
+      devices.map(user => `
 
-        await updateDoc(
-            doc(
-                db,
-                "users",
-                uid
-            ),
-            {
+        <div class="device">
 
-                devices: []
+          <button
+            class="btn danger"
+            onclick="window.releaseDevices('${esc(user.userId)}')"
+          >
+            Release
+          </button>
 
-            }
-        );
+          <strong>
+            ${esc(
+              display(
+                user.name ||
+                user.email ||
+                user.userId
+              )
+            )}
+          </strong>
+
+          <div class="small">
+            ${esc(
+              user.email || ""
+            )}
+          </div>
+
+        </div>
+
+      `).join("");
 
 
-        await renderDevices();
+  } catch (error) {
 
-
-    } catch (error) {
-
-        alert(
-            "Device release error:\n" +
-            error.message
-        );
-
-    }
-
-}
-
-
-/* =========================================================
-   SEED BUTTON
-   ========================================================= */
-
-document
-    .getElementById(
-        "seedBtn"
-    )
-    ?.addEventListener(
-        "click",
-        function() {
-
-            alert(
-                "Existing hard-coded tests ko migrate karne ke liye ab Firestore Test Migration use karna hoga. Existing tests student side par fallback ke through chalenge."
-            );
-
-        }
+    console.error(
+      "DEVICE LOAD ERROR:",
+      error
     );
 
 
-/* =========================================================
-   INITIAL TEST QUESTION
-   ========================================================= */
+    container.innerHTML =
+      `<div class="empty">
+        Device data load nahi hua.
+      </div>`;
 
-clearTestForm();
-
-
-/* =========================================================
-   FIX RESULT FILTERS AFTER DATA LOAD
-   ========================================================= */
-
-const originalRenderEverything =
-    renderEverything;
-
-
-/* refresh result filters through a safe
-   periodic-independent wrapper */
-function refreshAfterData() {
-
-    refreshResultFilters();
-
-    renderResults();
+  }
 
 }
 
 
-/* =========================================================
-   OVERRIDE LOAD RENDER END
-   ========================================================= */
+// =====================================================
+// RELEASE DEVICES
+// =====================================================
 
-const oldLoadAllData =
-    loadAllData;
+window.releaseDevices = async function(userId) {
+
+  const ok =
+    confirm(
+      "Is student ke device reservations release karne hain?"
+    );
 
 
-/* Existing loadAllData already renders
-   everything. Result filters are refreshed
-   here once after initial execution. */
+  if (!ok) return;
 
-setTimeout(
-    function() {
 
-        refreshResultFilters();
+  try {
 
-    },
-    1000
-);
+    const userRef =
+      doc(
+        db,
+        "users",
+        userId
+      );
+
+
+    const userSnap =
+      await getDoc(userRef);
+
+
+    if (!userSnap.exists()) {
+
+      alert("User document nahi mila.");
+
+      return;
+    }
+
+
+    const data =
+      userSnap.data();
+
+
+    const devices =
+      Array.isArray(data.devices)
+        ? data.devices
+        : [];
+
+
+    if (!devices.length) {
+
+      alert(
+        "Is student ke paas active device reservation nahi hai."
+      );
+
+      return;
+    }
+
+
+    await updateDoc(
+      userRef,
+      {
+        devices: []
+      }
+    );
+
+
+    alert(
+      "Device reservations released."
+    );
+
+
+    await renderDevices();
+
+
+  } catch (error) {
+
+    console.error(error);
+
+    alert(
+      error.message ||
+      "Device release failed."
+    );
+
+  }
+
+};
+
+
+// =====================================================
+// SEED BUTTON
+// =====================================================
+
+$("seedBtn")
+  ?.addEventListener(
+    "click",
+    async () => {
+
+      alert(
+        "Import feature ke liye existing dashboard data source connect karna hoga. Current Firestore data safe hai."
+      );
+
+    }
+  );
+
+
+// =====================================================
+// INITIAL CONTENT EDITOR
+// =====================================================
+
+renderContentEditor();
