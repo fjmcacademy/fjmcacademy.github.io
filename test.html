@@ -1,0 +1,319 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+>
+
+<title>FJMC Academy - Test</title>
+
+<style>
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f4f6fb;
+    color: #111827;
+}
+
+header {
+    background: #111827;
+    color: white;
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+header h2 {
+    margin: 0;
+    font-size: 20px;
+}
+
+.container {
+    max-width: 900px;
+    margin: 25px auto;
+    padding: 15px;
+}
+
+.test-info {
+    background: white;
+    padding: 20px;
+    border-radius: 14px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 15px rgba(0,0,0,.08);
+}
+
+.question {
+    background: white;
+    padding: 20px;
+    margin-bottom: 18px;
+    border-radius: 14px;
+    box-shadow: 0 4px 15px rgba(0,0,0,.08);
+}
+
+.question h3 {
+    margin-top: 0;
+}
+
+.option {
+    display: block;
+    padding: 13px;
+    margin: 9px 0;
+    border: 1px solid #d1d5db;
+    border-radius: 9px;
+    cursor: pointer;
+    background: #fff;
+}
+
+.option:hover {
+    background: #f3f4f6;
+}
+
+.option input {
+    margin-right: 8px;
+}
+
+.submit-btn {
+    width: 100%;
+    padding: 15px;
+    border: 0;
+    border-radius: 10px;
+    background: #2563eb;
+    color: white;
+    font-size: 17px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.submit-btn:disabled {
+    opacity: .6;
+}
+
+.result {
+    background: white;
+    padding: 25px;
+    border-radius: 14px;
+    margin-bottom: 20px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0,0,0,.08);
+}
+
+.solution {
+    margin-top: 15px;
+    padding: 15px;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.correct {
+    border-left: 5px solid #16a34a;
+}
+
+.wrong {
+    border-left: 5px solid #dc2626;
+}
+
+.rank-box {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.watermark {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%) rotate(-22deg);
+    color: rgba(80,80,80,1.0);
+    font-size: 35px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    white-space: nowrap;
+    pointer-events: none;
+    user-select: none;
+    z-index: 999999;
+    animation: moveWatermark 7s ease-in-out infinite alternate;
+}
+
+@keyframes moveWatermark {
+
+    0% {
+        left: 25%;
+        top: 35%;
+    }
+
+    50% {
+        left: 70%;
+        top: 55%;
+    }
+
+    100% {
+        left: 35%;
+        top: 75%;
+    }
+}
+
+.loading {
+    text-align: center;
+    padding: 50px;
+}
+
+@media(max-width:600px) {
+
+    .container {
+        padding: 10px;
+    }
+
+    .watermark {
+        font-size: 22px;
+    }
+
+}
+
+</style>
+<style>
+/* ================================
+   TIMER
+   ================================ */
+
+.timer-box {
+    position: sticky;
+    top: 10px;
+    z-index: 9999;
+    padding: 12px 18px;
+    margin: 15px 0;
+    border-radius: 10px;
+    background: #111827;
+    color: white;
+    text-align: center;
+    font-size: 18px;
+}
+
+#timer {
+    margin-left: 8px;
+}
+
+
+/* ================================
+   LEADERBOARD
+   ================================ */
+
+.leaderboard {
+    margin: 25px 0;
+    padding: 20px;
+    border-radius: 15px;
+    background: white;
+    box-shadow: 0 5px 20px rgba(0,0,0,.10);
+}
+
+.leaderboard h2 {
+    text-align: center;
+    margin-top: 0;
+}
+
+.leaderboard-row {
+    display: grid;
+    grid-template-columns: 75px 1fr 80px;
+    gap: 10px;
+    align-items: center;
+    padding: 13px 10px;
+    margin-top: 8px;
+    border-radius: 9px;
+    background: #f3f4f6;
+}
+
+.lb-rank {
+    font-weight: 800;
+}
+
+.lb-name {
+    font-weight: 600;
+}
+
+.lb-score {
+    text-align: right;
+    font-weight: 800;
+}
+
+.my-rank {
+    border: 2px solid #2563eb;
+    background: #eef2ff;
+}
+
+.rank-box {
+    margin-top: 15px;
+    padding: 14px;
+    border-radius: 10px;
+    background: #eef2ff;
+    font-size: 19px;
+}
+
+
+/* ================================
+   PRINT / SAVE PDF
+   ================================ */
+
+@media print {
+
+    body * {
+        display: none !important;
+    }
+
+    body {
+        background: white !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    body::after {
+        content: "";
+        display: block !important;
+        width: 100%;
+        height: 100vh;
+        background: white;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+
+    <h2 id="testTitle">
+        FJMC Academy Test
+    </h2>
+
+    <div id="studentEmail"></div>
+
+</header>
+
+<div class="watermark" id="watermark">
+    FJMC ACADEMY
+</div>
+
+<main class="container">
+
+    <div id="loading" class="loading">
+        Loading Test...
+    </div>
+
+    <div id="testArea"></div>
+
+</main>
+
+<script type="module" src="./test.js"></script>
+
+</body>
+
+</html>

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FJMC Academy - Test Series</title>
+<link rel="stylesheet" href="student.css">
+<style>
+body{background:#f5f7fb;color:#172033}
+.ts-page{width:94%;max-width:1050px;margin:28px auto}
+.ts-head{background:#1b4332;color:#fff;padding:24px;border-radius:14px;margin-bottom:22px}
+.ts-head h1{margin:0 0 7px}.ts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:18px}
+.ts-card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:20px;box-shadow:0 5px 18px rgba(0,0,0,.07)}
+.ts-card h3{margin:0 0 8px}.ts-meta{color:#64748b;font-size:14px;line-height:1.7}.ts-price{font-size:20px;font-weight:800;margin:14px 0}.ts-btn{width:100%;padding:12px;border:0;border-radius:9px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer}.back-btn{border:0;background:#e2e8f0;padding:10px 14px;border-radius:8px;cursor:pointer;margin-bottom:15px}
+.empty{background:#fff;padding:30px;border-radius:12px;text-align:center}
+</style>
+</head>
+<body>
+<header class="dashboard-header">
+  <div class="logo">FJMC Academy</div>
+  <div class="dashboard-header-actions"><button id="backDashboard" class="test-series-nav-btn">Dashboard</button><button id="logoutBtn">Logout</button></div>
+</header>
+<main class="ts-page">
+  <div class="ts-head"><h1>Test Series</h1><p>Available test series for your account</p></div>
+  <div id="seriesList" class="ts-grid"><div class="empty">Loading...</div></div>
+</main>
+<script type="module" src="test-series.js?v=1"></script>
+</body>
+</html>
