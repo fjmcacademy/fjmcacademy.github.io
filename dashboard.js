@@ -1,16 +1,22 @@
 /* =========================================================
    FJMC ACADEMY - STUDENT DASHBOARD
+
    DEVICE SYSTEM:
-   1 MOBILE SLOT + 1 DESKTOP SLOT
-   PHONE + TABLET = SAME MOBILE SLOT
-   SLOT RESERVATION = 3 DAYS
-   LOGOUT DOES NOT FREE SLOT
+   1 MOBILE + 1 DESKTOP/LAPTOP
+
+   PHONE + TABLET = MOBILE SLOT
+   LAPTOP + DESKTOP = DESKTOP SLOT
+
+   FIXED 3-DAY DEVICE RESERVATION
+   LOGOUT DOES NOT FREE DEVICE SLOT
 ========================================================= */
+
 
 import {
     onAuthStateChanged,
     signOut
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+
 
 import {
     collection,
@@ -22,10 +28,12 @@ import {
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
+
 import {
     auth,
     db
 } from "./firebase.js";
+
 
 import { TESTS } from "./test-default-data.js";
 
@@ -37,54 +45,90 @@ import { TESTS } from "./test-default-data.js";
 let STUDENTS = {};
 let COURSES = {};
 
+
 function studentDocId(email) {
-    return email.trim().toLowerCase().replaceAll("/", "_");
+
+    return email
+        .trim()
+        .toLowerCase()
+        .replaceAll("/", "_");
+
 }
+
 
 async function loadDashboardData(email) {
 
     const studentSnap = await getDoc(
-        doc(db, "students", studentDocId(email))
+        doc(
+            db,
+            "students",
+            studentDocId(email)
+        )
     );
+
 
     if (!studentSnap.exists()) {
         return null;
     }
 
+
     const student = studentSnap.data();
+
 
     const courseIds =
         Array.isArray(student.courses)
             ? student.courses
             : [];
 
-    const courseEntries = await Promise.all(
-        courseIds.map(async courseId => {
 
-            const snap =
-                await getDoc(
-                    doc(db, "courses", courseId)
-                );
+    const courseEntries =
+        await Promise.all(
 
-            return snap.exists()
-                ? [courseId, snap.data()]
-                : null;
-        })
-    );
+            courseIds.map(
+                async courseId => {
+
+                    const snap =
+                        await getDoc(
+                            doc(
+                                db,
+                                "courses",
+                                courseId
+                            )
+                        );
+
+
+                    return snap.exists()
+                        ? [courseId, snap.data()]
+                        : null;
+
+                }
+            )
+
+        );
+
 
     COURSES = {};
 
+
     courseEntries
         .filter(Boolean)
-        .forEach(([id, course]) => {
-            COURSES[id] = course;
-        });
+        .forEach(
+            ([id, course]) => {
+
+                COURSES[id] =
+                    course;
+
+            }
+        );
+
 
     STUDENTS = {
         [email]: student
     };
 
+
     return student;
+
 }
 
 
@@ -92,38 +136,140 @@ async function loadDashboardData(email) {
    DEVICE SETTINGS
 ========================================================= */
 
+const MAX_MOBILE_DEVICES = 1;
+const MAX_DESKTOP_DEVICES = 1;
+
 const DEVICE_TIMEOUT =
     3 * 24 * 60 * 60 * 1000;
 
 
 /* =========================================================
+   DEVICE ID
+========================================================= */
+
+function getDeviceId() {
+
+    let id =
+        localStorage.getItem(
+            "fjmcDeviceId"
+        );
+
+
+    if (!id) {
+
+        if (
+            typeof crypto !== "undefined" &&
+            typeof crypto.randomUUID === "function"
+        ) {
+
+            id =
+                "device-" +
+                crypto.randomUUID();
+
+        } else {
+
+            id =
+                "device-" +
+                Date.now() +
+                "-" +
+                Math.random()
+                    .toString(36)
+                    .substring(2);
+
+        }
+
+
+        localStorage.setItem(
+            "fjmcDeviceId",
+            id
+        );
+
+    }
+
+
+    return id;
+
+}
+
+
+const deviceId =
+    getDeviceId();
+
+
+/* =========================================================
    DEVICE TYPE
+
+   IMPORTANT:
+
    PHONE + TABLET = MOBILE
+
    LAPTOP + DESKTOP = DESKTOP
 ========================================================= */
 
 function getDeviceType() {
 
     const ua =
-        navigator.userAgent ||
-        navigator.vendor ||
-        window.opera ||
-        "";
+        navigator.userAgent || "";
+
 
     /*
-       iPhone / iPad / Android phone / Android tablet
-       are ALL treated as mobile.
+       iPad / iPadOS can sometimes identify
+       themselves as Macintosh.
     */
 
-    const isMobile =
-        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i
+    const isIPad =
+        /iPad/i.test(ua) ||
+        (
+            /Macintosh/i.test(ua) &&
+            Number(navigator.maxTouchPoints || 0) > 1
+        );
+
+
+    /*
+       Android phone OR Android tablet
+       दोनों MOBILE होंगे.
+    */
+
+    const isAndroid =
+        /Android/i.test(ua);
+
+
+    /*
+       Normal phones.
+    */
+
+    const isPhone =
+        /iPhone|iPod|Windows Phone|BlackBerry|IEMobile|Opera Mini/i
             .test(ua);
 
-    if (isMobile) {
+
+    /*
+       Tablet detection using common tablet
+       identifiers.
+    */
+
+    const isTablet =
+        /Tablet|PlayBook|Silk/i.test(ua);
+
+
+    if (
+        isAndroid ||
+        isIPad ||
+        isPhone ||
+        isTablet
+    ) {
+
         return "mobile";
+
     }
 
+
+    /*
+       Everything else is treated as desktop/laptop.
+    */
+
     return "desktop";
+
 }
 
 
@@ -132,8 +278,41 @@ const currentDeviceType =
 
 
 console.log(
-    "FJMC DEVICE TYPE:",
+    "================================="
+);
+
+
+console.log(
+    "FJMC CURRENT DEVICE"
+);
+
+
+console.log(
+    "Device ID:",
+    deviceId
+);
+
+
+console.log(
+    "Device Type:",
     currentDeviceType
+);
+
+
+console.log(
+    "User Agent:",
+    navigator.userAgent
+);
+
+
+console.log(
+    "Touch Points:",
+    navigator.maxTouchPoints
+);
+
+
+console.log(
+    "================================="
 );
 
 
@@ -146,12 +325,13 @@ let deviceHeartbeat = null;
 
 
 /* =========================================================
-   PAGE LOADING
+   PAGE LOADING CONTROL
 ========================================================= */
 
 function hidePageLoading() {
 
     const selectors = [
+
         "#pageLoading",
         "#loadingScreen",
         "#pageLoader",
@@ -162,34 +342,58 @@ function hidePageLoading() {
         ".loading-overlay",
         ".page-loader",
         ".loader-overlay"
+
     ];
 
-    selectors.forEach(selector => {
 
-        document
-            .querySelectorAll(selector)
-            .forEach(element => {
+    selectors.forEach(
+        function (selector) {
 
-                element.style.display = "none";
-                element.style.visibility = "hidden";
-                element.style.opacity = "0";
-                element.style.pointerEvents = "none";
-
-            });
-
-    });
+            const elements =
+                document.querySelectorAll(
+                    selector
+                );
 
 
-    document
-        .querySelectorAll(
+            elements.forEach(
+                function (element) {
+
+                    element.style.display =
+                        "none";
+
+                    element.style.visibility =
+                        "hidden";
+
+                    element.style.opacity =
+                        "0";
+
+                    element.style.pointerEvents =
+                        "none";
+
+                }
+            );
+
+        }
+    );
+
+
+    const possibleLoaders =
+        document.querySelectorAll(
             "[id*='loading'], [id*='Loading'], [class*='loading'], [class*='Loading']"
-        )
-        .forEach(element => {
+        );
+
+
+    possibleLoaders.forEach(
+        function (element) {
 
             const text =
-                (element.textContent || "")
+                (
+                    element.textContent ||
+                    ""
+                )
                     .trim()
                     .toLowerCase();
+
 
             if (
                 text.includes("page loading") ||
@@ -197,14 +401,22 @@ function hidePageLoading() {
                 text === "loading"
             ) {
 
-                element.style.display = "none";
-                element.style.visibility = "hidden";
-                element.style.opacity = "0";
-                element.style.pointerEvents = "none";
+                element.style.display =
+                    "none";
+
+                element.style.visibility =
+                    "hidden";
+
+                element.style.opacity =
+                    "0";
+
+                element.style.pointerEvents =
+                    "none";
 
             }
 
-        });
+        }
+    );
 
 }
 
@@ -218,10 +430,12 @@ const coursesContainer =
         "coursesContainer"
     );
 
+
 const studentName =
     document.getElementById(
         "studentName"
     );
+
 
 const logoutBtn =
     document.getElementById(
@@ -235,7 +449,7 @@ const logoutBtn =
 
 onAuthStateChanged(
     auth,
-    async function(user) {
+    async function (user) {
 
         try {
 
@@ -255,7 +469,10 @@ onAuthStateChanged(
 
 
             const email =
-                (user.email || "")
+                (
+                    user.email ||
+                    ""
+                )
                     .trim()
                     .toLowerCase();
 
@@ -274,25 +491,37 @@ onAuthStateChanged(
 
             if (!student) {
 
+                console.error(
+                    "Student not found:",
+                    email
+                );
+
+
                 hidePageLoading();
 
-                await signOut(auth);
+
+                await signOut(
+                    auth
+                );
+
 
                 window.location.href =
                     "login.html";
+
 
                 return;
             }
 
 
-            /* =========================================
+            /* =============================================
                SESSION
-            ========================================= */
+            ============================================= */
 
             sessionStorage.setItem(
                 "loggedInStudent",
                 email
             );
+
 
             sessionStorage.setItem(
                 "firebaseUID",
@@ -300,9 +529,9 @@ onAuthStateChanged(
             );
 
 
-            /* =========================================
+            /* =============================================
                STUDENT NAME
-            ========================================= */
+            ============================================= */
 
             if (studentName) {
 
@@ -313,16 +542,18 @@ onAuthStateChanged(
             }
 
 
-            /* =========================================
-               DEVICE SLOT CHECK
-            ========================================= */
+            /* =============================================
+               DEVICE CHECK
+            ============================================= */
 
             const allowed =
-                await registerDeviceSlot(user);
+                await registerDevice(
+                    user
+                );
 
 
             console.log(
-                "DEVICE SLOT ALLOWED:",
+                "Device allowed:",
                 allowed
             );
 
@@ -331,19 +562,29 @@ onAuthStateChanged(
 
                 hidePageLoading();
 
+
                 try {
-                    await signOut(auth);
+
+                    await signOut(
+                        auth
+                    );
+
                 } catch (e) {
-                    console.error(e);
+
+                    console.error(
+                        e
+                    );
+
                 }
+
 
                 return;
             }
 
 
-            /* =========================================
+            /* =============================================
                SHOW COURSES
-            ========================================= */
+            ============================================= */
 
             await showStudentCourses(
                 student
@@ -363,20 +604,34 @@ onAuthStateChanged(
                 error
             );
 
+
             hidePageLoading();
+
 
             alert(
                 "Dashboard could not be loaded. Please login again."
             );
 
+
             try {
-                await signOut(auth);
-            } catch (e) {
-                console.error(e);
+
+                await signOut(
+                    auth
+                );
+
+            } catch (signOutError) {
+
+                console.error(
+                    "Sign out error:",
+                    signOutError
+                );
+
             }
+
 
             window.location.href =
                 "login.html";
+
         }
 
     }
@@ -384,209 +639,477 @@ onAuthStateChanged(
 
 
 /* =========================================================
-   DEVICE SLOT DOCUMENT
-=========================================================
-
-   users/{uid}/deviceSlots/mobile
-   users/{uid}/deviceSlots/desktop
-
+   DEVICES COLLECTION
 ========================================================= */
 
-function deviceSlotRef(user) {
+function devicesCollection(user) {
 
-    return doc(
+    return collection(
         db,
         "users",
         user.uid,
-        "deviceSlots",
-        currentDeviceType
+        "devices"
     );
 
 }
 
 
 /* =========================================================
-   REGISTER DEVICE SLOT
+   GET ALL DEVICES
 ========================================================= */
 
-async function registerDeviceSlot(user) {
+async function getAllDevices(
+    user
+) {
+
+    const snapshot =
+        await getDocs(
+            devicesCollection(user)
+        );
+
+
+    const devices = [];
+
+
+    snapshot.forEach(
+        deviceDoc => {
+
+            devices.push({
+                id: deviceDoc.id,
+                data: deviceDoc.data() || {}
+            });
+
+        }
+    );
+
+
+    return devices;
+
+}
+
+
+/* =========================================================
+   COUNT ACTIVE DEVICES BY TYPE
+========================================================= */
+
+async function countActiveDeviceType(
+    user,
+    type,
+    now,
+    excludeDeviceId = null
+) {
+
+    const devices =
+        await getAllDevices(
+            user
+        );
+
+
+    let count = 0;
+
+
+    devices.forEach(
+        function (device) {
+
+            if (
+                excludeDeviceId &&
+                device.id === excludeDeviceId
+            ) {
+
+                return;
+            }
+
+
+            const data =
+                device.data;
+
+
+            const expiry =
+                Number(
+                    data.expiresAt || 0
+                );
+
+
+            const deviceType =
+                data.deviceType ||
+                "";
+
+
+            if (
+                data.active === true &&
+                expiry > now &&
+                deviceType === type
+            ) {
+
+                count++;
+
+            }
+
+        }
+    );
+
+
+    return count;
+
+}
+
+
+/* =========================================================
+   DEVICE LIMIT MESSAGE
+========================================================= */
+
+function showDeviceLimitMessage(
+    type
+) {
+
+    let text;
+
+
+    if (type === "mobile") {
+
+        text =
+            "This account already has a mobile/tablet device active for 3 days.\n\nOnly 1 mobile/tablet device is allowed.";
+
+    } else {
+
+        text =
+            "This account already has a laptop/desktop device active for 3 days.\n\nOnly 1 laptop/desktop device is allowed.";
+
+    }
+
+
+    const message =
+        document.getElementById(
+            "deviceLimitMessage"
+        );
+
+
+    if (message) {
+
+        message.textContent =
+            text;
+
+
+        message.style.display =
+            "block";
+
+
+        return;
+    }
+
+
+    alert(
+        text
+    );
+
+}
+
+
+/* =========================================================
+   REGISTER / CHECK DEVICE
+
+   RULE:
+
+   MOBILE:
+   Maximum 1
+
+   DESKTOP:
+   Maximum 1
+
+   Reservation:
+   3 DAYS
+========================================================= */
+
+async function registerDevice(
+    user
+) {
 
     try {
 
-        const slotRef =
-            deviceSlotRef(user);
+        const deviceRef =
+            doc(
+                db,
+                "users",
+                user.uid,
+                "devices",
+                deviceId
+            );
 
 
         const now =
             Date.now();
 
 
-        const snapshot =
-            await getDoc(slotRef);
+        const currentDevice =
+            await getDoc(
+                deviceRef
+            );
 
 
-        /* =========================================
-           SLOT DOES NOT EXIST
-        ========================================= */
+        /* =====================================================
+           EXISTING DEVICE
+        ===================================================== */
 
-        if (!snapshot.exists()) {
+        if (
+            currentDevice.exists()
+        ) {
+
+            const data =
+                currentDevice.data() || {};
+
+
+            const expiresAt =
+                Number(
+                    data.expiresAt || 0
+                );
+
+
+            /*
+               IMPORTANT:
+
+               If same physical browser/device
+               comes back before 3 days,
+               allow it.
+
+               But if its stored deviceType is
+               wrong (for example tablet was previously
+               saved as desktop), correct it to the
+               CURRENT detected type.
+            */
+
+            if (
+                expiresAt > now
+            ) {
+
+                /*
+                   If stored type is different from
+                   current detected type, update it.
+
+                   This fixes an old tablet record
+                   that was incorrectly saved as desktop.
+                */
+
+                if (
+                    data.deviceType !==
+                    currentDeviceType
+                ) {
+
+                    /*
+                       Before changing the type,
+                       check whether the correct slot
+                       is already occupied by another device.
+                    */
+
+                    const correctTypeCount =
+                        await countActiveDeviceType(
+                            user,
+                            currentDeviceType,
+                            now,
+                            deviceId
+                        );
+
+
+                    if (
+                        correctTypeCount >= 1
+                    ) {
+
+                        showDeviceLimitMessage(
+                            currentDeviceType
+                        );
+
+
+                        return false;
+
+                    }
+
+
+                    await updateDoc(
+                        deviceRef,
+                        {
+                            deviceType:
+                                currentDeviceType,
+
+                            email:
+                                user.email,
+
+                            active:
+                                true,
+
+                            lastSeen:
+                                now
+                        }
+                    );
+
+
+                    console.log(
+                        "Existing device type corrected:",
+                        currentDeviceType
+                    );
+
+
+                    return true;
+                }
+
+
+                /*
+                   Same device + same type.
+                */
+
+                await updateDoc(
+                    deviceRef,
+                    {
+                        email:
+                            user.email,
+
+                        active:
+                            true,
+
+                        lastSeen:
+                            now
+                    }
+                );
+
+
+                return true;
+            }
+
+
+            /*
+               Existing reservation expired.
+
+               Now this device is allowed to
+               request a new 3-day reservation.
+            */
+
+            const activeSameType =
+                await countActiveDeviceType(
+                    user,
+                    currentDeviceType,
+                    now,
+                    deviceId
+                );
+
+
+            if (
+                activeSameType >= 1
+            ) {
+
+                showDeviceLimitMessage(
+                    currentDeviceType
+                );
+
+
+                return false;
+            }
+
+
+            /*
+               New reservation for this device.
+            */
 
             await setDoc(
-                slotRef,
+                deviceRef,
                 {
-                    uid: user.uid,
-
                     email:
-                        user.email || "",
+                        user.email,
+
+                    active:
+                        true,
 
                     deviceType:
                         currentDeviceType,
-
-                    active: true,
-
-                    createdAt:
-                        serverTimestamp(),
-
-                    registeredAt:
-                        now,
 
                     lastSeen:
                         now,
 
                     expiresAt:
                         now +
-                        DEVICE_TIMEOUT
+                        DEVICE_TIMEOUT,
+
+                    renewedAt:
+                        serverTimestamp()
+                },
+                {
+                    merge:
+                        true
                 }
             );
 
 
             console.log(
-                "NEW DEVICE SLOT CREATED:",
+                "Expired device renewed:",
                 currentDeviceType
             );
 
 
             return true;
+
         }
 
 
-        /* =========================================
-           SLOT EXISTS
-        ========================================= */
+        /* =====================================================
+           COMPLETELY NEW DEVICE
+        ===================================================== */
 
-        const data =
-            snapshot.data();
-
-
-        const expiresAt =
-            Number(
-                data.expiresAt || 0
+        const activeSameType =
+            await countActiveDeviceType(
+                user,
+                currentDeviceType,
+                now
             );
 
 
-        /* =========================================
-           EXISTING SLOT STILL ACTIVE
-        ========================================= */
+        /*
+           MOBILE SLOT
+        */
 
         if (
-            data.active === true &&
-            expiresAt > now
+            currentDeviceType === "mobile" &&
+            activeSameType >= MAX_MOBILE_DEVICES
         ) {
 
-            /*
-               IMPORTANT:
-
-               We DO NOT replace the slot with
-               another phone/tablet/laptop.
-
-               Therefore:
-
-               Phone -> Tablet = BLOCKED
-               Tablet -> Phone = BLOCKED
-               Laptop -> Desktop = BLOCKED
-            */
-
-            await updateDoc(
-                slotRef,
-                {
-                    lastSeen: now
-                }
-            );
-
-
-            /*
-               Same physical browser/device can continue.
-               But another device of same category cannot
-               take this slot.
-            */
-
-            const savedDeviceId =
-                data.deviceId || "";
-
-
-            const localDeviceId =
-                getStableDeviceId();
-
-
-            /*
-               First version of old system may not have
-               deviceId. If absent, attach current device.
-            */
-
-            if (!savedDeviceId) {
-
-                await updateDoc(
-                    slotRef,
-                    {
-                        deviceId:
-                            localDeviceId
-                    }
-                );
-
-                return true;
-            }
-
-
-            if (
-                savedDeviceId ===
-                localDeviceId
-            ) {
-
-                return true;
-            }
-
-
             showDeviceLimitMessage(
-                currentDeviceType
+                "mobile"
             );
+
 
             return false;
         }
 
 
-        /* =========================================
-           3-DAY SLOT EXPIRED
-           NEW DEVICE CAN TAKE SLOT
-        ========================================= */
+        /*
+           DESKTOP SLOT
+        */
+
+        if (
+            currentDeviceType === "desktop" &&
+            activeSameType >= MAX_DESKTOP_DEVICES
+        ) {
+
+            showDeviceLimitMessage(
+                "desktop"
+            );
+
+
+            return false;
+        }
+
+
+        /*
+           Register new device.
+        */
 
         await setDoc(
-            slotRef,
+            deviceRef,
             {
-                uid: user.uid,
-
                 email:
-                    user.email || "",
+                    user.email,
+
+                active:
+                    true,
 
                 deviceType:
                     currentDeviceType,
-
-                deviceId:
-                    getStableDeviceId(),
-
-                active: true,
-
-                registeredAt:
-                    now,
 
                 lastSeen:
                     now,
@@ -595,15 +1118,29 @@ async function registerDeviceSlot(user) {
                     now +
                     DEVICE_TIMEOUT,
 
-                renewedAt:
+                createdAt:
                     serverTimestamp()
             }
         );
 
 
         console.log(
-            "EXPIRED SLOT RENEWED:",
+            "NEW DEVICE REGISTERED"
+        );
+
+
+        console.log(
+            "Type:",
             currentDeviceType
+        );
+
+
+        console.log(
+            "Expires:",
+            new Date(
+                now +
+                DEVICE_TIMEOUT
+            )
         );
 
 
@@ -613,7 +1150,7 @@ async function registerDeviceSlot(user) {
     } catch (error) {
 
         console.error(
-            "Device slot error:",
+            "Device registration error:",
             error
         );
 
@@ -628,103 +1165,9 @@ async function registerDeviceSlot(user) {
 
 
         return false;
+
     }
 
-}
-
-
-/* =========================================================
-   STABLE DEVICE ID
-========================================================= */
-
-function getStableDeviceId() {
-
-    let id =
-        localStorage.getItem(
-            "fjmcStableDeviceId"
-        );
-
-
-    if (!id) {
-
-        if (
-            typeof crypto !== "undefined" &&
-            typeof crypto.randomUUID === "function"
-        ) {
-
-            id =
-                "fjmc-" +
-                crypto.randomUUID();
-
-        } else {
-
-            id =
-                "fjmc-" +
-                Date.now() +
-                "-" +
-                Math.random()
-                    .toString(36)
-                    .substring(2);
-        }
-
-
-        localStorage.setItem(
-            "fjmcStableDeviceId",
-            id
-        );
-    }
-
-
-    return id;
-}
-
-
-/* =========================================================
-   DEVICE LIMIT MESSAGE
-========================================================= */
-
-function showDeviceLimitMessage(type) {
-
-    const message =
-        document.getElementById(
-            "deviceLimitMessage"
-        );
-
-
-    let text = "";
-
-
-    if (type === "mobile") {
-
-        text =
-            "Mobile slot already active.\n\n" +
-            "One phone OR one tablet can be used at a time.\n\n" +
-            "The existing mobile device remains reserved for 3 days.\n" +
-            "Logout does not free this slot.";
-
-    } else {
-
-        text =
-            "Desktop/Laptop slot already active.\n\n" +
-            "Only one laptop or desktop can be used at a time.\n\n" +
-            "The existing desktop slot remains reserved for 3 days.\n" +
-            "Logout does not free this slot.";
-    }
-
-
-    if (message) {
-
-        message.textContent =
-            text;
-
-        message.style.display =
-            "block";
-
-        return;
-    }
-
-
-    alert(text);
 }
 
 
@@ -734,11 +1177,14 @@ function showDeviceLimitMessage(type) {
 
 function startDeviceHeartbeat() {
 
-    if (deviceHeartbeat) {
+    if (
+        deviceHeartbeat
+    ) {
 
         clearInterval(
             deviceHeartbeat
         );
+
     }
 
 
@@ -750,11 +1196,12 @@ function startDeviceHeartbeat() {
             updateDeviceHeartbeat,
             2 * 60 * 1000
         );
+
 }
 
 
 /* =========================================================
-   UPDATE HEARTBEAT
+   UPDATE DEVICE HEARTBEAT
 ========================================================= */
 
 async function updateDeviceHeartbeat() {
@@ -766,28 +1213,32 @@ async function updateDeviceHeartbeat() {
 
     try {
 
-        const slotRef =
-            deviceSlotRef(
-                currentUser
+        const deviceRef =
+            doc(
+                db,
+                "users",
+                currentUser.uid,
+                "devices",
+                deviceId
             );
 
 
         const snapshot =
-            await getDoc(slotRef);
-
-
-        if (!snapshot.exists()) {
-
-            console.error(
-                "Device slot missing."
+            await getDoc(
+                deviceRef
             );
+
+
+        if (
+            !snapshot.exists()
+        ) {
 
             return;
         }
 
 
         const data =
-            snapshot.data();
+            snapshot.data() || {};
 
 
         const now =
@@ -800,47 +1251,46 @@ async function updateDeviceHeartbeat() {
             );
 
 
-        /* =========================================
-           SLOT EXPIRED
-        ========================================= */
+        /*
+           Reservation expired.
+        */
 
         if (
             expiresAt > 0 &&
             expiresAt <= now
         ) {
 
-            if (deviceHeartbeat) {
+            console.log(
+                "Device reservation expired."
+            );
+
+
+            if (
+                deviceHeartbeat
+            ) {
 
                 clearInterval(
                     deviceHeartbeat
                 );
 
+
                 deviceHeartbeat =
                     null;
+
             }
-
-
-            await setDoc(
-                slotRef,
-                {
-                    active: false,
-                    lastSeen: now
-                },
-                {
-                    merge: true
-                }
-            );
 
 
             hidePageLoading();
 
 
             alert(
-                "Your 3-day device access has expired. Please login again."
+                "Your device access has expired. Please login again."
             );
 
 
-            await signOut(auth);
+            await signOut(
+                auth
+            );
 
 
             window.location.href =
@@ -848,62 +1298,28 @@ async function updateDeviceHeartbeat() {
 
 
             return;
+
         }
 
 
-        /* =========================================
-           VERIFY DEVICE ID
-        ========================================= */
+        /*
+           Keep device active.
 
-        const savedDeviceId =
-            data.deviceId || "";
+           IMPORTANT:
+           expiresAt is NOT changed.
 
-
-        const localDeviceId =
-            getStableDeviceId();
-
-
-        if (
-            savedDeviceId &&
-            savedDeviceId !== localDeviceId
-        ) {
-
-            if (deviceHeartbeat) {
-
-                clearInterval(
-                    deviceHeartbeat
-                );
-
-                deviceHeartbeat =
-                    null;
-            }
-
-
-            alert(
-                "This device is not the registered device for this slot."
-            );
-
-
-            await signOut(auth);
-
-
-            window.location.href =
-                "login.html";
-
-
-            return;
-        }
-
-
-        /* =========================================
-           KEEP SLOT ALIVE
-        ========================================= */
+           Therefore heartbeat does NOT
+           extend the 3-day reservation.
+        */
 
         await updateDoc(
-            slotRef,
+            deviceRef,
             {
-                lastSeen: now,
-                active: true
+                lastSeen:
+                    now,
+
+                active:
+                    true
             }
         );
 
@@ -916,6 +1332,7 @@ async function updateDeviceHeartbeat() {
         );
 
     }
+
 }
 
 
@@ -923,7 +1340,9 @@ async function updateDeviceHeartbeat() {
    SHOW STUDENT COURSES
 ========================================================= */
 
-async function showStudentCourses(student) {
+async function showStudentCourses(
+    student
+) {
 
     if (!coursesContainer) {
 
@@ -931,13 +1350,17 @@ async function showStudentCourses(student) {
             "coursesContainer not found"
         );
 
+
         hidePageLoading();
 
+
         return;
+
     }
 
 
-    coursesContainer.innerHTML = "";
+    coursesContainer.innerHTML =
+        "";
 
 
     if (
@@ -946,24 +1369,38 @@ async function showStudentCourses(student) {
     ) {
 
         coursesContainer.innerHTML = `
+
             <div class="no-course">
-                <h3>No Course Assigned</h3>
-                <p>Please contact FJMC Academy.</p>
+
+                <h3>
+                    No Course Assigned
+                </h3>
+
+                <p>
+                    Please contact FJMC Academy.
+                </p>
+
             </div>
+
         `;
+
 
         hidePageLoading();
 
+
         return;
+
     }
 
 
-    /* =========================================
+    /* =====================================================
        STUDENT INFO
-    ========================================= */
+    ===================================================== */
 
     const studentInfo =
-        document.createElement("div");
+        document.createElement(
+            "div"
+        );
 
 
     studentInfo.className =
@@ -971,21 +1408,31 @@ async function showStudentCourses(student) {
 
 
     studentInfo.innerHTML = `
+
         <div>
+
             <h3>
-                ${dashboardEsc(student.exam || "")}
+                ${dashboardEsc(
+                    student.exam || ""
+                )}
             </h3>
 
             <p>
                 <strong>Batch:</strong>
-                ${dashboardEsc(student.batch || "")}
+                ${dashboardEsc(
+                    student.batch || ""
+                )}
             </p>
 
             <p>
                 <strong>Year:</strong>
-                ${dashboardEsc(student.year || "")}
+                ${dashboardEsc(
+                    student.year || ""
+                )}
             </p>
+
         </div>
+
     `;
 
 
@@ -994,9 +1441,9 @@ async function showStudentCourses(student) {
     );
 
 
-    /* =========================================
-       LOAD TESTS
-    ========================================= */
+    /* =====================================================
+       LOAD ADMIN TESTS
+    ===================================================== */
 
     const managedTests = {};
 
@@ -1005,25 +1452,40 @@ async function showStudentCourses(student) {
 
         const snap =
             await getDocs(
-                collection(db, "tests")
+                collection(
+                    db,
+                    "tests"
+                )
             );
 
 
-        snap.forEach(docSnap => {
+        snap.forEach(
+            docSnap => {
 
-            const data =
-                docSnap.data() || {};
+                const data =
+                    docSnap.data() || {};
 
-            managedTests[docSnap.id] =
-                data;
 
-            if (data.testId) {
-
-                managedTests[data.testId] =
+                managedTests[
+                    docSnap.id
+                ] =
                     data;
-            }
 
-        });
+
+                if (
+                    data.testId
+                ) {
+
+                    managedTests[
+                        data.testId
+                    ] =
+                        data;
+
+                }
+
+            }
+        );
+
 
     } catch (error) {
 
@@ -1031,15 +1493,16 @@ async function showStudentCourses(student) {
             "Could not load managed tests:",
             error
         );
+
     }
 
 
-    /* =========================================
+    /* =====================================================
        COURSES
-    ========================================= */
+    ===================================================== */
 
     student.courses.forEach(
-        function(courseId) {
+        function (courseId) {
 
             const course =
                 COURSES[courseId];
@@ -1052,7 +1515,9 @@ async function showStudentCourses(student) {
                     courseId
                 );
 
+
                 return;
+
             }
 
 
@@ -1072,13 +1537,19 @@ async function showStudentCourses(student) {
 
 
             const testData =
-                managedTests[courseTestId] ||
-                TESTS[courseTestId] ||
+                managedTests[
+                    courseTestId
+                ] ||
+                TESTS[
+                    courseTestId
+                ] ||
                 null;
 
 
             const contents =
-                Array.isArray(course.contents)
+                Array.isArray(
+                    course.contents
+                )
                     ? course.contents
                     : [];
 
@@ -1106,6 +1577,7 @@ async function showStudentCourses(student) {
 
 
             courseCard.innerHTML = `
+
                 <button
                     class="course-main-button"
                     type="button"
@@ -1117,7 +1589,10 @@ async function showStudentCourses(student) {
                         <div class="course-meta">
 
                             <span>
-                                <strong>Exam:</strong>
+                                <strong>
+                                    Exam:
+                                </strong>
+
                                 ${dashboardEsc(
                                     course.exam ||
                                     student.exam ||
@@ -1125,8 +1600,12 @@ async function showStudentCourses(student) {
                                 )}
                             </span>
 
+
                             <span>
-                                <strong>Batch:</strong>
+                                <strong>
+                                    Batch:
+                                </strong>
+
                                 ${dashboardEsc(
                                     course.batch ||
                                     student.batch ||
@@ -1134,8 +1613,12 @@ async function showStudentCourses(student) {
                                 )}
                             </span>
 
+
                             <span>
-                                <strong>Year:</strong>
+                                <strong>
+                                    Year:
+                                </strong>
+
                                 ${dashboardEsc(
                                     course.year ||
                                     student.year ||
@@ -1165,9 +1648,7 @@ async function showStudentCourses(student) {
                     </div>
 
 
-                    <span
-                        class="course-open-icon"
-                    >
+                    <span class="course-open-icon">
                         ＋
                     </span>
 
@@ -1188,14 +1669,17 @@ async function showStudentCourses(student) {
                             type="button"
                             data-category="video"
                         >
+
                             🎥
                             <span>
                                 Video / Lecture
                             </span>
+
                             <small>
                                 ${videos.length}
                                 Lecture${videos.length === 1 ? "" : "s"}
                             </small>
+
                         </button>
 
 
@@ -1204,14 +1688,17 @@ async function showStudentCourses(student) {
                             type="button"
                             data-category="pdf"
                         >
+
                             📄
                             <span>
                                 PDF / Notes
                             </span>
+
                             <small>
                                 ${pdfs.length}
                                 Lecture${pdfs.length === 1 ? "" : "s"}
                             </small>
+
                         </button>
 
 
@@ -1220,34 +1707,42 @@ async function showStudentCourses(student) {
                             type="button"
                             data-category="test"
                         >
+
                             📝
                             <span>
                                 Test
                             </span>
+
                             <small>
                                 Lecture wise
                             </small>
+
                         </button>
 
 
                         ${
                             liveClasses.length
-                            ? `
-                                <button
-                                    class="course-category-btn"
-                                    type="button"
-                                    data-category="live"
-                                >
-                                    🔴
-                                    <span>
-                                        Live Class
-                                    </span>
-                                    <small>
-                                        ${liveClasses.length}
-                                    </small>
-                                </button>
-                              `
-                            : ""
+                                ? `
+
+                            <button
+                                class="course-category-btn"
+                                type="button"
+                                data-category="live"
+                            >
+
+                                🔴
+                                <span>
+                                    Live Class
+                                </span>
+
+                                <small>
+                                    ${liveClasses.length}
+                                </small>
+
+                            </button>
+
+                        `
+                                : ""
                         }
 
                     </div>
@@ -1259,6 +1754,7 @@ async function showStudentCourses(student) {
                     ></div>
 
                 </div>
+
             `;
 
 
@@ -1331,6 +1827,7 @@ async function showStudentCourses(student) {
 
                         panel.hidden =
                             true;
+
                     }
 
                 }
@@ -1389,6 +1886,7 @@ async function showStudentCourses(student) {
 
 
     hidePageLoading();
+
 }
 
 
@@ -1396,19 +1894,39 @@ async function showStudentCourses(student) {
    ESCAPE HTML
 ========================================================= */
 
-function dashboardEsc(value) {
+function dashboardEsc(
+    value
+) {
 
-    return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
+    return String(
+        value ?? ""
+    )
+        .replaceAll(
+            "&",
+            "&amp;"
+        )
+        .replaceAll(
+            "<",
+            "&lt;"
+        )
+        .replaceAll(
+            ">",
+            "&gt;"
+        )
+        .replaceAll(
+            '"',
+            "&quot;"
+        )
+        .replaceAll(
+            "'",
+            "&#039;"
+        );
+
 }
 
 
 /* =========================================================
-   CATEGORY PANEL
+   COURSE CATEGORY PANEL
 ========================================================= */
 
 function renderCourseCategoryPanel(
@@ -1420,15 +1938,16 @@ function renderCourseCategoryPanel(
     let items = [];
 
 
-    /* =========================================
-       VIDEO
-    ========================================= */
-
-    if (category === "video") {
+    if (
+        category === "video"
+    ) {
 
         items =
             data.videos.map(
-                (content, index) => ({
+                (
+                    content,
+                    index
+                ) => ({
 
                     label:
                         content.title ||
@@ -1443,6 +1962,7 @@ function renderCourseCategoryPanel(
                     title:
                         content.title ||
                         `Lecture ${index + 1}`
+
                 })
             );
 
@@ -1460,18 +1980,20 @@ function renderCourseCategoryPanel(
 
 
         return;
+
     }
 
 
-    /* =========================================
-       PDF
-    ========================================= */
-
-    if (category === "pdf") {
+    if (
+        category === "pdf"
+    ) {
 
         items =
             data.pdfs.map(
-                (content, index) => ({
+                (
+                    content,
+                    index
+                ) => ({
 
                     label:
                         content.title ||
@@ -1486,6 +2008,7 @@ function renderCourseCategoryPanel(
                     title:
                         content.title ||
                         `Lecture ${index + 1} PDF`
+
                 })
             );
 
@@ -1503,18 +2026,20 @@ function renderCourseCategoryPanel(
 
 
         return;
+
     }
 
 
-    /* =========================================
-       LIVE
-    ========================================= */
-
-    if (category === "live") {
+    if (
+        category === "live"
+    ) {
 
         items =
             data.liveClasses.map(
-                (content, index) => ({
+                (
+                    content,
+                    index
+                ) => ({
 
                     label:
                         content.title ||
@@ -1529,6 +2054,7 @@ function renderCourseCategoryPanel(
                     title:
                         content.title ||
                         `Live Class ${index + 1}`
+
                 })
             );
 
@@ -1546,77 +2072,97 @@ function renderCourseCategoryPanel(
 
 
         return;
+
     }
 
 
-    /* =========================================
-       TEST
-    ========================================= */
+    /* =====================================================
+       TESTS
+    ===================================================== */
 
     const lectures =
         data.testData?.lectures || {};
 
 
     const lectureEntries =
-        Object.entries(lectures);
+        Object.entries(
+            lectures
+        );
 
 
-    if (!lectureEntries.length) {
+    if (
+        !lectureEntries.length
+    ) {
 
-        panel.innerHTML =
-            `
-            <div class="course-empty-message">
+        panel.innerHTML = `
+
+            <div
+                class="course-empty-message"
+            >
                 No tests available for this course.
             </div>
-            `;
+
+        `;
+
 
         return;
+
     }
 
 
     panel.innerHTML = `
-        <div class="lecture-wise-heading">
+
+        <div
+            class="lecture-wise-heading"
+        >
             📝 Select Lecture
         </div>
 
-        <div class="lecture-wise-list">
 
-            ${
-                lectureEntries
-                    .map(
-                        ([lectureId, lecture], index) => `
-                            <button
-                                class="lecture-select-btn"
-                                type="button"
-                                data-lecture-id="${dashboardEsc(
-                                    lectureId
-                                )}"
-                            >
+        <div
+            class="lecture-wise-list"
+        >
 
-                                <span>
-                                    📚
-                                    ${dashboardEsc(
-                                        lecture.title ||
-                                        `Lecture ${index + 1}`
-                                    )}
-                                </span>
+            ${lectureEntries.map(
+                (
+                    [lectureId, lecture],
+                    index
+                ) => `
 
-                                <span>
-                                    ›
-                                </span>
+                    <button
+                        class="lecture-select-btn"
+                        type="button"
+                        data-lecture-id="${dashboardEsc(
+                            lectureId
+                        )}"
+                    >
 
-                            </button>
-                        `
-                    )
-                    .join("")
-            }
+                        <span>
+                            📚
+                            ${dashboardEsc(
+                                lecture.title ||
+                                `Lecture ${index + 1}`
+                            )}
+                        </span>
+
+
+                        <span>
+                            ›
+                        </span>
+
+                    </button>
+
+                `
+            ).join("")}
 
         </div>
+
 
         <div
             class="test-wise-list"
             hidden
         ></div>
+
     `;
 
 
@@ -1630,154 +2176,173 @@ function renderCourseCategoryPanel(
         .querySelectorAll(
             ".lecture-select-btn"
         )
-        .forEach(btn => {
+        .forEach(
+            btn => {
 
-            btn.addEventListener(
-                "click",
-                () => {
+                btn.addEventListener(
+                    "click",
+                    () => {
 
-                    const lectureId =
-                        btn.dataset.lectureId;
-
-
-                    const lecture =
-                        lectures[lectureId];
+                        const lectureId =
+                            btn.dataset.lectureId;
 
 
-                    const tests =
-                        lecture?.tests || {};
+                        const lecture =
+                            lectures[
+                                lectureId
+                            ];
 
 
-                    const entries =
-                        Object.entries(
-                            tests
-                        );
+                        const tests =
+                            lecture?.tests || {};
 
 
-                    if (!entries.length) {
+                        const entries =
+                            Object.entries(
+                                tests
+                            );
+
+
+                        if (
+                            !entries.length
+                        ) {
+
+                            testList.hidden =
+                                false;
+
+
+                            testList.innerHTML = `
+
+                                <div
+                                    class="course-empty-message"
+                                >
+                                    No test available in this lecture.
+                                </div>
+
+                            `;
+
+
+                            return;
+
+                        }
+
 
                         testList.hidden =
                             false;
 
-                        testList.innerHTML =
-                            `
-                            <div class="course-empty-message">
-                                No test available in this lecture.
+
+                        testList.innerHTML = `
+
+                            <div
+                                class="lecture-wise-heading"
+                            >
+
+                                Tests in
+                                ${dashboardEsc(
+                                    lecture.title ||
+                                    lectureId
+                                )}
+
                             </div>
-                            `;
 
-                        return;
+
+                            ${entries.map(
+                                (
+                                    [
+                                        testNumber,
+                                        test
+                                    ]
+                                ) => `
+
+                                    <button
+                                        class="test-select-btn"
+                                        type="button"
+
+                                        data-course="${dashboardEsc(
+                                            data.courseTestId
+                                        )}"
+
+                                        data-lecture="${dashboardEsc(
+                                            lectureId
+                                        )}"
+
+                                        data-test="${dashboardEsc(
+                                            testNumber
+                                        )}"
+                                    >
+
+                                        <span>
+                                            📝
+                                            ${dashboardEsc(
+                                                test.title ||
+                                                `Test ${testNumber}`
+                                            )}
+                                        </span>
+
+
+                                        <small>
+                                            ${Number(
+                                                test.duration ||
+                                                30
+                                            )}
+                                            min •
+                                            ${
+                                                Array.isArray(
+                                                    test.questions
+                                                )
+                                                    ? test.questions.length
+                                                    : 0
+                                            }
+                                            Questions
+                                        </small>
+
+                                    </button>
+
+                                `
+                            ).join("")}
+
+                        `;
+
+
+                        testList
+                            .querySelectorAll(
+                                ".test-select-btn"
+                            )
+                            .forEach(
+                                testBtn => {
+
+                                    testBtn.addEventListener(
+                                        "click",
+                                        () => {
+
+                                            window.location.href =
+                                                "test.html?course=" +
+                                                encodeURIComponent(
+                                                    testBtn.dataset.course
+                                                ) +
+
+                                                "&lecture=" +
+                                                encodeURIComponent(
+                                                    testBtn.dataset.lecture
+                                                ) +
+
+                                                "&test=" +
+                                                encodeURIComponent(
+                                                    testBtn.dataset.test
+                                                );
+
+                                        }
+                                    );
+
+                                }
+                            );
+
                     }
+                );
 
+            }
+        );
 
-                    testList.hidden =
-                        false;
-
-
-                    testList.innerHTML = `
-
-                        <div
-                            class="lecture-wise-heading"
-                        >
-                            Tests in
-                            ${dashboardEsc(
-                                lecture.title ||
-                                lectureId
-                            )}
-                        </div>
-
-
-                        ${
-                            entries
-                                .map(
-                                    ([testNumber, test]) => `
-
-                                        <button
-                                            class="test-select-btn"
-                                            type="button"
-
-                                            data-course="${dashboardEsc(
-                                                data.courseTestId
-                                            )}"
-
-                                            data-lecture="${dashboardEsc(
-                                                lectureId
-                                            )}"
-
-                                            data-test="${dashboardEsc(
-                                                testNumber
-                                            )}"
-                                        >
-
-                                            <span>
-                                                📝
-                                                ${dashboardEsc(
-                                                    test.title ||
-                                                    `Test ${testNumber}`
-                                                )}
-                                            </span>
-
-                                            <small>
-                                                ${Number(
-                                                    test.duration ||
-                                                    30
-                                                )}
-                                                min •
-                                                ${
-                                                    Array.isArray(
-                                                        test.questions
-                                                    )
-                                                        ? test.questions.length
-                                                        : 0
-                                                }
-                                                Questions
-                                            </small>
-
-                                        </button>
-
-                                    `
-                                )
-                                .join("")
-                        }
-
-                    `;
-
-
-                    testList
-                        .querySelectorAll(
-                            ".test-select-btn"
-                        )
-                        .forEach(
-                            testBtn => {
-
-                                testBtn.addEventListener(
-                                    "click",
-                                    () => {
-
-                                        window.location.href =
-                                            "test.html?course=" +
-                                            encodeURIComponent(
-                                                testBtn.dataset.course
-                                            ) +
-                                            "&lecture=" +
-                                            encodeURIComponent(
-                                                testBtn.dataset.lecture
-                                            ) +
-                                            "&test=" +
-                                            encodeURIComponent(
-                                                testBtn.dataset.test
-                                            );
-
-                                    }
-                                );
-
-                            }
-                        );
-
-                }
-            );
-
-        });
 }
 
 
@@ -1790,25 +2355,38 @@ function courseLectureListHTML(
     type
 ) {
 
-    if (!items.length) {
+    if (
+        !items.length
+    ) {
 
         return `
-            <div class="course-empty-message">
-                No ${
+
+            <div
+                class="course-empty-message"
+            >
+
+                No
+                ${
                     type === "pdf"
                         ? "PDF"
                         : type === "video"
                             ? "video lecture"
                             : "live class"
-                } available.
+                }
+                available.
+
             </div>
+
         `;
+
     }
 
 
     return `
 
-        <div class="lecture-wise-heading">
+        <div
+            class="lecture-wise-heading"
+        >
 
             ${
                 type === "video"
@@ -1821,143 +2399,154 @@ function courseLectureListHTML(
         </div>
 
 
-        <div class="lecture-wise-list">
+        <div
+            class="lecture-wise-list"
+        >
 
-            ${
-                items
-                    .map(
-                        (item, index) => `
+            ${items.map(
+                (
+                    item,
+                    index
+                ) => `
 
-                            <button
-                                class="content-lecture-btn"
-                                type="button"
+                    <button
+                        class="content-lecture-btn"
+                        type="button"
 
-                                data-type="${dashboardEsc(
-                                    item.type
-                                )}"
+                        data-type="${dashboardEsc(
+                            item.type
+                        )}"
 
-                                data-url="${encodeURIComponent(
-                                    item.url || ""
-                                )}"
+                        data-url="${encodeURIComponent(
+                            item.url || ""
+                        )}"
 
-                                data-title="${encodeURIComponent(
-                                    item.title ||
-                                    item.label ||
-                                    `Lecture ${index + 1}`
-                                )}"
-                            >
+                        data-title="${encodeURIComponent(
+                            item.title ||
+                            item.label ||
+                            `Lecture ${index + 1}`
+                        )}"
+                    >
 
-                                <span>
-                                    ${
-                                        type === "video"
-                                            ? "▶"
-                                            : type === "pdf"
-                                                ? "📄"
-                                                : "🔴"
-                                    }
+                        <span>
 
-                                    ${dashboardEsc(
-                                        item.label
-                                    )}
-                                </span>
+                            ${
+                                type === "video"
+                                    ? "▶"
+                                    : type === "pdf"
+                                        ? "📄"
+                                        : "🔴"
+                            }
 
-                                <span>
-                                    ›
-                                </span>
+                            ${dashboardEsc(
+                                item.label
+                            )}
 
-                            </button>
+                        </span>
 
-                        `
-                    )
-                    .join("")
-            }
+
+                        <span>
+                            ›
+                        </span>
+
+                    </button>
+
+                `
+            ).join("")}
 
         </div>
+
     `;
+
 }
 
 
 /* =========================================================
-   CONTENT BUTTONS
+   BIND CONTENT BUTTONS
 ========================================================= */
 
-function bindCourseLectureButtons(panel) {
+function bindCourseLectureButtons(
+    panel
+) {
 
     panel
         .querySelectorAll(
             ".content-lecture-btn"
         )
-        .forEach(button => {
+        .forEach(
+            button => {
 
-            button.addEventListener(
-                "click",
-                () => {
+                button.addEventListener(
+                    "click",
+                    () => {
 
-                    const type =
-                        button.dataset.type;
-
-
-                    const url =
-                        decodeURIComponent(
-                            button.dataset.url ||
-                            ""
-                        );
+                        const type =
+                            button.dataset.type;
 
 
-                    const title =
-                        decodeURIComponent(
-                            button.dataset.title ||
-                            ""
-                        );
+                        const url =
+                            decodeURIComponent(
+                                button.dataset.url ||
+                                ""
+                            );
 
 
-                    if (
-                        type === "youtube" ||
-                        type === "video"
-                    ) {
+                        const title =
+                            decodeURIComponent(
+                                button.dataset.title ||
+                                ""
+                            );
 
-                        openYouTubeVideo(
-                            url,
-                            title
-                        );
 
-                    } else if (
-                        type === "local-video"
-                    ) {
+                        if (
+                            type === "youtube" ||
+                            type === "video"
+                        ) {
 
-                        openLocalVideo(
-                            url,
-                            title
-                        );
+                            openYouTubeVideo(
+                                url,
+                                title
+                            );
 
-                    } else if (
-                        type === "pdf"
-                    ) {
+                        } else if (
+                            type === "local-video"
+                        ) {
 
-                        openPDFViewer(
-                            url,
-                            title
-                        );
+                            openLocalVideo(
+                                url,
+                                title
+                            );
 
-                    } else if (
-                        type === "live"
-                    ) {
+                        } else if (
+                            type === "pdf"
+                        ) {
 
-                        openLiveClass(
-                            url
-                        );
+                            openPDFViewer(
+                                url,
+                                title
+                            );
+
+                        } else if (
+                            type === "live"
+                        ) {
+
+                            openLiveClass(
+                                url
+                            );
+
+                        }
 
                     }
+                );
 
-                }
-            );
+            }
+        );
 
-        });
 }
 
 
 /* =========================================================
-   MODAL
+   CREATE MODAL
 ========================================================= */
 
 function createModal() {
@@ -1987,6 +2576,7 @@ function createModal() {
 
         <div
             id="fjmcModalOverlay"
+
             style="
                 position:fixed;
                 inset:0;
@@ -2000,6 +2590,7 @@ function createModal() {
         >
 
             <div
+
                 style="
                     width:100%;
                     max-width:1100px;
@@ -2014,6 +2605,7 @@ function createModal() {
             >
 
                 <div
+
                     style="
                         display:flex;
                         align-items:center;
@@ -2031,6 +2623,7 @@ function createModal() {
 
                     <button
                         id="fjmcModalClose"
+
                         style="
                             border:0;
                             background:#e63946;
@@ -2049,7 +2642,9 @@ function createModal() {
 
 
                 <div
+
                     id="fjmcModalBody"
+
                     style="
                         flex:1;
                         overflow:auto;
@@ -2060,6 +2655,7 @@ function createModal() {
             </div>
 
         </div>
+
     `;
 
 
@@ -2084,7 +2680,7 @@ function createModal() {
         )
         .addEventListener(
             "click",
-            event => {
+            function (event) {
 
                 if (
                     event.target.id ===
@@ -2092,6 +2688,7 @@ function createModal() {
                 ) {
 
                     closeModal();
+
                 }
 
             }
@@ -2099,6 +2696,7 @@ function createModal() {
 
 
     return modal;
+
 }
 
 
@@ -2115,7 +2713,9 @@ function closeModal() {
 
 
     if (watermark) {
+
         watermark.remove();
+
     }
 
 
@@ -2126,13 +2726,16 @@ function closeModal() {
 
 
     if (modal) {
+
         modal.remove();
+
     }
+
 }
 
 
 /* =========================================================
-   YOUTUBE
+   YOUTUBE VIDEO
 ========================================================= */
 
 function openYouTubeVideo(
@@ -2140,7 +2743,8 @@ function openYouTubeVideo(
     title
 ) {
 
-    createModal();
+    const modal =
+        createModal();
 
 
     const modalTitle =
@@ -2162,6 +2766,7 @@ function openYouTubeVideo(
     body.innerHTML = `
 
         <div
+
             style="
                 width:100%;
                 aspect-ratio:16/9;
@@ -2170,13 +2775,17 @@ function openYouTubeVideo(
         >
 
             <iframe
-                src="${dashboardEsc(url)}"
-                title="${dashboardEsc(title)}"
+
+                src="${url}"
+
+                title="${title}"
+
                 style="
                     width:100%;
                     height:100%;
                     border:0;
                 "
+
                 allow="
                     accelerometer;
                     autoplay;
@@ -2184,11 +2793,14 @@ function openYouTubeVideo(
                     gyroscope;
                     picture-in-picture
                 "
-                allowfullscreen>
-            </iframe>
+
+                allowfullscreen
+            ></iframe>
 
         </div>
+
     `;
+
 }
 
 
@@ -2201,24 +2813,38 @@ function openLocalVideo(
     title
 ) {
 
-    createModal();
+    const modal =
+        createModal();
 
 
-    document.getElementById(
-        "fjmcModalTitle"
-    ).textContent =
+    const modalTitle =
+        document.getElementById(
+            "fjmcModalTitle"
+        );
+
+
+    const body =
+        document.getElementById(
+            "fjmcModalBody"
+        );
+
+
+    modalTitle.textContent =
         title;
 
 
-    document.getElementById(
-        "fjmcModalBody"
-    ).innerHTML = `
+    body.innerHTML = `
 
         <video
+
             controls
+
             controlsList="nodownload"
+
             disablePictureInPicture
+
             playsinline
+
             style="
                 width:100%;
                 max-height:80vh;
@@ -2228,14 +2854,19 @@ function openLocalVideo(
         >
 
             <source
-                src="${dashboardEsc(url)}"
+
+                src="${url}"
+
                 type="video/mp4"
             >
+
 
             Your browser does not support video.
 
         </video>
+
     `;
+
 }
 
 
@@ -2243,7 +2874,9 @@ function openLocalVideo(
    LIVE CLASS
 ========================================================= */
 
-function openLiveClass(url) {
+function openLiveClass(
+    url
+) {
 
     if (
         !url ||
@@ -2254,7 +2887,9 @@ function openLiveClass(url) {
             "Live class link is not available yet."
         );
 
+
         return;
+
     }
 
 
@@ -2263,11 +2898,12 @@ function openLiveClass(url) {
         "_blank",
         "noopener,noreferrer"
     );
+
 }
 
 
 /* =========================================================
-   PDF
+   PDF VIEWER
 ========================================================= */
 
 async function openPDFViewer(
@@ -2275,7 +2911,8 @@ async function openPDFViewer(
     title
 ) {
 
-    createModal();
+    const modal =
+        createModal();
 
 
     const modalTitle =
@@ -2297,19 +2934,25 @@ async function openPDFViewer(
     body.innerHTML = `
 
         <div
+
             id="pdfLoading"
+
             style="
                 color:white;
                 text-align:center;
                 padding:30px;
             "
         >
+
             Loading PDF...
+
         </div>
 
 
         <div
+
             id="pdfPages"
+
             style="
                 padding:15px;
                 text-align:center;
@@ -2318,6 +2961,7 @@ async function openPDFViewer(
                 -webkit-touch-callout:none;
             "
         ></div>
+
     `;
 
 
@@ -2331,6 +2975,7 @@ async function openPDFViewer(
             throw new Error(
                 "PDF.js is not loaded."
             );
+
         }
 
 
@@ -2342,7 +2987,9 @@ async function openPDFViewer(
 
         const pdf =
             await pdfjsLib
-                .getDocument(url)
+                .getDocument(
+                    url
+                )
                 .promise;
 
 
@@ -2388,26 +3035,60 @@ async function openPDFViewer(
             "FJMC ACADEMY";
 
 
-        Object.assign(
-            watermark.style,
-            {
-                position: "fixed",
-                left: "50%",
-                top: "50%",
-                transform:
-                    "translate(-50%, -50%) rotate(-20deg)",
-                color: "rgba(0,0,0,1)",
-                fontSize: "24px",
-                fontWeight: "800",
-                letterSpacing: "2px",
-                whiteSpace: "nowrap",
-                zIndex: "1000000",
-                pointerEvents: "none",
-                userSelect: "none",
-                webkitUserSelect: "none",
-                webkitTouchCallout: "none"
-            }
-        );
+        watermark.style.position =
+            "fixed";
+
+
+        watermark.style.left =
+            "50%";
+
+
+        watermark.style.top =
+            "50%";
+
+
+        watermark.style.transform =
+            "translate(-50%, -50%) rotate(-20deg)";
+
+
+        watermark.style.color =
+            "rgba(0, 0, 0, 1.0)";
+
+
+        watermark.style.fontSize =
+            "24px";
+
+
+        watermark.style.fontWeight =
+            "800";
+
+
+        watermark.style.letterSpacing =
+            "2px";
+
+
+        watermark.style.whiteSpace =
+            "nowrap";
+
+
+        watermark.style.zIndex =
+            "1000000";
+
+
+        watermark.style.pointerEvents =
+            "none";
+
+
+        watermark.style.userSelect =
+            "none";
+
+
+        watermark.style.webkitUserSelect =
+            "none";
+
+
+        watermark.style.webkitTouchCallout =
+            "none";
 
 
         document.body.appendChild(
@@ -2439,17 +3120,28 @@ async function openPDFViewer(
                 );
 
 
-            Object.assign(
-                wrapper.style,
-                {
-                    position: "relative",
-                    display: "inline-block",
-                    margin: "0 auto 20px auto",
-                    maxWidth: "100%",
-                    background: "#ffffff",
-                    overflow: "hidden"
-                }
-            );
+            wrapper.style.position =
+                "relative";
+
+
+            wrapper.style.display =
+                "inline-block";
+
+
+            wrapper.style.margin =
+                "0 auto 20px auto";
+
+
+            wrapper.style.maxWidth =
+                "100%";
+
+
+            wrapper.style.background =
+                "#ffffff";
+
+
+            wrapper.style.overflow =
+                "hidden";
 
 
             const canvas =
@@ -2466,16 +3158,24 @@ async function openPDFViewer(
                 viewport.height;
 
 
-            Object.assign(
-                canvas.style,
-                {
-                    maxWidth: "100%",
-                    height: "auto",
-                    display: "block",
-                    userSelect: "none",
-                    webkitUserSelect: "none"
-                }
-            );
+            canvas.style.maxWidth =
+                "100%";
+
+
+            canvas.style.height =
+                "auto";
+
+
+            canvas.style.display =
+                "block";
+
+
+            canvas.style.userSelect =
+                "none";
+
+
+            canvas.style.webkitUserSelect =
+                "none";
 
 
             wrapper.appendChild(
@@ -2489,14 +3189,34 @@ async function openPDFViewer(
 
 
             const context =
-                canvas.getContext("2d");
+                canvas.getContext(
+                    "2d"
+                );
 
 
             await page.render({
-                canvasContext: context,
-                viewport: viewport
+
+                canvasContext:
+                    context,
+
+                viewport:
+                    viewport
+
             }).promise;
+
         }
+
+
+        pages.style.userSelect =
+            "none";
+
+
+        pages.style.webkitUserSelect =
+            "none";
+
+
+        pages.style.webkitTouchCallout =
+            "none";
 
 
     } catch (error) {
@@ -2521,6 +3241,7 @@ async function openPDFViewer(
         body.innerHTML = `
 
             <div
+
                 style="
                     color:white;
                     padding:30px;
@@ -2532,40 +3253,48 @@ async function openPDFViewer(
                     PDF could not be opened
                 </h3>
 
+
                 <p>
-                    ${dashboardEsc(
-                        error.message || ""
-                    )}
+                    ${error.message || ""}
                 </p>
 
             </div>
+
         `;
+
     }
+
 }
 
 
 /* =========================================================
    LOGOUT
+
    IMPORTANT:
-   DO NOT DELETE / DISABLE DEVICE SLOT
+   DOES NOT DELETE DEVICE
+   DOES NOT FREE SLOT
 ========================================================= */
 
 if (logoutBtn) {
 
     logoutBtn.addEventListener(
         "click",
-        async function() {
+        async function () {
 
             try {
 
-                if (deviceHeartbeat) {
+                if (
+                    deviceHeartbeat
+                ) {
 
                     clearInterval(
                         deviceHeartbeat
                     );
 
+
                     deviceHeartbeat =
                         null;
+
                 }
 
 
@@ -2581,11 +3310,13 @@ if (logoutBtn) {
 
                 /*
                    IMPORTANT:
-                   Device slot is NOT deleted.
-                   3-day reservation remains.
+                   We DO NOT update/delete
+                   the Firestore device document.
                 */
 
-                await signOut(auth);
+                await signOut(
+                    auth
+                );
 
 
             } catch (error) {
@@ -2594,65 +3325,93 @@ if (logoutBtn) {
                     "Sign out:",
                     error
                 );
+
             }
 
 
             window.location.href =
                 "login.html";
+
         }
     );
+
 }
 
 
 /* =========================================================
-   CONTENT PROTECTION
+   BASIC CONTENT PROTECTION
 ========================================================= */
 
 document.addEventListener(
     "contextmenu",
-    event => event.preventDefault()
+    function (event) {
+
+        event.preventDefault();
+
+    }
 );
 
 
 document.addEventListener(
     "copy",
-    event => event.preventDefault()
+    function (event) {
+
+        event.preventDefault();
+
+    }
 );
 
 
 document.addEventListener(
     "cut",
-    event => event.preventDefault()
+    function (event) {
+
+        event.preventDefault();
+
+    }
 );
 
 
 document.addEventListener(
     "selectstart",
-    event => event.preventDefault()
+    function (event) {
+
+        event.preventDefault();
+
+    }
 );
 
 
 document.addEventListener(
     "keydown",
-    event => {
+    function (event) {
 
         const key =
             event.key.toLowerCase();
 
 
         if (
-            (event.ctrlKey ||
-                event.metaKey) &&
+
+            (
+                event.ctrlKey ||
+                event.metaKey
+            )
+
+            &&
+
             (
                 key === "s" ||
                 key === "p" ||
                 key === "u" ||
                 key === "c"
             )
+
         ) {
 
             event.preventDefault();
+
         }
+
     }
 );
 
@@ -2663,18 +3422,21 @@ document.addEventListener(
 
 window.addEventListener(
     "load",
-    function() {
+    function () {
 
         setTimeout(
-            function() {
+            function () {
 
                 if (
+
                     currentUser &&
                     coursesContainer &&
                     coursesContainer.children.length > 0
+
                 ) {
 
                     hidePageLoading();
+
                 }
 
             },
