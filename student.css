@@ -1,0 +1,1079 @@
+/* ================================
+   FJMC ACADEMY - STUDENT LOGIN
+================================ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #eef2ff, #fdf2f8, #ecfeff);
+}
+
+
+/* ================================
+   LOGIN PAGE
+================================ */
+
+.login-page {
+    min-height: 100vh;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    padding: 20px;
+
+    background:
+        radial-gradient(circle at top left,
+        rgba(99, 102, 241, 0.18),
+        transparent 35%),
+
+        radial-gradient(circle at bottom right,
+        rgba(236, 72, 153, 0.18),
+        transparent 35%);
+}
+
+
+/* ================================
+   LOGIN BOX
+================================ */
+
+.login-box {
+    width: 100%;
+    max-width: 430px;
+
+    padding: 40px 35px;
+
+    background: rgba(255, 255, 255, 0.96);
+
+    border-radius: 22px;
+
+    box-shadow:
+        0 20px 50px rgba(0, 0, 0, 0.12);
+
+    border: 1px solid rgba(255, 255, 255, 0.8);
+
+    text-align: center;
+}
+
+
+/* ================================
+   LOGO
+================================ */
+
+.logo {
+    display: inline-block;
+
+    font-size: 25px;
+    font-weight: 800;
+
+    margin-bottom: 12px;
+
+    background: linear-gradient(
+        90deg,
+        #2563eb,
+        #7c3aed,
+        #db2777
+    );
+
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+
+/* ================================
+   HEADING
+================================ */
+
+.login-box h1 {
+    color: #172033;
+
+    font-size: 28px;
+
+    margin-bottom: 8px;
+}
+
+
+.login-subtitle {
+    color: #697386;
+
+    font-size: 14px;
+
+    margin-bottom: 28px;
+}
+
+
+/* ================================
+   FORM
+================================ */
+
+#loginForm {
+    text-align: left;
+}
+
+
+#loginForm label {
+    display: block;
+
+    margin-bottom: 7px;
+
+    color: #30384a;
+
+    font-size: 14px;
+
+    font-weight: 600;
+}
+
+
+/* ================================
+   INPUTS
+================================ */
+
+#loginForm input {
+    width: 100%;
+
+    height: 50px;
+
+    padding: 0 15px;
+
+    margin-bottom: 18px;
+
+    border: 2px solid #e5e7eb;
+
+    border-radius: 11px;
+
+    background: #f9fafb;
+
+    color: #172033;
+
+    font-size: 15px;
+
+    outline: none;
+
+    transition: all 0.25s ease;
+}
+
+
+#loginForm input::placeholder {
+    color: #9ca3af;
+}
+
+
+#loginForm input:focus {
+    border-color: #6366f1;
+
+    background: white;
+
+    box-shadow:
+        0 0 0 4px rgba(99, 102, 241, 0.12);
+}
+
+
+/* ================================
+   LOGIN BUTTON
+================================ */
+
+#loginForm button {
+    width: 100%;
+
+    height: 52px;
+
+    margin-top: 5px;
+
+    border: none;
+
+    border-radius: 12px;
+
+    background: linear-gradient(
+        90deg,
+        #2563eb,
+        #7c3aed,
+        #db2777
+    );
+
+    color: white;
+
+    font-size: 15px;
+
+    font-weight: 700;
+
+    letter-spacing: 1px;
+
+    cursor: pointer;
+
+    box-shadow:
+        0 8px 20px rgba(99, 102, 241, 0.30);
+
+    transition: all 0.25s ease;
+}
+
+
+/* Hover */
+
+#loginForm button:hover {
+    transform: translateY(-2px);
+
+    box-shadow:
+        0 12px 25px rgba(99, 102, 241, 0.40);
+
+    filter: brightness(1.05);
+}
+
+
+/* Click */
+
+#loginForm button:active {
+    transform: translateY(1px);
+
+    box-shadow:
+        0 5px 12px rgba(99, 102, 241, 0.25);
+}
+
+
+/* ================================
+   LOGIN MESSAGE
+================================ */
+
+#loginMessage {
+    text-align: center;
+
+    min-height: 22px;
+
+    margin-top: 15px;
+
+    color: #dc2626;
+
+    font-size: 14px;
+
+    font-weight: 600;
+}
+/* ================================
+   MOBILE
+================================ */
+
+@media (max-width: 500px) {
+
+    .login-page {
+        padding: 15px;
+
+        /* MOBILE BACKGROUND */
+        background:
+            radial-gradient(
+                circle at top left,
+                rgba(99, 102, 241, 0.18),
+                transparent 35%
+            ),
+            radial-gradient(
+                circle at bottom right,
+                rgba(236, 72, 153, 0.18),
+                transparent 35%
+            );
+    }
+
+    .login-box {
+        padding: 32px 23px;
+
+        border-radius: 18px;
+
+        /* MOBILE BOX COLOUR */
+        background: rgba(255, 255, 255, 0.96);
+
+        box-shadow:
+            0 20px 50px rgba(0, 0, 0, 0.12);
+    }
+
+    .login-box h1 {
+        font-size: 25px;
+
+        /* MOBILE HEADING COLOUR */
+        color: #172033;
+    }
+
+    .logo {
+        font-size: 22px;
+
+        /* MOBILE LOGO COLOUR */
+        background: linear-gradient(
+            90deg,
+            #2563eb,
+            #7c3aed,
+            #db2777
+        );
+
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .login-subtitle {
+        color: #697386;
+    }
+
+    #loginForm label {
+        color: #30384a;
+    }
+
+    #loginForm input {
+        height: 48px;
+
+        background: #f9fafb;
+
+        border: 2px solid #e5e7eb;
+
+        color: #172033;
+    }
+
+    #loginForm input:focus {
+        border-color: #6366f1;
+
+        background: #ffffff;
+
+        box-shadow:
+            0 0 0 4px rgba(99, 102, 241, 0.12);
+    }
+
+    #loginForm button {
+        height: 50px;
+
+        /* MOBILE BUTTON COLOUR */
+        background: linear-gradient(
+            90deg,
+            #2563eb,
+            #7c3aed,
+            #db2777
+        );
+
+        color: #ffffff;
+    }
+
+    #loginMessage {
+        color: #dc2626;
+    }
+}
+
+
+
+/* =========================================================
+   DASHBOARD
+   ========================================================= */
+
+.dashboard {
+    width: min(1100px, 94%);
+    margin: 30px auto;
+}
+
+
+.welcome {
+    background: white;
+
+    padding: 25px;
+
+    border-radius: 12px;
+
+    margin-bottom: 30px;
+
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+}
+
+
+.welcome h1 {
+    color: #1b4332;
+    margin-bottom: 8px;
+}
+
+
+.welcome p {
+    color: #666;
+}
+
+
+.dashboard > h2 {
+    margin-bottom: 18px;
+    color: #1b4332;
+}
+
+
+/* =========================================================
+   COURSES
+   ========================================================= */
+
+.courses-container {
+    display: grid;
+
+    grid-template-columns:
+        repeat(auto-fit, minmax(280px, 1fr));
+
+    gap: 22px;
+}
+
+
+.course-card {
+    background: white;
+
+    border-radius: 12px;
+
+    overflow: hidden;
+
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
+
+    border: 1px solid #e5e5e5;
+}
+
+
+.course-title {
+    padding: 20px;
+
+    background: #1b4332;
+
+    color: white;
+}
+
+
+.course-title h3 {
+    margin-bottom: 8px;
+    font-size: 21px;
+}
+
+
+.course-title p {
+    font-size: 14px;
+    opacity: 0.9;
+}
+
+
+.course-content {
+    padding: 18px;
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 10px;
+}
+
+
+/* =========================================================
+   CONTENT BUTTONS
+   ========================================================= */
+
+.content-button {
+    width: 100%;
+
+    border: none;
+
+    padding: 13px 15px;
+
+    border-radius: 7px;
+
+    text-align: left;
+
+    font-size: 15px;
+
+    cursor: pointer;
+
+    transition: 0.2s;
+}
+
+
+.content-button:hover {
+    transform: translateY(-1px);
+    opacity: 0.9;
+}
+
+
+.video-button {
+    background: #edf6ff;
+    color: #075985;
+}
+
+
+.pdf-button {
+    background: #fff3f3;
+    color: #b42318;
+}
+
+
+.live-button {
+    background: #fff4e5;
+    color: #a15c00;
+}
+
+
+.no-course {
+    background: white;
+
+    padding: 30px;
+
+    border-radius: 10px;
+
+    text-align: center;
+}
+
+
+/* =========================================================
+   LOADING
+   ========================================================= */
+
+.loading-text {
+    background: white;
+
+    padding: 30px;
+
+    border-radius: 10px;
+
+    text-align: center;
+
+    color: #555;
+}
+
+
+/* =========================================================
+   VIDEO OVERLAY
+   ========================================================= */
+
+.video-overlay {
+    position: fixed;
+
+    inset: 0;
+
+    width: 100%;
+    height: 100%;
+
+    background: rgba(0, 0, 0, 0.94);
+
+    z-index: 9998;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    padding: 15px;
+}
+
+
+.video-window {
+    width: min(1000px, 100%);
+
+    background: #111;
+
+    border-radius: 10px;
+
+    overflow: hidden;
+}
+
+
+.video-header {
+    min-height: 55px;
+
+    padding: 10px 15px;
+
+    background: #1b4332;
+
+    color: white;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 10px;
+}
+
+
+.close-video {
+    background: #e63946;
+
+    color: white;
+
+    border: none;
+
+    padding: 8px 14px;
+
+    border-radius: 5px;
+
+    cursor: pointer;
+}
+
+
+.video-player-container {
+    width: 100%;
+
+    aspect-ratio: 16 / 9;
+
+    background: black;
+}
+
+
+.video-player-container iframe,
+.video-player-container video {
+    width: 100%;
+    height: 100%;
+
+    display: block;
+
+    border: none;
+
+    object-fit: contain;
+}
+
+
+video::-webkit-media-controls-download-button {
+    display: none;
+}
+
+
+video::-webkit-media-controls-enclosure {
+    overflow: hidden;
+}
+
+
+/* =========================================================
+   PDF FULLSCREEN VIEWER
+   ========================================================= */
+
+#pdfFullscreen {
+    position: fixed;
+
+    inset: 0;
+
+    width: 100%;
+    height: 100%;
+
+    background: #202124;
+
+    z-index: 10000;
+
+    display: flex;
+
+    flex-direction: column;
+}
+
+
+/* =========================================================
+   PDF HEADER
+   ========================================================= */
+
+.pdf-header {
+    flex: 0 0 auto;
+
+    min-height: 58px;
+
+    background: #1b4332;
+
+    color: white;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 10px;
+
+    padding: 10px 15px;
+
+    position: relative;
+
+    z-index: 10;
+}
+
+
+.pdf-title {
+    font-size: 16px;
+
+    font-weight: bold;
+
+    overflow: hidden;
+
+    white-space: nowrap;
+
+    text-overflow: ellipsis;
+}
+
+
+#closePDF {
+    flex-shrink: 0;
+
+    border: none;
+
+    background: #e63946;
+
+    color: white;
+
+    padding: 9px 15px;
+
+    border-radius: 5px;
+
+    cursor: pointer;
+
+    font-size: 14px;
+}
+
+
+/* =========================================================
+   PDF SCROLL AREA
+   ========================================================= */
+
+.pdf-scroll-area {
+    flex: 1;
+
+    overflow-y: auto;
+
+    overflow-x: hidden;
+
+    -webkit-overflow-scrolling: touch;
+
+    overscroll-behavior: contain;
+
+    padding: 15px 5px 40px;
+
+    text-align: center;
+}
+
+
+/* Smooth scrollbar */
+
+.pdf-scroll-area {
+    scrollbar-width: thin;
+}
+
+
+.pdf-scroll-area::-webkit-scrollbar {
+    width: 8px;
+}
+
+
+.pdf-scroll-area::-webkit-scrollbar-thumb {
+    background: #777;
+
+    border-radius: 10px;
+}
+
+
+.pdf-scroll-area::-webkit-scrollbar-track {
+    background: #303134;
+}
+
+
+/* =========================================================
+   PDF PAGES
+   ========================================================= */
+
+.pdf-pages {
+    width: 100%;
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    gap: 18px;
+}
+
+
+.pdf-page-wrapper {
+
+    width: 100% !important;
+
+    display: flex !important;
+
+    justify-content: center !important;
+
+    align-items: flex-start !important;
+
+    position: relative;
+
+    margin: 0 auto;
+
+    padding: 0;
+
+}
+
+
+.pdf-page {
+
+    display: block !important;
+
+    margin-left: auto !important;
+
+    margin-right: auto !important;
+
+    max-width: none !important;
+
+    height: auto;
+
+    background: white;
+
+    box-shadow:
+        0 3px 15px rgba(0, 0, 0, 0.35);
+
+}
+
+
+/* ===============================
+   MOBILE
+   =============================== */
+
+@media (max-width: 600px) {
+
+    .pdf-scroll-area {
+
+        width: 100%;
+
+        padding-left: 0 !important;
+
+        padding-right: 0 !important;
+
+        overflow-x: hidden;
+
+        text-align: center;
+
+    }
+
+
+    .pdf-pages {
+
+        width: 100%;
+
+        display: flex;
+
+        flex-direction: column;
+
+        align-items: center;
+
+        gap: 12px;
+
+    }
+
+
+    .pdf-page-wrapper {
+
+        width: 100% !important;
+
+        justify-content: center !important;
+
+    }
+
+}
+
+
+.pdf-page {
+    display: block;
+
+    max-width: calc(100vw - 20px);
+
+    height: auto;
+
+    background: white;
+
+    box-shadow:
+        0 3px 15px rgba(0, 0, 0, 0.35);
+
+    user-select: none;
+
+    -webkit-user-select: none;
+
+    pointer-events: none;
+}
+
+
+/* =========================================================
+   PDF LOADING
+   ========================================================= */
+
+.pdf-loading {
+    color: white;
+
+    padding: 40px 20px;
+
+    font-size: 17px;
+}
+
+
+.pdf-error {
+    color: white;
+
+    background: #4a1c1c;
+
+    padding: 25px;
+
+    border-radius: 10px;
+
+    max-width: 500px;
+
+    margin: 30px auto;
+}
+
+
+.pdf-error h3 {
+    margin-bottom: 10px;
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+    .dashboard-header {
+        padding: 10px 15px;
+    }
+
+
+    .logo {
+        font-size: 20px;
+    }
+
+
+    #logoutBtn {
+        padding: 8px 12px;
+        font-size: 14px;
+    }
+
+
+    .dashboard {
+        width: 94%;
+        margin: 20px auto;
+    }
+
+
+    .welcome {
+        padding: 20px;
+    }
+
+
+    .course-title h3 {
+        font-size: 19px;
+    }
+
+
+    .pdf-header {
+        min-height: 55px;
+
+        padding: 8px 10px;
+    }
+
+
+    .pdf-title {
+        font-size: 14px;
+    }
+
+
+    #closePDF {
+        padding: 8px 11px;
+    }
+
+
+    .pdf-scroll-area {
+        padding-top: 10px;
+    }
+
+
+    .pdf-pages {
+        gap: 12px;
+    }
+
+}
+
+
+/* =========================================================
+   PRINT BLOCK
+   ========================================================= */
+
+@media print {
+
+    body {
+        display: none !important;
+    }
+
+}
+/* =========================================================
+   SCREEN FIXED WATERMARK
+   PDF PAGE KE ANDAR KUCH NAHI LIKHEGA
+   ========================================================= */
+
+.pdf-screen-watermark {
+
+    position: fixed;
+
+    left: 50%;
+    top: 50%;
+
+    transform:
+        translate(-50%, -50%)
+        rotate(-30deg);
+
+    z-index: 10002;
+
+    pointer-events: none;
+
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+
+    text-align: center;
+
+    white-space: nowrap;
+
+    font-family: Arial, sans-serif;
+
+    font-size: 28px;
+
+    font-weight: bold;
+
+    line-height: 1.7;
+
+    letter-spacing: 2px;
+
+    color: rgba(255, 255, 255, 0.28);
+
+    text-shadow:
+        1px 1px 3px rgba(0, 0, 0, 0.9),
+        -1px -1px 3px rgba(0, 0, 0, 0.9);
+}
+
+
+.pdf-screen-watermark div {
+    display: block;
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 600px) {
+
+    .pdf-screen-watermark {
+
+        font-size: 19px;
+
+        letter-spacing: 1px;
+
+        color: rgba(255, 255, 255, 0.30);
+    }
+
+}
+.fjmc-test-button {
+    width: 100%;
+    padding: 13px 18px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #2563eb, #7c3aed);
+    color: white;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: .2s;
+}
+
+.fjmc-test-button:hover {
+    transform: translateY(-2px);
+    opacity: .92;
+}
