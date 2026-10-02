@@ -1,0 +1,16 @@
+FJMC ACADEMY - ADDITIONAL FIRESTORE RULE FOR ADMIN-MANAGED TESTS
+
+Add this match block INSIDE your existing
+match /databases/{database}/documents { ... }
+
+match /tests/{testId} {
+  // Logged-in students can read tests.
+  allow read: if request.auth != null;
+
+  // Only the FJMC Academy admin can create/update/delete tests.
+  allow create, update, delete: if request.auth != null
+    && request.auth.token.email == "fjmcacademy1008@gmail.com";
+}
+
+Do not replace your existing rules with this snippet. Keep all your
+current students/courses/testResults/devices rules and add this block.
