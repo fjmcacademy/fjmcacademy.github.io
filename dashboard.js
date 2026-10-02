@@ -1,14 +1,63 @@
 /* =========================================================
    FJMC ACADEMY - STUDENT DASHBOARD
+   =========================================================
+
+   DEVICE SYSTEM
+
    1 MOBILE + 1 DESKTOP/LAPTOP
-   FIXED 3-DAY DEVICE RESERVATION
-   LOGOUT DOES NOT FREE DEVICE SLOT
+
+   MOBILE:
+      Phone
+      Tablet
+      iPhone
+      iPad
+      Android Tablet
+
+   DESKTOP:
+      Windows Laptop
+      Windows Desktop
+      MacBook
+      iMac
+      Linux Laptop/Desktop
+
+   RULES:
+
+      Phone + Laptop       = ALLOWED
+      Tablet + Laptop      = ALLOWED
+
+      Phone + Tablet       = BLOCKED
+      Phone + Phone        = BLOCKED
+
+      Laptop + Desktop     = BLOCKED
+      Laptop + Laptop      = BLOCKED
+
+   DEVICE RESERVATION:
+
+      Fixed 3 DAYS
+
+      Logout DOES NOT free slot.
+
+      Heartbeat updates lastSeen only.
+      It DOES NOT extend the 3-day reservation.
+
+   IMPORTANT:
+
+      Device locking uses:
+
+      users/{uid}/deviceLock
+
+      Firestore Transaction prevents
+      two devices from taking the same
+      slot simultaneously.
+
 ========================================================= */
+
 
 import {
     onAuthStateChanged,
     signOut
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+
 
 import {
     collection,
@@ -17,91 +66,156 @@ import {
     getDoc,
     setDoc,
     updateDoc,
-    serverTimestamp
+    serverTimestamp,
+    runTransaction
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
+
 
 import {
     auth,
     db
 } from "./firebase.js";
 
-import { TESTS } from "./test-default-data.js";
+
+import {
+    TESTS
+} from "./test-default-data.js";
 
 
-/* =========================================================
-   STUDENT DATA
-
-   FORMAT:
-
-   email: {
-       name: "Student Name",
-
-       exam: "Exam Name",
-       batch: "Batch 1",
-       year: "2026",
-
-       courses: [
-           "course-id"
-       ]
-   }
-
-   IMPORTANT:
-   Different batch/year can have completely
-   different courses and materials.
-========================================================= */
 
 /* =========================================================
    STUDENT / COURSE DATA
-
-   Managed from admin.html -> Firestore.
-   Dashboard is read-only for assignments/content.
 ========================================================= */
 
 let STUDENTS = {};
 let COURSES = {};
 
+
+/* =========================================================
+   STUDENT DOCUMENT ID
+========================================================= */
+
 function studentDocId(email) {
-    return email.trim().toLowerCase().replaceAll("/", "_");
-}
 
-async function loadDashboardData(email) {
-    const studentSnap = await getDoc(
-        doc(db, "students", studentDocId(email))
-    );
+    return email
+        .trim()
+        .toLowerCase()
+        .replaceAll("/", "_");
 
-    if (!studentSnap.exists()) {
-        return null;
-    }
-
-    const student = studentSnap.data();
-    const courseIds = Array.isArray(student.courses) ? student.courses : [];
-
-    const courseEntries = await Promise.all(
-        courseIds.map(async courseId => {
-            const snap = await getDoc(doc(db, "courses", courseId));
-            return snap.exists() ? [courseId, snap.data()] : null;
-        })
-    );
-
-    COURSES = {};
-    courseEntries.filter(Boolean).forEach(([id, course]) => {
-        COURSES[id] = course;
-    });
-
-    STUDENTS = { [email]: student };
-    return student;
 }
 
 
 /* =========================================================
-   DEVICE SETTINGS
-   EVERYTHING BELOW THIS POINT IS YOUR EXISTING SYSTEM
+   LOAD DASHBOARD DATA
 ========================================================= */
+
+async function loadDashboardData(email) {
+
+    const studentSnap =
+        await getDoc(
+            doc(
+                db,
+                "students",
+                studentDocId(email)
+            )
+        );
+
+
+    if (!studentSnap.exists()) {
+
+        return null;
+
+    }
+
+
+    const student =
+        studentSnap.data();
+
+
+    const courseIds =
+        Array.isArray(student.courses)
+            ? student.courses
+            : [];
+
+
+    const courseEntries =
+        await Promise.all(
+
+            courseIds.map(
+                async courseId => {
+
+                    const snap =
+                        await getDoc(
+                            doc(
+                                db,
+                                "courses",
+                                courseId
+                            )
+                        );
+
+
+                    return snap.exists()
+                        ? [courseId, snap.data()]
+                        : null;
+
+                }
+            )
+
+        );
+
+
+    COURSES = {};
+
+
+    courseEntries
+        .filter(Boolean)
+        .forEach(
+            ([id, course]) => {
+
+                COURSES[id] =
+                    course;
+
+            }
+        );
+
+
+    STUDENTS = {
+        [email]: student
+    };
+
+
+    return student;
+
+}
+
+
+
+/* =========================================================
+   DEVICE SETTINGS
+========================================================= */
+
+
+/*
+   2 total slots:
+
+      1 mobile
+      1 desktop
+*/
+
 
 const MAX_DEVICES = 2;
 
+
+/*
+   Fixed reservation:
+
+      3 DAYS
+*/
+
+
 const DEVICE_TIMEOUT =
     3 * 24 * 60 * 60 * 1000;
+
 
 
 /* =========================================================
@@ -136,6 +250,7 @@ function getDeviceId() {
                 Math.random()
                     .toString(36)
                     .substring(2);
+
         }
 
 
@@ -143,15 +258,18 @@ function getDeviceId() {
             "fjmcDeviceId",
             id
         );
+
     }
 
 
     return id;
+
 }
 
 
 const deviceId =
     getDeviceId();
+
 
 
 /* =========================================================
@@ -167,8 +285,17 @@ function getDeviceType() {
         "";
 
 
+    const lowerUA =
+        userAgent.toLowerCase();
+
+
+    /*
+       Android / iPhone / iPad / Tablet
+       are MOBILE.
+    */
+
     const mobilePattern =
-        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i;
+        /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile|tablet/i;
 
 
     if (
@@ -180,7 +307,30 @@ function getDeviceType() {
     }
 
 
+    /*
+       Some iPads can report themselves
+       as Macintosh/Desktop.
+
+       maxTouchPoints helps detect them.
+    */
+
+    if (
+        /macintosh/i.test(userAgent) &&
+        navigator.maxTouchPoints &&
+        navigator.maxTouchPoints > 1
+    ) {
+
+        return "mobile";
+
+    }
+
+
+    /*
+       Everything else is desktop/laptop.
+    */
+
     return "desktop";
+
 }
 
 
@@ -194,12 +344,15 @@ console.log(
 );
 
 
+
 /* =========================================================
    GLOBAL STATE
 ========================================================= */
 
 let currentUser = null;
+
 let deviceHeartbeat = null;
+
 
 
 /* =========================================================
@@ -296,6 +449,7 @@ function hidePageLoading() {
 }
 
 
+
 /* =========================================================
    HTML ELEMENTS
 ========================================================= */
@@ -318,6 +472,7 @@ const logoutBtn =
     );
 
 
+
 /* =========================================================
    AUTH
 ========================================================= */
@@ -336,6 +491,7 @@ onAuthStateChanged(
                     "login.html";
 
                 return;
+
             }
 
 
@@ -356,7 +512,9 @@ onAuthStateChanged(
 
 
             const student =
-                await loadDashboardData(email);
+                await loadDashboardData(
+                    email
+                );
 
 
             if (!student) {
@@ -380,7 +538,9 @@ onAuthStateChanged(
 
 
                 return;
+
             }
+
 
 
             /* =============================================
@@ -399,6 +559,7 @@ onAuthStateChanged(
             );
 
 
+
             /* =============================================
                STUDENT NAME
             ============================================= */
@@ -410,6 +571,7 @@ onAuthStateChanged(
                     student.name;
 
             }
+
 
 
             /* =============================================
@@ -432,12 +594,16 @@ onAuthStateChanged(
 
                 hidePageLoading();
 
+
                 await signOut(
                     auth
                 );
 
+
                 return;
+
             }
+
 
 
             /* =============================================
@@ -496,156 +662,278 @@ onAuthStateChanged(
 );
 
 
+
 /* =========================================================
-   DEVICES COLLECTION
+   DEVICE LOCK DOCUMENT
 ========================================================= */
 
-function devicesCollection(user) {
 
-    return collection(
+/*
+   One document controls BOTH slots:
+
+   users/{uid}/deviceLock
+
+   Example:
+
+   {
+      mobileDeviceId: "...",
+      mobileExpiresAt: 123456789,
+
+      desktopDeviceId: "...",
+      desktopExpiresAt: 123456789
+   }
+
+*/
+
+
+function deviceLockRef(user) {
+
+    return doc(
         db,
         "users",
         user.uid,
-        "devices"
+        "deviceLock",
+        "main"
     );
 
 }
 
-
-/* =========================================================
-   COUNT ACTIVE DEVICE OF SPECIFIC TYPE
-========================================================= */
-
-async function countActiveDeviceType(
-    user,
-    type,
-    now,
-    excludeDeviceId = null
-) {
-
-    const devices =
-        await getDocs(
-            devicesCollection(user)
-        );
-
-
-    let count = 0;
-
-
-    devices.forEach(
-        function (deviceDoc) {
-
-            if (
-                excludeDeviceId &&
-                deviceDoc.id ===
-                excludeDeviceId
-            ) {
-
-                return;
-            }
-
-
-            const data =
-                deviceDoc.data();
-
-
-            const expiry =
-                Number(
-                    data.expiresAt || 0
-                );
-
-
-            const deviceType =
-                data.deviceType ||
-                "";
-
-
-            if (
-                data.active === true &&
-                expiry > now &&
-                deviceType === type
-            ) {
-
-                count++;
-
-            }
-
-        }
-    );
-
-
-    return count;
-
-}
-
-
-/* =========================================================
-   COUNT ALL ACTIVE DEVICES
-========================================================= */
-
-async function countAllActiveDevices(
-    user,
-    now,
-    excludeDeviceId = null
-) {
-
-    const devices =
-        await getDocs(
-            devicesCollection(user)
-        );
-
-
-    let count = 0;
-
-
-    devices.forEach(
-        function (deviceDoc) {
-
-            if (
-                excludeDeviceId &&
-                deviceDoc.id ===
-                excludeDeviceId
-            ) {
-
-                return;
-            }
-
-
-            const data =
-                deviceDoc.data();
-
-
-            const expiry =
-                Number(
-                    data.expiresAt || 0
-                );
-
-
-            if (
-                data.active === true &&
-                expiry > now
-            ) {
-
-                count++;
-
-            }
-
-        }
-    );
-
-
-    return count;
-
-}
 
 
 /* =========================================================
    REGISTER / CHECK DEVICE
 ========================================================= */
 
+
+/*
+   IMPORTANT:
+
+   This function uses Firestore Transaction.
+
+   Therefore:
+
+      Device A checks mobile slot
+      Device B checks mobile slot
+
+   Firestore will NOT allow both transactions
+   to successfully reserve the same slot.
+
+   This fixes the Phone + Tablet race condition.
+*/
+
 async function registerDevice(user) {
 
     try {
+
+        const lockRef =
+            deviceLockRef(user);
+
+
+        const now =
+            Date.now();
+
+
+        const expiresAt =
+            now +
+            DEVICE_TIMEOUT;
+
+
+        const result =
+            await runTransaction(
+                db,
+                async transaction => {
+
+                    const lockSnap =
+                        await transaction.get(
+                            lockRef
+                        );
+
+
+                    let lockData =
+                        lockSnap.exists()
+                            ? lockSnap.data()
+                            : {};
+
+
+
+                    /* =====================================
+                       CURRENT SLOT
+                    ===================================== */
+
+                    const slotDeviceId =
+                        currentDeviceType === "mobile"
+                            ? lockData.mobileDeviceId
+                            : lockData.desktopDeviceId;
+
+
+                    const slotExpiresAt =
+                        Number(
+                            currentDeviceType === "mobile"
+                                ? (
+                                    lockData.mobileExpiresAt || 0
+                                )
+                                : (
+                                    lockData.desktopExpiresAt || 0
+                                )
+                        );
+
+
+
+                    /* =====================================
+                       SAME DEVICE ALREADY RESERVED
+                    ===================================== */
+
+                    if (
+                        slotDeviceId === deviceId &&
+                        slotExpiresAt > now
+                    ) {
+
+                        /*
+                           Existing reservation remains fixed.
+
+                           DO NOT extend expiry.
+                        */
+
+                        const updateData =
+                            currentDeviceType === "mobile"
+                                ? {
+                                    mobileLastSeen:
+                                        now
+                                }
+                                : {
+                                    desktopLastSeen:
+                                        now
+                                };
+
+
+                        transaction.set(
+                            lockRef,
+                            updateData,
+                            {
+                                merge: true
+                            }
+                        );
+
+
+                        return {
+                            allowed: true,
+                            reason: "existing-device"
+                        };
+
+                    }
+
+
+
+                    /* =====================================
+                       SLOT BELONGS TO ANOTHER ACTIVE DEVICE
+                    ===================================== */
+
+                    if (
+                        slotDeviceId &&
+                        slotExpiresAt > now &&
+                        slotDeviceId !== deviceId
+                    ) {
+
+                        return {
+                            allowed: false,
+                            reason: "slot-already-used"
+                        };
+
+                    }
+
+
+
+                    /* =====================================
+                       SLOT FREE / EXPIRED
+                    ===================================== */
+
+                    const newData =
+                        currentDeviceType === "mobile"
+                            ? {
+
+                                mobileDeviceId:
+                                    deviceId,
+
+                                mobileExpiresAt:
+                                    expiresAt,
+
+                                mobileLastSeen:
+                                    now,
+
+                                mobileEmail:
+                                    user.email,
+
+                                mobileReservedAt:
+                                    serverTimestamp()
+
+                            }
+                            : {
+
+                                desktopDeviceId:
+                                    deviceId,
+
+                                desktopExpiresAt:
+                                    expiresAt,
+
+                                desktopLastSeen:
+                                    now,
+
+                                desktopEmail:
+                                    user.email,
+
+                                desktopReservedAt:
+                                    serverTimestamp()
+
+                            };
+
+
+                    transaction.set(
+                        lockRef,
+                        newData,
+                        {
+                            merge: true
+                        }
+                    );
+
+
+                    return {
+                        allowed: true,
+                        reason: "new-reservation"
+                    };
+
+                }
+            );
+
+
+        /* =============================================
+           RESULT
+        ============================================= */
+
+        if (!result.allowed) {
+
+            showDeviceLimitMessage(
+                currentDeviceType
+            );
+
+
+            return false;
+
+        }
+
+
+
+        /* =============================================
+           OPTIONAL DEVICE INFORMATION DOCUMENT
+        ============================================= */
+
+
+        /*
+           This document is kept for information/debugging.
+
+           The ACTUAL LOCK is deviceLock/main.
+
+           Logout will NOT delete this document.
+        */
 
         const deviceRef =
             doc(
@@ -657,185 +945,56 @@ async function registerDevice(user) {
             );
 
 
-        const now =
-            Date.now();
-
-
-        const currentDevice =
+        const lockSnap =
             await getDoc(
-                deviceRef
+                lockRef
             );
 
 
-        if (
-            currentDevice.exists()
-        ) {
-
-            const data =
-                currentDevice.data();
+        const lockData =
+            lockSnap.exists()
+                ? lockSnap.data()
+                : {};
 
 
-            const expiresAt =
-                Number(
-                    data.expiresAt || 0
+        const reservationExpiry =
+            currentDeviceType === "mobile"
+                ? Number(
+                    lockData.mobileExpiresAt || 0
+                )
+                : Number(
+                    lockData.desktopExpiresAt || 0
                 );
-
-
-            const savedDeviceType =
-                data.deviceType ||
-                currentDeviceType;
-
-
-            if (
-                expiresAt > now
-            ) {
-
-                await setDoc(
-                    deviceRef,
-                    {
-                        email: user.email,
-                        active: true,
-                        lastSeen: now,
-                        deviceType:
-                            savedDeviceType
-                    },
-                    {
-                        merge: true
-                    }
-                );
-
-
-                return true;
-            }
-
-
-            const sameTypeDevices =
-                await countActiveDeviceType(
-                    user,
-                    currentDeviceType,
-                    now,
-                    deviceId
-                );
-
-
-            if (
-                sameTypeDevices >= 1
-            ) {
-
-                showDeviceLimitMessage();
-
-                return false;
-            }
-
-
-            const allActiveDevices =
-                await countAllActiveDevices(
-                    user,
-                    now,
-                    deviceId
-                );
-
-
-            if (
-                allActiveDevices >=
-                MAX_DEVICES
-            ) {
-
-                showDeviceLimitMessage();
-
-                return false;
-            }
-
-
-            await setDoc(
-                deviceRef,
-                {
-                    email: user.email,
-
-                    active: true,
-
-                    deviceType:
-                        currentDeviceType,
-
-                    lastSeen: now,
-
-                    expiresAt:
-                        now +
-                        DEVICE_TIMEOUT,
-
-                    renewedAt:
-                        serverTimestamp()
-                },
-                {
-                    merge: true
-                }
-            );
-
-
-            return true;
-        }
-
-
-        const sameTypeDevices =
-            await countActiveDeviceType(
-                user,
-                currentDeviceType,
-                now
-            );
-
-
-        if (
-            sameTypeDevices >= 1
-        ) {
-
-            showDeviceLimitMessage();
-
-            return false;
-        }
-
-
-        const allActiveDevices =
-            await countAllActiveDevices(
-                user,
-                now
-            );
-
-
-        if (
-            allActiveDevices >=
-            MAX_DEVICES
-        ) {
-
-            showDeviceLimitMessage();
-
-            return false;
-        }
 
 
         await setDoc(
             deviceRef,
             {
-                email: user.email,
 
-                active: true,
+                email:
+                    user.email,
 
                 deviceType:
                     currentDeviceType,
 
-                lastSeen: now,
+                active:
+                    true,
+
+                lastSeen:
+                    now,
 
                 expiresAt:
-                    now +
-                    DEVICE_TIMEOUT,
+                    reservationExpiry
 
-                createdAt:
-                    serverTimestamp()
+            },
+            {
+                merge: true
             }
         );
 
 
         console.log(
-            "New device registered:",
+            "Device reservation successful:",
             currentDeviceType
         );
 
@@ -861,16 +1020,20 @@ async function registerDevice(user) {
 
 
         return false;
+
     }
 
 }
+
 
 
 /* =========================================================
    DEVICE LIMIT MESSAGE
 ========================================================= */
 
-function showDeviceLimitMessage() {
+function showDeviceLimitMessage(
+    deviceType = currentDeviceType
+) {
 
     const message =
         document.getElementById(
@@ -878,8 +1041,24 @@ function showDeviceLimitMessage() {
         );
 
 
-    const text =
-        "Maximum 2 devices are already active for this account.";
+    let text;
+
+
+    if (
+        deviceType === "mobile"
+    ) {
+
+        text =
+            "Mobile slot is already active on another Phone/Tablet.\n\n" +
+            "Only 1 Mobile device is allowed for this account.";
+
+    } else {
+
+        text =
+            "Laptop/Desktop slot is already active on another computer.\n\n" +
+            "Only 1 Laptop/Desktop device is allowed for this account.";
+
+    }
 
 
     if (message) {
@@ -893,6 +1072,7 @@ function showDeviceLimitMessage() {
 
 
         return;
+
     }
 
 
@@ -901,6 +1081,7 @@ function showDeviceLimitMessage() {
     );
 
 }
+
 
 
 /* =========================================================
@@ -932,6 +1113,7 @@ function startDeviceHeartbeat() {
 }
 
 
+
 /* =========================================================
    UPDATE DEVICE HEARTBEAT
 ========================================================= */
@@ -939,25 +1121,23 @@ function startDeviceHeartbeat() {
 async function updateDeviceHeartbeat() {
 
     if (!currentUser) {
+
         return;
+
     }
 
 
     try {
 
-        const deviceRef =
-            doc(
-                db,
-                "users",
-                currentUser.uid,
-                "devices",
-                deviceId
+        const lockRef =
+            deviceLockRef(
+                currentUser
             );
 
 
         const snapshot =
             await getDoc(
-                deviceRef
+                lockRef
             );
 
 
@@ -965,7 +1145,13 @@ async function updateDeviceHeartbeat() {
             !snapshot.exists()
         ) {
 
+            console.warn(
+                "Device lock document not found."
+            );
+
+
             return;
+
         }
 
 
@@ -977,11 +1163,79 @@ async function updateDeviceHeartbeat() {
             Date.now();
 
 
+        const slotDeviceId =
+            currentDeviceType === "mobile"
+                ? data.mobileDeviceId
+                : data.desktopDeviceId;
+
+
         const expiresAt =
             Number(
-                data.expiresAt || 0
+                currentDeviceType === "mobile"
+                    ? (
+                        data.mobileExpiresAt || 0
+                    )
+                    : (
+                        data.desktopExpiresAt || 0
+                    )
             );
 
+
+
+        /* =============================================
+           DEVICE WAS REPLACED / SLOT BELONGS TO OTHER
+        ============================================= */
+
+        if (
+            slotDeviceId !== deviceId
+        ) {
+
+            console.warn(
+                "This device no longer owns the slot."
+            );
+
+
+            if (
+                deviceHeartbeat
+            ) {
+
+                clearInterval(
+                    deviceHeartbeat
+                );
+
+
+                deviceHeartbeat =
+                    null;
+
+            }
+
+
+            hidePageLoading();
+
+
+            alert(
+                "This device is no longer authorized for this account."
+            );
+
+
+            await signOut(
+                auth
+            );
+
+
+            window.location.href =
+                "login.html";
+
+
+            return;
+
+        }
+
+
+
+        /* =============================================
+           RESERVATION EXPIRED
+        ============================================= */
 
         if (
             expiresAt > 0 &&
@@ -1004,6 +1258,7 @@ async function updateDeviceHeartbeat() {
 
                 deviceHeartbeat =
                     null;
+
             }
 
 
@@ -1011,7 +1266,7 @@ async function updateDeviceHeartbeat() {
 
 
             alert(
-                "Your device access has expired. Please login again."
+                "Your 3-day device reservation has expired. Please login again."
             );
 
 
@@ -1025,14 +1280,56 @@ async function updateDeviceHeartbeat() {
 
 
             return;
+
         }
 
 
+
+        /* =============================================
+           UPDATE LAST SEEN ONLY
+        ============================================= */
+
+
+        /*
+           IMPORTANT:
+
+           expiresAt is NOT changed.
+
+           Therefore 3-day reservation stays fixed.
+        */
+
+        const updateData =
+            currentDeviceType === "mobile"
+                ? {
+                    mobileLastSeen:
+                        now
+                }
+                : {
+                    desktopLastSeen:
+                        now
+                };
+
+
         await updateDoc(
-            deviceRef,
+            lockRef,
+            updateData
+        );
+
+
+        /* =============================================
+           DEBUG
+        ============================================= */
+
+        console.log(
+            "Device heartbeat:",
             {
-                lastSeen: now,
-                active: true
+                deviceType:
+                    currentDeviceType,
+
+                expiresAt:
+                    new Date(
+                        expiresAt
+                    ).toLocaleString()
             }
         );
 
@@ -1049,17 +1346,9 @@ async function updateDeviceHeartbeat() {
 }
 
 
+
 /* =========================================================
    SHOW STUDENT COURSES
-
-   NOW SHOWS:
-
-   Exam
-   Batch
-   Year
-   Subject
-   Description
-   Course Material
 ========================================================= */
 
 async function showStudentCourses(
@@ -1067,297 +1356,1258 @@ async function showStudentCourses(
 ) {
 
     if (!coursesContainer) {
-        console.error("coursesContainer not found");
+
+        console.error(
+            "coursesContainer not found"
+        );
+
+
         hidePageLoading();
+
+
         return;
+
     }
+
 
     coursesContainer.innerHTML = "";
 
-    if (!student.courses || student.courses.length === 0) {
+
+    if (
+        !student.courses ||
+        student.courses.length === 0
+    ) {
+
         coursesContainer.innerHTML = `
+
             <div class="no-course">
-                <h3>No Course Assigned</h3>
-                <p>Please contact FJMC Academy.</p>
+
+                <h3>
+                    No Course Assigned
+                </h3>
+
+                <p>
+                    Please contact FJMC Academy.
+                </p>
+
             </div>
+
         `;
+
+
         hidePageLoading();
+
+
         return;
+
     }
 
-    /* Keep all existing Exam / Batch / Year information visible. */
-    const studentInfo = document.createElement("div");
-    studentInfo.className = "student-course-info";
+
+
+    /* =============================================
+       STUDENT INFORMATION
+    ============================================= */
+
+    const studentInfo =
+        document.createElement(
+            "div"
+        );
+
+
+    studentInfo.className =
+        "student-course-info";
+
+
     studentInfo.innerHTML = `
+
         <div>
-            <h3>${dashboardEsc(student.exam || "")}</h3>
-            <p><strong>Batch:</strong> ${dashboardEsc(student.batch || "")}</p>
-            <p><strong>Year:</strong> ${dashboardEsc(student.year || "")}</p>
-        </div>
-    `;
-    coursesContainer.appendChild(studentInfo);
 
-    /* Load admin-managed tests once. Existing test-default-data remains fallback. */
+            <h3>
+                ${dashboardEsc(
+                    student.exam || ""
+                )}
+            </h3>
+
+            <p>
+                <strong>Batch:</strong>
+                ${dashboardEsc(
+                    student.batch || ""
+                )}
+            </p>
+
+            <p>
+                <strong>Year:</strong>
+                ${dashboardEsc(
+                    student.year || ""
+                )}
+            </p>
+
+        </div>
+
+    `;
+
+
+    coursesContainer.appendChild(
+        studentInfo
+    );
+
+
+
+    /* =============================================
+       LOAD ADMIN MANAGED TESTS
+    ============================================= */
+
     const managedTests = {};
+
+
     try {
-        const snap = await getDocs(collection(db, "tests"));
-        snap.forEach(docSnap => {
-            const data = docSnap.data() || {};
-            managedTests[docSnap.id] = data;
-            if (data.testId) managedTests[data.testId] = data;
-        });
+
+        const snap =
+            await getDocs(
+                collection(
+                    db,
+                    "tests"
+                )
+            );
+
+
+        snap.forEach(
+            docSnap => {
+
+                const data =
+                    docSnap.data() || {};
+
+
+                managedTests[
+                    docSnap.id
+                ] = data;
+
+
+                if (
+                    data.testId
+                ) {
+
+                    managedTests[
+                        data.testId
+                    ] = data;
+
+                }
+
+            }
+        );
+
+
     } catch (error) {
-        console.warn("Could not load managed tests:", error);
+
+        console.warn(
+            "Could not load managed tests:",
+            error
+        );
+
     }
 
-    student.courses.forEach(function(courseId) {
 
-        const course = COURSES[courseId];
-        if (!course) {
-            console.warn("Course not found:", courseId);
-            return;
-        }
 
-        const courseCard = document.createElement("div");
-        courseCard.className = "course-card fjmc-course-collapsed";
+    /* =============================================
+       COURSES
+    ============================================= */
 
-        const courseTestId = course.testId || courseId;
-        const testData = managedTests[courseTestId] || TESTS[courseTestId] || null;
-        const contents = Array.isArray(course.contents) ? course.contents : [];
+    student.courses.forEach(
+        function(courseId) {
 
-        const videos = contents.filter(c => c.type === "video" || c.type === "local-video");
-        const pdfs = contents.filter(c => c.type === "pdf");
-        const liveClasses = contents.filter(c => c.type === "live");
+            const course =
+                COURSES[courseId];
 
-        courseCard.innerHTML = `
-            <button class="course-main-button" type="button" aria-expanded="false">
-                <div class="course-main-info">
-                    <div class="course-meta">
-                        <span><strong>Exam:</strong> ${dashboardEsc(course.exam || student.exam || "")}</span>
-                        <span><strong>Batch:</strong> ${dashboardEsc(course.batch || student.batch || "")}</span>
-                        <span><strong>Year:</strong> ${dashboardEsc(course.year || student.year || "")}</span>
-                    </div>
-                    <h3>${dashboardEsc(course.title || course.subject || courseId)}</h3>
-                    <p>${dashboardEsc(course.description || "")}</p>
-                </div>
-                <span class="course-open-icon">＋</span>
-            </button>
 
-            <div class="course-details" hidden>
-                <div class="course-category-grid">
-                    <button class="course-category-btn" type="button" data-category="video">
-                        🎥 <span>Video / Lecture</span>
-                        <small>${videos.length} Lecture${videos.length === 1 ? "" : "s"}</small>
-                    </button>
-                    <button class="course-category-btn" type="button" data-category="pdf">
-                        📄 <span>PDF / Notes</span>
-                        <small>${pdfs.length} Lecture${pdfs.length === 1 ? "" : "s"}</small>
-                    </button>
-                    <button class="course-category-btn" type="button" data-category="test">
-                        📝 <span>Test</span>
-                        <small>Lecture wise</small>
-                    </button>
-                    ${liveClasses.length ? `
-                    <button class="course-category-btn" type="button" data-category="live">
-                        🔴 <span>Live Class</span>
-                        <small>${liveClasses.length}</small>
-                    </button>` : ""}
-                </div>
-                <div class="course-category-panel" hidden></div>
-            </div>
-        `;
+            if (!course) {
 
-        coursesContainer.appendChild(courseCard);
-
-        const mainButton = courseCard.querySelector(".course-main-button");
-        const details = courseCard.querySelector(".course-details");
-        const icon = courseCard.querySelector(".course-open-icon");
-        const categoryButtons = courseCard.querySelectorAll(".course-category-btn");
-        const panel = courseCard.querySelector(".course-category-panel");
-
-        mainButton.addEventListener("click", () => {
-            const opening = details.hidden;
-            details.hidden = !opening;
-            mainButton.setAttribute("aria-expanded", String(opening));
-            courseCard.classList.toggle("fjmc-course-expanded", opening);
-            icon.textContent = opening ? "−" : "＋";
-            if (!opening) panel.hidden = true;
-        });
-
-        categoryButtons.forEach(btn => {
-            btn.addEventListener("click", () => {
-                const category = btn.dataset.category;
-                categoryButtons.forEach(b => b.classList.remove("active"));
-                btn.classList.add("active");
-                panel.hidden = false;
-                renderCourseCategoryPanel(panel, category, {
-                    videos,
-                    pdfs,
-                    liveClasses,
-                    testData,
-                    courseTestId,
+                console.warn(
+                    "Course not found:",
                     courseId
-                });
-            });
-        });
-    });
+                );
 
-    hidePageLoading();
-}
 
-function dashboardEsc(value) {
-    return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-}
-
-function renderCourseCategoryPanel(panel, category, data) {
-    let items = [];
-
-    if (category === "video") {
-        items = data.videos.map((content, index) => ({
-            label: content.title || `Lecture ${index + 1}`,
-            type: content.type,
-            url: content.url,
-            title: content.title || `Lecture ${index + 1}`
-        }));
-
-        panel.innerHTML = courseLectureListHTML(items, "video");
-        bindCourseLectureButtons(panel);
-        return;
-    }
-
-    if (category === "pdf") {
-        items = data.pdfs.map((content, index) => ({
-            label: content.title || `Lecture ${index + 1} PDF`,
-            type: "pdf",
-            url: content.url,
-            title: content.title || `Lecture ${index + 1} PDF`
-        }));
-
-        panel.innerHTML = courseLectureListHTML(items, "pdf");
-        bindCourseLectureButtons(panel);
-        return;
-    }
-
-    if (category === "live") {
-        items = data.liveClasses.map((content, index) => ({
-            label: content.title || `Live Class ${index + 1}`,
-            type: "live",
-            url: content.url,
-            title: content.title || `Live Class ${index + 1}`
-        }));
-
-        panel.innerHTML = courseLectureListHTML(items, "live");
-        bindCourseLectureButtons(panel);
-        return;
-    }
-
-    /* TEST: Course -> Lecture -> Test 1 / Test 2 / Test 3 ... */
-    const lectures = data.testData?.lectures || {};
-    const lectureEntries = Object.entries(lectures);
-
-    if (!lectureEntries.length) {
-        panel.innerHTML = `<div class="course-empty-message">No tests available for this course.</div>`;
-        return;
-    }
-
-    panel.innerHTML = `
-        <div class="lecture-wise-heading">📝 Select Lecture</div>
-        <div class="lecture-wise-list">
-            ${lectureEntries.map(([lectureId, lecture], index) => `
-                <button class="lecture-select-btn" type="button" data-lecture-id="${dashboardEsc(lectureId)}">
-                    <span>📚 ${dashboardEsc(lecture.title || `Lecture ${index + 1}`)}</span>
-                    <span>›</span>
-                </button>
-            `).join("")}
-        </div>
-        <div class="test-wise-list" hidden></div>
-    `;
-
-    const testList = panel.querySelector(".test-wise-list");
-    panel.querySelectorAll(".lecture-select-btn").forEach(btn => {
-        btn.addEventListener("click", () => {
-            const lectureId = btn.dataset.lectureId;
-            const lecture = lectures[lectureId];
-            const tests = lecture?.tests || {};
-            const entries = Object.entries(tests);
-
-            if (!entries.length) {
-                testList.hidden = false;
-                testList.innerHTML = `<div class="course-empty-message">No test available in this lecture.</div>`;
                 return;
+
             }
 
-            testList.hidden = false;
-            testList.innerHTML = `
-                <div class="lecture-wise-heading">Tests in ${dashboardEsc(lecture.title || lectureId)}</div>
-                ${entries.map(([testNumber, test]) => `
-                    <button class="test-select-btn" type="button"
-                        data-course="${dashboardEsc(data.courseTestId)}"
-                        data-lecture="${dashboardEsc(lectureId)}"
-                        data-test="${dashboardEsc(testNumber)}">
-                        <span>📝 ${dashboardEsc(test.title || `Test ${testNumber}`)}</span>
-                        <small>${Number(test.duration || 30)} min • ${Array.isArray(test.questions) ? test.questions.length : 0} Questions</small>
-                    </button>
-                `).join("")}
+
+            const courseCard =
+                document.createElement(
+                    "div"
+                );
+
+
+            courseCard.className =
+                "course-card fjmc-course-collapsed";
+
+
+            const courseTestId =
+                course.testId ||
+                courseId;
+
+
+            const testData =
+                managedTests[
+                    courseTestId
+                ] ||
+                TESTS[
+                    courseTestId
+                ] ||
+                null;
+
+
+            const contents =
+                Array.isArray(
+                    course.contents
+                )
+                    ? course.contents
+                    : [];
+
+
+            const videos =
+                contents.filter(
+                    c =>
+                        c.type === "video" ||
+                        c.type === "local-video"
+                );
+
+
+            const pdfs =
+                contents.filter(
+                    c =>
+                        c.type === "pdf"
+                );
+
+
+            const liveClasses =
+                contents.filter(
+                    c =>
+                        c.type === "live"
+                );
+
+
+
+            /* =========================================
+               COURSE CARD HTML
+            ========================================= */
+
+            courseCard.innerHTML = `
+
+                <button
+                    class="course-main-button"
+                    type="button"
+                    aria-expanded="false"
+                >
+
+                    <div class="course-main-info">
+
+                        <div class="course-meta">
+
+                            <span>
+
+                                <strong>
+                                    Exam:
+                                </strong>
+
+                                ${dashboardEsc(
+                                    course.exam ||
+                                    student.exam ||
+                                    ""
+                                )}
+
+                            </span>
+
+
+                            <span>
+
+                                <strong>
+                                    Batch:
+                                </strong>
+
+                                ${dashboardEsc(
+                                    course.batch ||
+                                    student.batch ||
+                                    ""
+                                )}
+
+                            </span>
+
+
+                            <span>
+
+                                <strong>
+                                    Year:
+                                </strong>
+
+                                ${dashboardEsc(
+                                    course.year ||
+                                    student.year ||
+                                    ""
+                                )}
+
+                            </span>
+
+                        </div>
+
+
+                        <h3>
+                            ${dashboardEsc(
+                                course.title ||
+                                course.subject ||
+                                courseId
+                            )}
+                        </h3>
+
+
+                        <p>
+                            ${dashboardEsc(
+                                course.description ||
+                                ""
+                            )}
+                        </p>
+
+                    </div>
+
+
+                    <span class="course-open-icon">
+                        ＋
+                    </span>
+
+                </button>
+
+
+
+                <div
+                    class="course-details"
+                    hidden
+                >
+
+                    <div
+                        class="course-category-grid"
+                    >
+
+                        <button
+                            class="course-category-btn"
+                            type="button"
+                            data-category="video"
+                        >
+
+                            🎥
+
+                            <span>
+                                Video / Lecture
+                            </span>
+
+                            <small>
+                                ${videos.length}
+                                Lecture${videos.length === 1 ? "" : "s"}
+                            </small>
+
+                        </button>
+
+
+                        <button
+                            class="course-category-btn"
+                            type="button"
+                            data-category="pdf"
+                        >
+
+                            📄
+
+                            <span>
+                                PDF / Notes
+                            </span>
+
+                            <small>
+                                ${pdfs.length}
+                                Lecture${pdfs.length === 1 ? "" : "s"}
+                            </small>
+
+                        </button>
+
+
+                        <button
+                            class="course-category-btn"
+                            type="button"
+                            data-category="test"
+                        >
+
+                            📝
+
+                            <span>
+                                Test
+                            </span>
+
+                            <small>
+                                Lecture wise
+                            </small>
+
+                        </button>
+
+
+                        ${
+                            liveClasses.length
+                                ? `
+
+                                <button
+                                    class="course-category-btn"
+                                    type="button"
+                                    data-category="live"
+                                >
+
+                                    🔴
+
+                                    <span>
+                                        Live Class
+                                    </span>
+
+                                    <small>
+                                        ${liveClasses.length}
+                                    </small>
+
+                                </button>
+
+                                `
+                                : ""
+                        }
+
+                    </div>
+
+
+                    <div
+                        class="course-category-panel"
+                        hidden
+                    >
+                    </div>
+
+                </div>
+
             `;
 
-            testList.querySelectorAll(".test-select-btn").forEach(testBtn => {
-                testBtn.addEventListener("click", () => {
-                    window.location.href =
-                        "test.html?course=" + encodeURIComponent(testBtn.dataset.course) +
-                        "&lecture=" + encodeURIComponent(testBtn.dataset.lecture) +
-                        "&test=" + encodeURIComponent(testBtn.dataset.test);
-                });
-            });
-        });
-    });
+
+            coursesContainer.appendChild(
+                courseCard
+            );
+
+
+
+            /* =========================================
+               ELEMENTS
+            ========================================= */
+
+            const mainButton =
+                courseCard.querySelector(
+                    ".course-main-button"
+                );
+
+
+            const details =
+                courseCard.querySelector(
+                    ".course-details"
+                );
+
+
+            const icon =
+                courseCard.querySelector(
+                    ".course-open-icon"
+                );
+
+
+            const categoryButtons =
+                courseCard.querySelectorAll(
+                    ".course-category-btn"
+                );
+
+
+            const panel =
+                courseCard.querySelector(
+                    ".course-category-panel"
+                );
+
+
+
+            /* =========================================
+               COURSE OPEN/CLOSE
+            ========================================= */
+
+            mainButton.addEventListener(
+                "click",
+                () => {
+
+                    const opening =
+                        details.hidden;
+
+
+                    details.hidden =
+                        !opening;
+
+
+                    mainButton.setAttribute(
+                        "aria-expanded",
+                        String(opening)
+                    );
+
+
+                    courseCard.classList.toggle(
+                        "fjmc-course-expanded",
+                        opening
+                    );
+
+
+                    icon.textContent =
+                        opening
+                            ? "−"
+                            : "＋";
+
+
+                    if (!opening) {
+
+                        panel.hidden =
+                            true;
+
+                    }
+
+                }
+            );
+
+
+
+            /* =========================================
+               CATEGORY BUTTONS
+            ========================================= */
+
+            categoryButtons.forEach(
+                btn => {
+
+                    btn.addEventListener(
+                        "click",
+                        () => {
+
+                            const category =
+                                btn.dataset.category;
+
+
+                            categoryButtons.forEach(
+                                b =>
+                                    b.classList.remove(
+                                        "active"
+                                    )
+                            );
+
+
+                            btn.classList.add(
+                                "active"
+                            );
+
+
+                            panel.hidden =
+                                false;
+
+
+                            renderCourseCategoryPanel(
+                                panel,
+                                category,
+                                {
+                                    videos,
+                                    pdfs,
+                                    liveClasses,
+                                    testData,
+                                    courseTestId,
+                                    courseId
+                                }
+                            );
+
+                        }
+                    );
+
+                }
+            );
+
+        }
+    );
+
+
+    hidePageLoading();
+
 }
 
-function courseLectureListHTML(items, type) {
-    if (!items.length) {
-        return `<div class="course-empty-message">No ${type === "pdf" ? "PDF" : type === "video" ? "video lecture" : "live class"} available.</div>`;
+
+
+/* =========================================================
+   ESCAPE HTML
+========================================================= */
+
+function dashboardEsc(value) {
+
+    return String(
+        value ?? ""
+    )
+        .replaceAll(
+            "&",
+            "&amp;"
+        )
+        .replaceAll(
+            "<",
+            "&lt;"
+        )
+        .replaceAll(
+            ">",
+            "&gt;"
+        )
+        .replaceAll(
+            '"',
+            "&quot;"
+        )
+        .replaceAll(
+            "'",
+            "&#039;"
+        );
+
+}
+
+
+
+/* =========================================================
+   COURSE CATEGORY PANEL
+========================================================= */
+
+function renderCourseCategoryPanel(
+    panel,
+    category,
+    data
+) {
+
+    let items = [];
+
+
+    /* =============================================
+       VIDEO
+    ============================================= */
+
+    if (
+        category === "video"
+    ) {
+
+        items =
+            data.videos.map(
+                (content, index) => ({
+
+                    label:
+                        content.title ||
+                        `Lecture ${index + 1}`,
+
+                    type:
+                        content.type,
+
+                    url:
+                        content.url,
+
+                    title:
+                        content.title ||
+                        `Lecture ${index + 1}`
+
+                })
+            );
+
+
+        panel.innerHTML =
+            courseLectureListHTML(
+                items,
+                "video"
+            );
+
+
+        bindCourseLectureButtons(
+            panel
+        );
+
+
+        return;
+
     }
 
-    return `
-        <div class="lecture-wise-heading">${type === "video" ? "🎥 Video Lectures" : type === "pdf" ? "📄 PDF Lectures" : "🔴 Live Classes"}</div>
-        <div class="lecture-wise-list">
-            ${items.map((item, index) => `
-                <button class="content-lecture-btn" type="button"
-                    data-type="${dashboardEsc(item.type)}"
-                    data-url="${encodeURIComponent(item.url || "")}" 
-                    data-title="${encodeURIComponent(item.title || item.label || `Lecture ${index + 1}`)}">
-                    <span>${type === "video" ? "▶" : type === "pdf" ? "📄" : "🔴"} ${dashboardEsc(item.label)}</span>
-                    <span>›</span>
-                </button>
-            `).join("")}
+
+
+    /* =============================================
+       PDF
+    ============================================= */
+
+    if (
+        category === "pdf"
+    ) {
+
+        items =
+            data.pdfs.map(
+                (content, index) => ({
+
+                    label:
+                        content.title ||
+                        `Lecture ${index + 1} PDF`,
+
+                    type:
+                        "pdf",
+
+                    url:
+                        content.url,
+
+                    title:
+                        content.title ||
+                        `Lecture ${index + 1} PDF`
+
+                })
+            );
+
+
+        panel.innerHTML =
+            courseLectureListHTML(
+                items,
+                "pdf"
+            );
+
+
+        bindCourseLectureButtons(
+            panel
+        );
+
+
+        return;
+
+    }
+
+
+
+    /* =============================================
+       LIVE CLASS
+    ============================================= */
+
+    if (
+        category === "live"
+    ) {
+
+        items =
+            data.liveClasses.map(
+                (content, index) => ({
+
+                    label:
+                        content.title ||
+                        `Live Class ${index + 1}`,
+
+                    type:
+                        "live",
+
+                    url:
+                        content.url,
+
+                    title:
+                        content.title ||
+                        `Live Class ${index + 1}`
+
+                })
+            );
+
+
+        panel.innerHTML =
+            courseLectureListHTML(
+                items,
+                "live"
+            );
+
+
+        bindCourseLectureButtons(
+            panel
+        );
+
+
+        return;
+
+    }
+
+
+
+    /* =============================================
+       TEST
+    ============================================= */
+
+    const lectures =
+        data.testData?.lectures || {};
+
+
+    const lectureEntries =
+        Object.entries(
+            lectures
+        );
+
+
+    if (
+        !lectureEntries.length
+    ) {
+
+        panel.innerHTML = `
+
+            <div class="course-empty-message">
+
+                No tests available
+                for this course.
+
+            </div>
+
+        `;
+
+
+        return;
+
+    }
+
+
+    panel.innerHTML = `
+
+        <div
+            class="lecture-wise-heading"
+        >
+
+            📝 Select Lecture
+
         </div>
+
+
+        <div
+            class="lecture-wise-list"
+        >
+
+            ${lectureEntries
+                .map(
+                    ([lectureId, lecture], index) => `
+
+                    <button
+                        class="lecture-select-btn"
+                        type="button"
+                        data-lecture-id="${dashboardEsc(
+                            lectureId
+                        )}"
+                    >
+
+                        <span>
+
+                            📚
+
+                            ${dashboardEsc(
+                                lecture.title ||
+                                `Lecture ${index + 1}`
+                            )}
+
+                        </span>
+
+
+                        <span>
+                            ›
+                        </span>
+
+                    </button>
+
+                `
+                )
+                .join("")}
+
+        </div>
+
+
+        <div
+            class="test-wise-list"
+            hidden
+        >
+        </div>
+
     `;
-}
 
-function bindCourseLectureButtons(panel) {
-    panel.querySelectorAll(".content-lecture-btn").forEach(button => {
-        button.addEventListener("click", () => {
-            const type = button.dataset.type;
-            const url = decodeURIComponent(button.dataset.url || "");
-            const title = decodeURIComponent(button.dataset.title || "");
 
-            if (type === "youtube" || type === "video") {
-                openYouTubeVideo(url, title);
-            } else if (type === "local-video") {
-                openLocalVideo(url, title);
-            } else if (type === "pdf") {
-                openPDFViewer(url, title);
-            } else if (type === "live") {
-                openLiveClass(url);
+    const testList =
+        panel.querySelector(
+            ".test-wise-list"
+        );
+
+
+    panel
+        .querySelectorAll(
+            ".lecture-select-btn"
+        )
+        .forEach(
+            btn => {
+
+                btn.addEventListener(
+                    "click",
+                    () => {
+
+                        const lectureId =
+                            btn.dataset.lectureId;
+
+
+                        const lecture =
+                            lectures[
+                                lectureId
+                            ];
+
+
+                        const tests =
+                            lecture?.tests || {};
+
+
+                        const entries =
+                            Object.entries(
+                                tests
+                            );
+
+
+                        if (
+                            !entries.length
+                        ) {
+
+                            testList.hidden =
+                                false;
+
+
+                            testList.innerHTML = `
+
+                                <div
+                                    class="course-empty-message"
+                                >
+
+                                    No test available
+                                    in this lecture.
+
+                                </div>
+
+                            `;
+
+
+                            return;
+
+                        }
+
+
+                        testList.hidden =
+                            false;
+
+
+                        testList.innerHTML = `
+
+                            <div
+                                class="lecture-wise-heading"
+                            >
+
+                                Tests in
+
+                                ${dashboardEsc(
+                                    lecture.title ||
+                                    lectureId
+                                )}
+
+                            </div>
+
+
+                            ${entries
+                                .map(
+                                    ([testNumber, test]) => `
+
+                                    <button
+                                        class="test-select-btn"
+                                        type="button"
+
+                                        data-course="${dashboardEsc(
+                                            data.courseTestId
+                                        )}"
+
+                                        data-lecture="${dashboardEsc(
+                                            lectureId
+                                        )}"
+
+                                        data-test="${dashboardEsc(
+                                            testNumber
+                                        )}"
+                                    >
+
+                                        <span>
+
+                                            📝
+
+                                            ${dashboardEsc(
+                                                test.title ||
+                                                `Test ${testNumber}`
+                                            )}
+
+                                        </span>
+
+
+                                        <small>
+
+                                            ${Number(
+                                                test.duration ||
+                                                30
+                                            )}
+                                            min
+
+                                            •
+
+                                            ${
+                                                Array.isArray(
+                                                    test.questions
+                                                )
+                                                    ? test.questions.length
+                                                    : 0
+                                            }
+
+                                            Questions
+
+                                        </small>
+
+                                    </button>
+
+                                `
+                                )
+                                .join("")}
+
+                        `;
+
+
+                        testList
+                            .querySelectorAll(
+                                ".test-select-btn"
+                            )
+                            .forEach(
+                                testBtn => {
+
+                                    testBtn.addEventListener(
+                                        "click",
+                                        () => {
+
+                                            window.location.href =
+                                                "test.html?course=" +
+                                                encodeURIComponent(
+                                                    testBtn.dataset.course
+                                                ) +
+                                                "&lecture=" +
+                                                encodeURIComponent(
+                                                    testBtn.dataset.lecture
+                                                ) +
+                                                "&test=" +
+                                                encodeURIComponent(
+                                                    testBtn.dataset.test
+                                                );
+
+                                        }
+                                    );
+
+                                }
+                            );
+
+                    }
+                );
+
             }
-        });
-    });
+        );
+
 }
+
+
+
+/* =========================================================
+   COURSE CONTENT LIST HTML
+========================================================= */
+
+function courseLectureListHTML(
+    items,
+    type
+) {
+
+    if (
+        !items.length
+    ) {
+
+        return `
+
+            <div
+                class="course-empty-message"
+            >
+
+                No
+                ${
+                    type === "pdf"
+                        ? "PDF"
+                        : type === "video"
+                            ? "video lecture"
+                            : "live class"
+                }
+                available.
+
+            </div>
+
+        `;
+
+    }
+
+
+    return `
+
+        <div
+            class="lecture-wise-heading"
+        >
+
+            ${
+                type === "video"
+                    ? "🎥 Video Lectures"
+                    : type === "pdf"
+                        ? "📄 PDF Lectures"
+                        : "🔴 Live Classes"
+            }
+
+        </div>
+
+
+        <div
+            class="lecture-wise-list"
+        >
+
+            ${items
+                .map(
+                    (item, index) => `
+
+                    <button
+                        class="content-lecture-btn"
+                        type="button"
+
+                        data-type="${dashboardEsc(
+                            item.type
+                        )}"
+
+                        data-url="${encodeURIComponent(
+                            item.url || ""
+                        )}"
+
+                        data-title="${encodeURIComponent(
+                            item.title ||
+                            item.label ||
+                            `Lecture ${index + 1}`
+                        )}"
+                    >
+
+                        <span>
+
+                            ${
+                                type === "video"
+                                    ? "▶"
+                                    : type === "pdf"
+                                        ? "📄"
+                                        : "🔴"
+                            }
+
+                            ${dashboardEsc(
+                                item.label
+                            )}
+
+                        </span>
+
+
+                        <span>
+                            ›
+                        </span>
+
+                    </button>
+
+                `
+                )
+                .join("")}
+
+        </div>
+
+    `;
+
+}
+
+
+
+/* =========================================================
+   BIND COURSE CONTENT BUTTONS
+========================================================= */
+
+function bindCourseLectureButtons(
+    panel
+) {
+
+    panel
+        .querySelectorAll(
+            ".content-lecture-btn"
+        )
+        .forEach(
+            button => {
+
+                button.addEventListener(
+                    "click",
+                    () => {
+
+                        const type =
+                            button.dataset.type;
+
+
+                        const url =
+                            decodeURIComponent(
+                                button.dataset.url ||
+                                ""
+                            );
+
+
+                        const title =
+                            decodeURIComponent(
+                                button.dataset.title ||
+                                ""
+                            );
+
+
+                        if (
+                            type === "youtube" ||
+                            type === "video"
+                        ) {
+
+                            openYouTubeVideo(
+                                url,
+                                title
+                            );
+
+                        } else if (
+                            type === "local-video"
+                        ) {
+
+                            openLocalVideo(
+                                url,
+                                title
+                            );
+
+                        } else if (
+                            type === "pdf"
+                        ) {
+
+                            openPDFViewer(
+                                url,
+                                title
+                            );
+
+                        } else if (
+                            type === "live"
+                        ) {
+
+                            openLiveClass(
+                                url
+                            );
+
+                        }
+
+                    }
+                );
+
+            }
+        );
+
+}
+
 
 
 /* =========================================================
@@ -1373,7 +2623,9 @@ function createModal() {
 
 
     if (modal) {
+
         return modal;
+
     }
 
 
@@ -1391,6 +2643,7 @@ function createModal() {
 
         <div
             id="fjmcModalOverlay"
+
             style="
                 position:fixed;
                 inset:0;
@@ -1404,6 +2657,7 @@ function createModal() {
         >
 
             <div
+
                 style="
                     width:100%;
                     max-width:1100px;
@@ -1418,6 +2672,7 @@ function createModal() {
             >
 
                 <div
+
                     style="
                         display:flex;
                         align-items:center;
@@ -1429,12 +2684,14 @@ function createModal() {
                 >
 
                     <strong
-                        id="fjmcModalTitle">
+                        id="fjmcModalTitle"
+                    >
                     </strong>
 
 
                     <button
                         id="fjmcModalClose"
+
                         style="
                             border:0;
                             background:#e63946;
@@ -1446,7 +2703,9 @@ function createModal() {
                             cursor:pointer;
                         "
                     >
+
                         ×
+
                     </button>
 
                 </div>
@@ -1454,6 +2713,7 @@ function createModal() {
 
                 <div
                     id="fjmcModalBody"
+
                     style="
                         flex:1;
                         overflow:auto;
@@ -1465,6 +2725,7 @@ function createModal() {
             </div>
 
         </div>
+
     `;
 
 
@@ -1489,7 +2750,7 @@ function createModal() {
         )
         .addEventListener(
             "click",
-            function (event) {
+            function(event) {
 
                 if (
                     event.target.id ===
@@ -1507,6 +2768,7 @@ function createModal() {
     return modal;
 
 }
+
 
 
 /* =========================================================
@@ -1543,6 +2805,7 @@ function closeModal() {
 }
 
 
+
 /* =========================================================
    YOUTUBE VIDEO
 ========================================================= */
@@ -1575,6 +2838,7 @@ function openYouTubeVideo(
     body.innerHTML = `
 
         <div
+
             style="
                 width:100%;
                 aspect-ratio:16/9;
@@ -1583,29 +2847,34 @@ function openYouTubeVideo(
         >
 
             <iframe
+
                 src="${url}"
+
                 title="${title}"
+
                 style="
                     width:100%;
                     height:100%;
                     border:0;
                 "
+
                 allow="
                     accelerometer;
                     autoplay;
-                    
                     encrypted-media;
                     gyroscope;
                     picture-in-picture
-                    
                 "
+
                 allowfullscreen>
             </iframe>
 
         </div>
+
     `;
 
 }
+
 
 
 /* =========================================================
@@ -1640,10 +2909,15 @@ function openLocalVideo(
     body.innerHTML = `
 
         <video
+
             controls
+
             controlsList="nodownload"
+
             disablePictureInPicture
+
             playsinline
+
             style="
                 width:100%;
                 max-height:80vh;
@@ -1660,9 +2934,11 @@ function openLocalVideo(
             Your browser does not support video.
 
         </video>
+
     `;
 
 }
+
 
 
 /* =========================================================
@@ -1682,7 +2958,9 @@ function openLiveClass(
             "Live class link is not available yet."
         );
 
+
         return;
+
     }
 
 
@@ -1693,6 +2971,7 @@ function openLiveClass(
     );
 
 }
+
 
 
 /* =========================================================
@@ -1728,18 +3007,23 @@ async function openPDFViewer(
 
         <div
             id="pdfLoading"
+
             style="
                 color:white;
                 text-align:center;
                 padding:30px;
             "
         >
+
             Loading PDF...
+
         </div>
 
 
         <div
+
             id="pdfPages"
+
             style="
                 padding:15px;
                 text-align:center;
@@ -1749,6 +3033,7 @@ async function openPDFViewer(
             "
         >
         </div>
+
     `;
 
 
@@ -1773,9 +3058,11 @@ async function openPDFViewer(
 
 
         const pdf =
-            await pdfjsLib.getDocument(
-                url
-            ).promise;
+            await pdfjsLib
+                .getDocument(
+                    url
+                )
+                .promise;
 
 
         const pages =
@@ -1791,7 +3078,9 @@ async function openPDFViewer(
 
 
         if (loading) {
+
             loading.remove();
+
         }
 
 
@@ -1881,6 +3170,7 @@ async function openPDFViewer(
         document.body.appendChild(
             watermark
         );
+
 
 
         for (
@@ -2030,6 +3320,7 @@ async function openPDFViewer(
         body.innerHTML = `
 
             <div
+
                 style="
                     color:white;
                     padding:30px;
@@ -2041,8 +3332,11 @@ async function openPDFViewer(
                     PDF could not be opened
                 </h3>
 
+
                 <p>
-                    ${error.message || ""}
+                    ${dashboardEsc(
+                        error.message || ""
+                    )}
                 </p>
 
             </div>
@@ -2054,17 +3348,27 @@ async function openPDFViewer(
 }
 
 
+
 /* =========================================================
    LOGOUT
-
-   LOGOUT DOES NOT FREE DEVICE SLOT
 ========================================================= */
+
+
+/*
+   IMPORTANT:
+
+   Logout DOES NOT release device slot.
+
+   We only sign out Firebase.
+
+   deviceLock remains untouched.
+*/
 
 if (logoutBtn) {
 
     logoutBtn.addEventListener(
         "click",
-        async function () {
+        async function() {
 
             try {
 
@@ -2079,6 +3383,7 @@ if (logoutBtn) {
 
                     deviceHeartbeat =
                         null;
+
                 }
 
 
@@ -2090,6 +3395,11 @@ if (logoutBtn) {
                 sessionStorage.removeItem(
                     "firebaseUID"
                 );
+
+
+                /*
+                   DO NOT delete deviceLock.
+                */
 
 
                 await signOut(
@@ -2116,13 +3426,14 @@ if (logoutBtn) {
 }
 
 
+
 /* =========================================================
    BASIC CONTENT PROTECTION
 ========================================================= */
 
 document.addEventListener(
     "contextmenu",
-    function (event) {
+    function(event) {
 
         event.preventDefault();
 
@@ -2132,7 +3443,7 @@ document.addEventListener(
 
 document.addEventListener(
     "copy",
-    function (event) {
+    function(event) {
 
         event.preventDefault();
 
@@ -2142,7 +3453,7 @@ document.addEventListener(
 
 document.addEventListener(
     "cut",
-    function (event) {
+    function(event) {
 
         event.preventDefault();
 
@@ -2152,7 +3463,7 @@ document.addEventListener(
 
 document.addEventListener(
     "selectstart",
-    function (event) {
+    function(event) {
 
         event.preventDefault();
 
@@ -2162,7 +3473,7 @@ document.addEventListener(
 
 document.addEventListener(
     "keydown",
-    function (event) {
+    function(event) {
 
         const key =
             event.key.toLowerCase();
@@ -2171,6 +3482,7 @@ document.addEventListener(
         if (
             (event.ctrlKey ||
                 event.metaKey) &&
+
             (
                 key === "s" ||
                 key === "p" ||
@@ -2187,16 +3499,17 @@ document.addEventListener(
 );
 
 
+
 /* =========================================================
    INITIAL LOADING SAFETY
 ========================================================= */
 
 window.addEventListener(
     "load",
-    function () {
+    function() {
 
         setTimeout(
-            function () {
+            function() {
 
                 if (
                     currentUser &&
