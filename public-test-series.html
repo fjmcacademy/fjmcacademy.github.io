@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FJMC Academy | Test Series</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.ts-page{max-width:1100px;margin:0 auto;padding:110px 20px 60px}
+.ts-title{text-align:center;margin-bottom:34px}
+.ts-title h1{margin-bottom:8px}
+.ts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+.ts-card{border:1px solid #ddd;border-radius:16px;padding:24px;background:#fff;box-shadow:0 8px 24px rgba(0,0,0,.08)}
+.ts-card h3{margin:0 0 14px}
+.ts-meta{line-height:1.9;color:#555}
+.ts-price{font-size:25px;font-weight:700;margin:16px 0}
+.ts-btn{display:inline-block;padding:11px 18px;border:0;border-radius:9px;background:#1f6feb;color:#fff;text-decoration:none;cursor:pointer}
+.empty{text-align:center;padding:35px}.back{display:inline-block;margin-bottom:20px;text-decoration:none}
+</style>
+</head>
+<body>
+<header class="navbar">
+  <div class="logo"><span>FJMC</span> Academy</div>
+  <nav id="navMenu">
+    <a href="index.html">Home</a>
+    <a href="index.html#courses">Courses</a>
+    <a href="index.html#about">About</a>
+    <a href="index.html#features">Why Us</a>
+    <a href="index.html#contact">Contact</a>
+    <a href="login.html">Student Login</a>
+  </nav>
+</header>
+<main class="ts-page">
+  <a class="back" href="index.html">← Back to Website</a>
+  <div class="ts-title">
+    <h1>Paid Test Series</h1>
+    <p>Choose a test series, view its subjects and tests, then login to attempt.</p>
+  </div>
+  <div id="seriesList" class="ts-grid"><div class="empty">Loading test series...</div></div>
+</main>
+<script type="module" src="public-test-series.js"></script>
+</body>
+</html>
