@@ -1,30 +1,16 @@
 /* =========================================================
    FJMC ACADEMY - STUDENT DASHBOARD
-   =========================================================
-
-   DEVICE RULE:
-
-   1 MOBILE SLOT
-      Phone OR Tablet
-
-   1 DESKTOP SLOT
-      Laptop OR Desktop
-
-   Phone + Tablet       = ❌
-   Phone + Laptop       = ✅
-   Tablet + Laptop      = ✅
-   Laptop + Desktop     = ❌
-
-   DEVICE RESERVATION = 3 DAYS
+   DEVICE SYSTEM:
+   1 MOBILE SLOT + 1 DESKTOP SLOT
+   PHONE + TABLET = SAME MOBILE SLOT
+   SLOT RESERVATION = 3 DAYS
    LOGOUT DOES NOT FREE SLOT
 ========================================================= */
-
 
 import {
     onAuthStateChanged,
     signOut
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-
 
 import {
     collection,
@@ -33,16 +19,13 @@ import {
     getDoc,
     setDoc,
     updateDoc,
-    serverTimestamp,
-    runTransaction
+    serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
-
 
 import {
     auth,
     db
 } from "./firebase.js";
-
 
 import { TESTS } from "./test-default-data.js";
 
@@ -54,91 +37,52 @@ import { TESTS } from "./test-default-data.js";
 let STUDENTS = {};
 let COURSES = {};
 
-
 function studentDocId(email) {
-
-    return email
-        .trim()
-        .toLowerCase()
-        .replaceAll("/", "_");
-
+    return email.trim().toLowerCase().replaceAll("/", "_");
 }
-
 
 async function loadDashboardData(email) {
 
-    const studentSnap =
-        await getDoc(
-            doc(
-                db,
-                "students",
-                studentDocId(email)
-            )
-        );
-
+    const studentSnap = await getDoc(
+        doc(db, "students", studentDocId(email))
+    );
 
     if (!studentSnap.exists()) {
-
         return null;
-
     }
 
-
-    const student =
-        studentSnap.data();
-
+    const student = studentSnap.data();
 
     const courseIds =
         Array.isArray(student.courses)
             ? student.courses
             : [];
 
+    const courseEntries = await Promise.all(
+        courseIds.map(async courseId => {
 
-    const courseEntries =
-        await Promise.all(
+            const snap =
+                await getDoc(
+                    doc(db, "courses", courseId)
+                );
 
-            courseIds.map(
-                async courseId => {
-
-                    const snap =
-                        await getDoc(
-                            doc(
-                                db,
-                                "courses",
-                                courseId
-                            )
-                        );
-
-
-                    return snap.exists()
-                        ? [courseId, snap.data()]
-                        : null;
-
-                }
-            )
-
-        );
-
+            return snap.exists()
+                ? [courseId, snap.data()]
+                : null;
+        })
+    );
 
     COURSES = {};
 
-
     courseEntries
         .filter(Boolean)
-        .forEach(
-            ([id, course]) => {
-
-                COURSES[id] =
-                    course;
-
-            }
-        );
-
+        .forEach(([id, course]) => {
+            COURSES[id] = course;
+        });
 
     STUDENTS = {
         [email]: student
     };
-
 
     return student;
 }
@@ -153,62 +97,9 @@ const DEVICE_TIMEOUT =
 
 
 /* =========================================================
-   DEVICE ID
-========================================================= */
-
-function getDeviceId() {
-
-    let id =
-        localStorage.getItem(
-            "fjmcDeviceId"
-        );
-
-
-    if (!id) {
-
-        if (
-            typeof crypto !== "undefined" &&
-            typeof crypto.randomUUID === "function"
-        ) {
-
-            id =
-                "device-" +
-                crypto.randomUUID();
-
-        } else {
-
-            id =
-                "device-" +
-                Date.now() +
-                "-" +
-                Math.random()
-                    .toString(36)
-                    .substring(2);
-        }
-
-
-        localStorage.setItem(
-            "fjmcDeviceId",
-            id
-        );
-    }
-
-
-    return id;
-}
-
-
-const deviceId =
-    getDeviceId();
-
-
-/* =========================================================
    DEVICE TYPE
-
-   Phone + Tablet = MOBILE
-
-   iPad with desktop website enabled is also
-   detected as mobile using maxTouchPoints.
+   PHONE + TABLET = MOBILE
+   LAPTOP + DESKTOP = DESKTOP
 ========================================================= */
 
 function getDeviceType() {
@@ -219,32 +110,18 @@ function getDeviceType() {
         window.opera ||
         "";
 
+    /*
+       iPhone / iPad / Android phone / Android tablet
+       are ALL treated as mobile.
+    */
 
-    const mobilePattern =
-        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i;
+    const isMobile =
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i
+            .test(ua);
 
-
-    if (
-        mobilePattern.test(ua)
-    ) {
-
+    if (isMobile) {
         return "mobile";
-
     }
-
-
-    /* iPad can report itself as Macintosh */
-
-    if (
-        /Macintosh/i.test(ua) &&
-        navigator.maxTouchPoints &&
-        navigator.maxTouchPoints > 1
-    ) {
-
-        return "mobile";
-
-    }
-
 
     return "desktop";
 }
@@ -255,14 +132,8 @@ const currentDeviceType =
 
 
 console.log(
-    "FJMC Device Type:",
+    "FJMC DEVICE TYPE:",
     currentDeviceType
-);
-
-
-console.log(
-    "FJMC Device ID:",
-    deviceId
 );
 
 
@@ -271,7 +142,6 @@ console.log(
 ========================================================= */
 
 let currentUser = null;
-
 let deviceHeartbeat = null;
 
 
@@ -282,7 +152,6 @@ let deviceHeartbeat = null;
 function hidePageLoading() {
 
     const selectors = [
-
         "#pageLoading",
         "#loadingScreen",
         "#pageLoader",
@@ -293,33 +162,22 @@ function hidePageLoading() {
         ".loading-overlay",
         ".page-loader",
         ".loader-overlay"
-
     ];
 
+    selectors.forEach(selector => {
 
-    selectors.forEach(
-        selector => {
+        document
+            .querySelectorAll(selector)
+            .forEach(element => {
 
-            document
-                .querySelectorAll(selector)
-                .forEach(element => {
+                element.style.display = "none";
+                element.style.visibility = "hidden";
+                element.style.opacity = "0";
+                element.style.pointerEvents = "none";
 
-                    element.style.display =
-                        "none";
+            });
 
-                    element.style.visibility =
-                        "hidden";
-
-                    element.style.opacity =
-                        "0";
-
-                    element.style.pointerEvents =
-                        "none";
-
-                });
-
-        }
-    );
+    });
 
 
     document
@@ -333,24 +191,17 @@ function hidePageLoading() {
                     .trim()
                     .toLowerCase();
 
-
             if (
                 text.includes("page loading") ||
                 text === "loading..." ||
                 text === "loading"
             ) {
 
-                element.style.display =
-                    "none";
+                element.style.display = "none";
+                element.style.visibility = "hidden";
+                element.style.opacity = "0";
+                element.style.pointerEvents = "none";
 
-                element.style.visibility =
-                    "hidden";
-
-                element.style.opacity =
-                    "0";
-
-                element.style.pointerEvents =
-                    "none";
             }
 
         });
@@ -367,508 +218,15 @@ const coursesContainer =
         "coursesContainer"
     );
 
-
 const studentName =
     document.getElementById(
         "studentName"
     );
 
-
 const logoutBtn =
     document.getElementById(
         "logoutBtn"
     );
-
-
-/* =========================================================
-   DEVICE LOCK DOCUMENT
-========================================================= */
-
-function deviceLockRef(user) {
-
-    return doc(
-        db,
-        "users",
-        user.uid,
-        "deviceLock",
-        "main"
-    );
-
-}
-
-
-/* =========================================================
-   REGISTER DEVICE
-========================================================= */
-
-async function registerDevice(user) {
-
-    try {
-
-        const lockRef =
-            deviceLockRef(user);
-
-
-        const now =
-            Date.now();
-
-
-        const newExpiry =
-            now + DEVICE_TIMEOUT;
-
-
-        const result =
-            await runTransaction(
-                db,
-                async transaction => {
-
-                    const lockSnap =
-                        await transaction.get(
-                            lockRef
-                        );
-
-
-                    const data =
-                        lockSnap.exists()
-                            ? lockSnap.data()
-                            : {};
-
-
-                    const isMobile =
-                        currentDeviceType === "mobile";
-
-
-                    const deviceField =
-                        isMobile
-                            ? "mobileDeviceId"
-                            : "desktopDeviceId";
-
-
-                    const expiryField =
-                        isMobile
-                            ? "mobileExpiresAt"
-                            : "desktopExpiresAt";
-
-
-                    const lastSeenField =
-                        isMobile
-                            ? "mobileLastSeen"
-                            : "desktopLastSeen";
-
-
-                    const emailField =
-                        isMobile
-                            ? "mobileEmail"
-                            : "desktopEmail";
-
-
-                    const savedDeviceId =
-                        data[deviceField] || null;
-
-
-                    const savedExpiry =
-                        Number(
-                            data[expiryField] || 0
-                        );
-
-
-                    /* -------------------------------------
-                       SAME DEVICE
-                    ------------------------------------- */
-
-                    if (
-                        savedDeviceId === deviceId &&
-                        savedExpiry > now
-                    ) {
-
-                        transaction.set(
-                            lockRef,
-                            {
-                                [lastSeenField]:
-                                    now,
-
-                                updatedAt:
-                                    serverTimestamp()
-                            },
-                            {
-                                merge: true
-                            }
-                        );
-
-
-                        return {
-                            allowed: true,
-                            reason: "same-device"
-                        };
-                    }
-
-
-                    /* -------------------------------------
-                       OTHER DEVICE OCCUPIES SAME SLOT
-                    ------------------------------------- */
-
-                    if (
-                        savedDeviceId &&
-                        savedDeviceId !== deviceId &&
-                        savedExpiry > now
-                    ) {
-
-                        return {
-                            allowed: false,
-
-                            reason:
-                                isMobile
-                                    ? "mobile-slot-full"
-                                    : "desktop-slot-full"
-                        };
-                    }
-
-
-                    /* -------------------------------------
-                       EMPTY / EXPIRED SLOT
-                    ------------------------------------- */
-
-                    transaction.set(
-                        lockRef,
-                        {
-                            [deviceField]:
-                                deviceId,
-
-                            [expiryField]:
-                                newExpiry,
-
-                            [lastSeenField]:
-                                now,
-
-                            [emailField]:
-                                user.email || "",
-
-                            updatedAt:
-                                serverTimestamp()
-                        },
-                        {
-                            merge: true
-                        }
-                    );
-
-
-                    return {
-                        allowed: true,
-                        reason: "new-device"
-                    };
-
-                }
-            );
-
-
-        if (
-            !result.allowed
-        ) {
-
-            showDeviceLimitMessage(
-                result.reason
-            );
-
-
-            return false;
-        }
-
-
-        console.log(
-            "Device allowed:",
-            result.reason,
-            currentDeviceType
-        );
-
-
-        return true;
-
-
-    } catch (error) {
-
-        console.error(
-            "Device registration error:",
-            error
-        );
-
-
-        hidePageLoading();
-
-
-        alert(
-            "Device verification failed.\n\n" +
-            "Please check your internet connection and try again."
-        );
-
-
-        return false;
-    }
-
-}
-
-
-/* =========================================================
-   DEVICE LIMIT MESSAGE
-========================================================= */
-
-function showDeviceLimitMessage(reason) {
-
-    let text =
-        "This device cannot be used for this account.";
-
-
-    if (
-        reason === "mobile-slot-full"
-    ) {
-
-        text =
-            "Mobile slot is already active on another phone/tablet.\n\n" +
-            "Only ONE mobile device is allowed for 3 days.";
-    }
-
-
-    if (
-        reason === "desktop-slot-full"
-    ) {
-
-        text =
-            "Desktop/Laptop slot is already active on another computer.\n\n" +
-            "Only ONE desktop/laptop is allowed for 3 days.";
-    }
-
-
-    const message =
-        document.getElementById(
-            "deviceLimitMessage"
-        );
-
-
-    if (message) {
-
-        message.textContent =
-            text;
-
-        message.style.display =
-            "block";
-
-        return;
-    }
-
-
-    alert(text);
-
-}
-
-
-/* =========================================================
-   HEARTBEAT
-========================================================= */
-
-function startDeviceHeartbeat() {
-
-    if (
-        deviceHeartbeat
-    ) {
-
-        clearInterval(
-            deviceHeartbeat
-        );
-    }
-
-
-    updateDeviceHeartbeat();
-
-
-    deviceHeartbeat =
-        setInterval(
-            updateDeviceHeartbeat,
-            2 * 60 * 1000
-        );
-
-}
-
-
-/* =========================================================
-   DEVICE HEARTBEAT
-========================================================= */
-
-async function updateDeviceHeartbeat() {
-
-    if (
-        !currentUser
-    ) {
-
-        return;
-    }
-
-
-    try {
-
-        const lockRef =
-            deviceLockRef(
-                currentUser
-            );
-
-
-        const snapshot =
-            await getDoc(
-                lockRef
-            );
-
-
-        if (
-            !snapshot.exists()
-        ) {
-
-            console.warn(
-                "Device lock not found."
-            );
-
-            return;
-        }
-
-
-        const data =
-            snapshot.data();
-
-
-        const now =
-            Date.now();
-
-
-        const isMobile =
-            currentDeviceType === "mobile";
-
-
-        const savedDeviceId =
-            isMobile
-                ? data.mobileDeviceId
-                : data.desktopDeviceId;
-
-
-        const expiresAt =
-            Number(
-                isMobile
-                    ? data.mobileExpiresAt || 0
-                    : data.desktopExpiresAt || 0
-            );
-
-
-        const lastSeenField =
-            isMobile
-                ? "mobileLastSeen"
-                : "desktopLastSeen";
-
-
-        /* ---------------------------------------------
-           DEVICE REPLACED
-        --------------------------------------------- */
-
-        if (
-            savedDeviceId &&
-            savedDeviceId !== deviceId &&
-            expiresAt > now
-        ) {
-
-            if (
-                deviceHeartbeat
-            ) {
-
-                clearInterval(
-                    deviceHeartbeat
-                );
-
-                deviceHeartbeat =
-                    null;
-            }
-
-
-            alert(
-                "This device is no longer authorized for this account."
-            );
-
-
-            await signOut(
-                auth
-            );
-
-
-            window.location.href =
-                "login.html";
-
-
-            return;
-        }
-
-
-        /* ---------------------------------------------
-           RESERVATION EXPIRED
-        --------------------------------------------- */
-
-        if (
-            expiresAt > 0 &&
-            expiresAt <= now
-        ) {
-
-            if (
-                deviceHeartbeat
-            ) {
-
-                clearInterval(
-                    deviceHeartbeat
-                );
-
-                deviceHeartbeat =
-                    null;
-            }
-
-
-            alert(
-                "Your 3-day device reservation has expired. Please login again."
-            );
-
-
-            await signOut(
-                auth
-            );
-
-
-            window.location.href =
-                "login.html";
-
-
-            return;
-        }
-
-
-        /* ---------------------------------------------
-           UPDATE ONLY LAST SEEN
-
-           expiresAt is NOT changed.
-        --------------------------------------------- */
-
-        await updateDoc(
-            lockRef,
-            {
-                [lastSeenField]:
-                    now,
-
-                updatedAt:
-                    serverTimestamp()
-            }
-        );
-
-
-    } catch (error) {
-
-        console.error(
-            "Heartbeat error:",
-            error
-        );
-
-    }
-
-}
 
 
 /* =========================================================
@@ -908,10 +266,6 @@ onAuthStateChanged(
             );
 
 
-            /* -----------------------------------------
-               LOAD STUDENT
-            ----------------------------------------- */
-
             const student =
                 await loadDashboardData(
                     email
@@ -920,37 +274,25 @@ onAuthStateChanged(
 
             if (!student) {
 
-                console.error(
-                    "Student not found:",
-                    email
-                );
-
-
                 hidePageLoading();
 
-
-                await signOut(
-                    auth
-                );
-
+                await signOut(auth);
 
                 window.location.href =
                     "login.html";
-
 
                 return;
             }
 
 
-            /* -----------------------------------------
+            /* =========================================
                SESSION
-            ----------------------------------------- */
+            ========================================= */
 
             sessionStorage.setItem(
                 "loggedInStudent",
                 email
             );
-
 
             sessionStorage.setItem(
                 "firebaseUID",
@@ -958,45 +300,50 @@ onAuthStateChanged(
             );
 
 
-            /* -----------------------------------------
+            /* =========================================
                STUDENT NAME
-            ----------------------------------------- */
+            ========================================= */
 
             if (studentName) {
 
                 studentName.textContent =
                     "Welcome, " +
                     student.name;
+
             }
 
 
-            /* -----------------------------------------
-               DEVICE CHECK
-            ----------------------------------------- */
+            /* =========================================
+               DEVICE SLOT CHECK
+            ========================================= */
 
             const allowed =
-                await registerDevice(
-                    user
-                );
+                await registerDeviceSlot(user);
+
+
+            console.log(
+                "DEVICE SLOT ALLOWED:",
+                allowed
+            );
 
 
             if (!allowed) {
 
                 hidePageLoading();
 
-
-                await signOut(
-                    auth
-                );
-
+                try {
+                    await signOut(auth);
+                } catch (e) {
+                    console.error(e);
+                }
 
                 return;
             }
 
 
-            /* -----------------------------------------
-               COURSES
-            ----------------------------------------- */
+            /* =========================================
+               SHOW COURSES
+            ========================================= */
 
             await showStudentCourses(
                 student
@@ -1016,37 +363,560 @@ onAuthStateChanged(
                 error
             );
 
-
             hidePageLoading();
-
 
             alert(
                 "Dashboard could not be loaded. Please login again."
             );
 
-
             try {
-
-                await signOut(
-                    auth
-                );
-
-            } catch (signOutError) {
-
-                console.error(
-                    signOutError
-                );
-
+                await signOut(auth);
+            } catch (e) {
+                console.error(e);
             }
+
+            window.location.href =
+                "login.html";
+        }
+
+    }
+);
+
+
+/* =========================================================
+   DEVICE SLOT DOCUMENT
+=========================================================
+
+   users/{uid}/deviceSlots/mobile
+   users/{uid}/deviceSlots/desktop
+
+========================================================= */
+
+function deviceSlotRef(user) {
+
+    return doc(
+        db,
+        "users",
+        user.uid,
+        "deviceSlots",
+        currentDeviceType
+    );
+
+}
+
+
+/* =========================================================
+   REGISTER DEVICE SLOT
+========================================================= */
+
+async function registerDeviceSlot(user) {
+
+    try {
+
+        const slotRef =
+            deviceSlotRef(user);
+
+
+        const now =
+            Date.now();
+
+
+        const snapshot =
+            await getDoc(slotRef);
+
+
+        /* =========================================
+           SLOT DOES NOT EXIST
+        ========================================= */
+
+        if (!snapshot.exists()) {
+
+            await setDoc(
+                slotRef,
+                {
+                    uid: user.uid,
+
+                    email:
+                        user.email || "",
+
+                    deviceType:
+                        currentDeviceType,
+
+                    active: true,
+
+                    createdAt:
+                        serverTimestamp(),
+
+                    registeredAt:
+                        now,
+
+                    lastSeen:
+                        now,
+
+                    expiresAt:
+                        now +
+                        DEVICE_TIMEOUT
+                }
+            );
+
+
+            console.log(
+                "NEW DEVICE SLOT CREATED:",
+                currentDeviceType
+            );
+
+
+            return true;
+        }
+
+
+        /* =========================================
+           SLOT EXISTS
+        ========================================= */
+
+        const data =
+            snapshot.data();
+
+
+        const expiresAt =
+            Number(
+                data.expiresAt || 0
+            );
+
+
+        /* =========================================
+           EXISTING SLOT STILL ACTIVE
+        ========================================= */
+
+        if (
+            data.active === true &&
+            expiresAt > now
+        ) {
+
+            /*
+               IMPORTANT:
+
+               We DO NOT replace the slot with
+               another phone/tablet/laptop.
+
+               Therefore:
+
+               Phone -> Tablet = BLOCKED
+               Tablet -> Phone = BLOCKED
+               Laptop -> Desktop = BLOCKED
+            */
+
+            await updateDoc(
+                slotRef,
+                {
+                    lastSeen: now
+                }
+            );
+
+
+            /*
+               Same physical browser/device can continue.
+               But another device of same category cannot
+               take this slot.
+            */
+
+            const savedDeviceId =
+                data.deviceId || "";
+
+
+            const localDeviceId =
+                getStableDeviceId();
+
+
+            /*
+               First version of old system may not have
+               deviceId. If absent, attach current device.
+            */
+
+            if (!savedDeviceId) {
+
+                await updateDoc(
+                    slotRef,
+                    {
+                        deviceId:
+                            localDeviceId
+                    }
+                );
+
+                return true;
+            }
+
+
+            if (
+                savedDeviceId ===
+                localDeviceId
+            ) {
+
+                return true;
+            }
+
+
+            showDeviceLimitMessage(
+                currentDeviceType
+            );
+
+            return false;
+        }
+
+
+        /* =========================================
+           3-DAY SLOT EXPIRED
+           NEW DEVICE CAN TAKE SLOT
+        ========================================= */
+
+        await setDoc(
+            slotRef,
+            {
+                uid: user.uid,
+
+                email:
+                    user.email || "",
+
+                deviceType:
+                    currentDeviceType,
+
+                deviceId:
+                    getStableDeviceId(),
+
+                active: true,
+
+                registeredAt:
+                    now,
+
+                lastSeen:
+                    now,
+
+                expiresAt:
+                    now +
+                    DEVICE_TIMEOUT,
+
+                renewedAt:
+                    serverTimestamp()
+            }
+        );
+
+
+        console.log(
+            "EXPIRED SLOT RENEWED:",
+            currentDeviceType
+        );
+
+
+        return true;
+
+
+    } catch (error) {
+
+        console.error(
+            "Device slot error:",
+            error
+        );
+
+
+        hidePageLoading();
+
+
+        alert(
+            "Device verification failed.\n\n" +
+            "Please check your internet connection and try again."
+        );
+
+
+        return false;
+    }
+
+}
+
+
+/* =========================================================
+   STABLE DEVICE ID
+========================================================= */
+
+function getStableDeviceId() {
+
+    let id =
+        localStorage.getItem(
+            "fjmcStableDeviceId"
+        );
+
+
+    if (!id) {
+
+        if (
+            typeof crypto !== "undefined" &&
+            typeof crypto.randomUUID === "function"
+        ) {
+
+            id =
+                "fjmc-" +
+                crypto.randomUUID();
+
+        } else {
+
+            id =
+                "fjmc-" +
+                Date.now() +
+                "-" +
+                Math.random()
+                    .toString(36)
+                    .substring(2);
+        }
+
+
+        localStorage.setItem(
+            "fjmcStableDeviceId",
+            id
+        );
+    }
+
+
+    return id;
+}
+
+
+/* =========================================================
+   DEVICE LIMIT MESSAGE
+========================================================= */
+
+function showDeviceLimitMessage(type) {
+
+    const message =
+        document.getElementById(
+            "deviceLimitMessage"
+        );
+
+
+    let text = "";
+
+
+    if (type === "mobile") {
+
+        text =
+            "Mobile slot already active.\n\n" +
+            "One phone OR one tablet can be used at a time.\n\n" +
+            "The existing mobile device remains reserved for 3 days.\n" +
+            "Logout does not free this slot.";
+
+    } else {
+
+        text =
+            "Desktop/Laptop slot already active.\n\n" +
+            "Only one laptop or desktop can be used at a time.\n\n" +
+            "The existing desktop slot remains reserved for 3 days.\n" +
+            "Logout does not free this slot.";
+    }
+
+
+    if (message) {
+
+        message.textContent =
+            text;
+
+        message.style.display =
+            "block";
+
+        return;
+    }
+
+
+    alert(text);
+}
+
+
+/* =========================================================
+   HEARTBEAT
+========================================================= */
+
+function startDeviceHeartbeat() {
+
+    if (deviceHeartbeat) {
+
+        clearInterval(
+            deviceHeartbeat
+        );
+    }
+
+
+    updateDeviceHeartbeat();
+
+
+    deviceHeartbeat =
+        setInterval(
+            updateDeviceHeartbeat,
+            2 * 60 * 1000
+        );
+}
+
+
+/* =========================================================
+   UPDATE HEARTBEAT
+========================================================= */
+
+async function updateDeviceHeartbeat() {
+
+    if (!currentUser) {
+        return;
+    }
+
+
+    try {
+
+        const slotRef =
+            deviceSlotRef(
+                currentUser
+            );
+
+
+        const snapshot =
+            await getDoc(slotRef);
+
+
+        if (!snapshot.exists()) {
+
+            console.error(
+                "Device slot missing."
+            );
+
+            return;
+        }
+
+
+        const data =
+            snapshot.data();
+
+
+        const now =
+            Date.now();
+
+
+        const expiresAt =
+            Number(
+                data.expiresAt || 0
+            );
+
+
+        /* =========================================
+           SLOT EXPIRED
+        ========================================= */
+
+        if (
+            expiresAt > 0 &&
+            expiresAt <= now
+        ) {
+
+            if (deviceHeartbeat) {
+
+                clearInterval(
+                    deviceHeartbeat
+                );
+
+                deviceHeartbeat =
+                    null;
+            }
+
+
+            await setDoc(
+                slotRef,
+                {
+                    active: false,
+                    lastSeen: now
+                },
+                {
+                    merge: true
+                }
+            );
+
+
+            hidePageLoading();
+
+
+            alert(
+                "Your 3-day device access has expired. Please login again."
+            );
+
+
+            await signOut(auth);
 
 
             window.location.href =
                 "login.html";
 
+
+            return;
         }
 
+
+        /* =========================================
+           VERIFY DEVICE ID
+        ========================================= */
+
+        const savedDeviceId =
+            data.deviceId || "";
+
+
+        const localDeviceId =
+            getStableDeviceId();
+
+
+        if (
+            savedDeviceId &&
+            savedDeviceId !== localDeviceId
+        ) {
+
+            if (deviceHeartbeat) {
+
+                clearInterval(
+                    deviceHeartbeat
+                );
+
+                deviceHeartbeat =
+                    null;
+            }
+
+
+            alert(
+                "This device is not the registered device for this slot."
+            );
+
+
+            await signOut(auth);
+
+
+            window.location.href =
+                "login.html";
+
+
+            return;
+        }
+
+
+        /* =========================================
+           KEEP SLOT ALIVE
+        ========================================= */
+
+        await updateDoc(
+            slotRef,
+            {
+                lastSeen: now,
+                active: true
+            }
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "Heartbeat error:",
+            error
+        );
+
     }
-);
+}
 
 
 /* =========================================================
@@ -1076,19 +946,10 @@ async function showStudentCourses(student) {
     ) {
 
         coursesContainer.innerHTML = `
-
             <div class="no-course">
-
-                <h3>
-                    No Course Assigned
-                </h3>
-
-                <p>
-                    Please contact FJMC Academy.
-                </p>
-
+                <h3>No Course Assigned</h3>
+                <p>Please contact FJMC Academy.</p>
             </div>
-
         `;
 
         hidePageLoading();
@@ -1097,14 +958,12 @@ async function showStudentCourses(student) {
     }
 
 
-    /* ---------------------------------------------
-       STUDENT EXAM / BATCH / YEAR
-    --------------------------------------------- */
+    /* =========================================
+       STUDENT INFO
+    ========================================= */
 
     const studentInfo =
-        document.createElement(
-            "div"
-        );
+        document.createElement("div");
 
 
     studentInfo.className =
@@ -1112,29 +971,20 @@ async function showStudentCourses(student) {
 
 
     studentInfo.innerHTML = `
-
         <div>
-
             <h3>
-                ${dashboardEsc(
-                    student.exam || ""
-                )}
+                ${dashboardEsc(student.exam || "")}
             </h3>
 
             <p>
                 <strong>Batch:</strong>
-                ${dashboardEsc(
-                    student.batch || ""
-                )}
+                ${dashboardEsc(student.batch || "")}
             </p>
 
             <p>
                 <strong>Year:</strong>
-                ${dashboardEsc(
-                    student.year || ""
-                )}
+                ${dashboardEsc(student.year || "")}
             </p>
-
         </div>
     `;
 
@@ -1144,9 +994,9 @@ async function showStudentCourses(student) {
     );
 
 
-    /* ---------------------------------------------
-       LOAD ADMIN TESTS
-    --------------------------------------------- */
+    /* =========================================
+       LOAD TESTS
+    ========================================= */
 
     const managedTests = {};
 
@@ -1155,39 +1005,25 @@ async function showStudentCourses(student) {
 
         const snap =
             await getDocs(
-                collection(
-                    db,
-                    "tests"
-                )
+                collection(db, "tests")
             );
 
 
-        snap.forEach(
-            docSnap => {
+        snap.forEach(docSnap => {
 
-                const data =
-                    docSnap.data() || {};
+            const data =
+                docSnap.data() || {};
 
+            managedTests[docSnap.id] =
+                data;
 
-                managedTests[
-                    docSnap.id
-                ] =
+            if (data.testId) {
+
+                managedTests[data.testId] =
                     data;
-
-
-                if (
-                    data.testId
-                ) {
-
-                    managedTests[
-                        data.testId
-                    ] =
-                        data;
-                }
-
             }
-        );
 
+        });
 
     } catch (error) {
 
@@ -1195,13 +1031,12 @@ async function showStudentCourses(student) {
             "Could not load managed tests:",
             error
         );
-
     }
 
 
-    /* ---------------------------------------------
-       COURSE CARDS
-    --------------------------------------------- */
+    /* =========================================
+       COURSES
+    ========================================= */
 
     student.courses.forEach(
         function(courseId) {
@@ -1243,9 +1078,7 @@ async function showStudentCourses(student) {
 
 
             const contents =
-                Array.isArray(
-                    course.contents
-                )
+                Array.isArray(course.contents)
                     ? course.contents
                     : [];
 
@@ -1254,7 +1087,6 @@ async function showStudentCourses(student) {
                 contents.filter(
                     c =>
                         c.type === "video" ||
-                        c.type === "youtube" ||
                         c.type === "local-video"
                 );
 
@@ -1274,26 +1106,18 @@ async function showStudentCourses(student) {
 
 
             courseCard.innerHTML = `
-
                 <button
                     class="course-main-button"
                     type="button"
                     aria-expanded="false"
                 >
 
-                    <div
-                        class="course-main-info"
-                    >
+                    <div class="course-main-info">
 
-                        <div
-                            class="course-meta"
-                        >
+                        <div class="course-meta">
 
                             <span>
-                                <strong>
-                                    Exam:
-                                </strong>
-
+                                <strong>Exam:</strong>
                                 ${dashboardEsc(
                                     course.exam ||
                                     student.exam ||
@@ -1301,12 +1125,8 @@ async function showStudentCourses(student) {
                                 )}
                             </span>
 
-
                             <span>
-                                <strong>
-                                    Batch:
-                                </strong>
-
+                                <strong>Batch:</strong>
                                 ${dashboardEsc(
                                     course.batch ||
                                     student.batch ||
@@ -1314,12 +1134,8 @@ async function showStudentCourses(student) {
                                 )}
                             </span>
 
-
                             <span>
-                                <strong>
-                                    Year:
-                                </strong>
-
+                                <strong>Year:</strong>
                                 ${dashboardEsc(
                                     course.year ||
                                     student.year ||
@@ -1376,12 +1192,10 @@ async function showStudentCourses(student) {
                             <span>
                                 Video / Lecture
                             </span>
-
                             <small>
                                 ${videos.length}
                                 Lecture${videos.length === 1 ? "" : "s"}
                             </small>
-
                         </button>
 
 
@@ -1394,12 +1208,10 @@ async function showStudentCourses(student) {
                             <span>
                                 PDF / Notes
                             </span>
-
                             <small>
                                 ${pdfs.length}
                                 Lecture${pdfs.length === 1 ? "" : "s"}
                             </small>
-
                         </button>
 
 
@@ -1412,17 +1224,15 @@ async function showStudentCourses(student) {
                             <span>
                                 Test
                             </span>
-
                             <small>
                                 Lecture wise
                             </small>
-
                         </button>
 
 
                         ${
                             liveClasses.length
-                                ? `
+                            ? `
                                 <button
                                     class="course-category-btn"
                                     type="button"
@@ -1432,14 +1242,12 @@ async function showStudentCourses(student) {
                                     <span>
                                         Live Class
                                     </span>
-
                                     <small>
                                         ${liveClasses.length}
                                     </small>
-
                                 </button>
-                                `
-                                : ""
+                              `
+                            : ""
                         }
 
                     </div>
@@ -1448,8 +1256,7 @@ async function showStudentCourses(student) {
                     <div
                         class="course-category-panel"
                         hidden
-                    >
-                    </div>
+                    ></div>
 
                 </div>
             `;
@@ -1490,10 +1297,6 @@ async function showStudentCourses(student) {
                 );
 
 
-            /* -----------------------------------------
-               OPEN COURSE
-            ----------------------------------------- */
-
             mainButton.addEventListener(
                 "click",
                 () => {
@@ -1533,10 +1336,6 @@ async function showStudentCourses(student) {
                 }
             );
 
-
-            /* -----------------------------------------
-               CATEGORY BUTTONS
-            ----------------------------------------- */
 
             categoryButtons.forEach(
                 btn => {
@@ -1590,7 +1389,6 @@ async function showStudentCourses(student) {
 
 
     hidePageLoading();
-
 }
 
 
@@ -1600,30 +1398,12 @@ async function showStudentCourses(student) {
 
 function dashboardEsc(value) {
 
-    return String(
-        value ?? ""
-    )
-        .replaceAll(
-            "&",
-            "&amp;"
-        )
-        .replaceAll(
-            "<",
-            "&lt;"
-        )
-        .replaceAll(
-            ">",
-            "&gt;"
-        )
-        .replaceAll(
-            '"',
-            "&quot;"
-        )
-        .replaceAll(
-            "'",
-            "&#039;"
-        );
-
+    return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
 }
 
 
@@ -1640,13 +1420,11 @@ function renderCourseCategoryPanel(
     let items = [];
 
 
-    /* ---------------------------------------------
+    /* =========================================
        VIDEO
-    --------------------------------------------- */
+    ========================================= */
 
-    if (
-        category === "video"
-    ) {
+    if (category === "video") {
 
         items =
             data.videos.map(
@@ -1665,7 +1443,6 @@ function renderCourseCategoryPanel(
                     title:
                         content.title ||
                         `Lecture ${index + 1}`
-
                 })
             );
 
@@ -1686,13 +1463,11 @@ function renderCourseCategoryPanel(
     }
 
 
-    /* ---------------------------------------------
+    /* =========================================
        PDF
-    --------------------------------------------- */
+    ========================================= */
 
-    if (
-        category === "pdf"
-    ) {
+    if (category === "pdf") {
 
         items =
             data.pdfs.map(
@@ -1711,7 +1486,6 @@ function renderCourseCategoryPanel(
                     title:
                         content.title ||
                         `Lecture ${index + 1} PDF`
-
                 })
             );
 
@@ -1732,13 +1506,11 @@ function renderCourseCategoryPanel(
     }
 
 
-    /* ---------------------------------------------
-       LIVE CLASS
-    --------------------------------------------- */
+    /* =========================================
+       LIVE
+    ========================================= */
 
-    if (
-        category === "live"
-    ) {
+    if (category === "live") {
 
         items =
             data.liveClasses.map(
@@ -1757,7 +1529,6 @@ function renderCourseCategoryPanel(
                     title:
                         content.title ||
                         `Live Class ${index + 1}`
-
                 })
             );
 
@@ -1778,57 +1549,42 @@ function renderCourseCategoryPanel(
     }
 
 
-    /* ---------------------------------------------
-       TESTS
-    --------------------------------------------- */
+    /* =========================================
+       TEST
+    ========================================= */
 
     const lectures =
         data.testData?.lectures || {};
 
 
     const lectureEntries =
-        Object.entries(
-            lectures
-        );
+        Object.entries(lectures);
 
 
-    if (
-        !lectureEntries.length
-    ) {
+    if (!lectureEntries.length) {
 
-        panel.innerHTML = `
-
-            <div
-                class="course-empty-message"
-            >
+        panel.innerHTML =
+            `
+            <div class="course-empty-message">
                 No tests available for this course.
             </div>
-
-        `;
-
+            `;
 
         return;
     }
 
 
     panel.innerHTML = `
-
-        <div
-            class="lecture-wise-heading"
-        >
+        <div class="lecture-wise-heading">
             📝 Select Lecture
         </div>
 
-
-        <div
-            class="lecture-wise-list"
-        >
+        <div class="lecture-wise-list">
 
             ${
                 lectureEntries
                     .map(
                         ([lectureId, lecture], index) => `
-
                             <button
                                 class="lecture-select-btn"
                                 type="button"
@@ -1850,7 +1606,6 @@ function renderCourseCategoryPanel(
                                 </span>
 
                             </button>
-
                         `
                     )
                     .join("")
@@ -1858,12 +1613,10 @@ function renderCourseCategoryPanel(
 
         </div>
 
-
         <div
             class="test-wise-list"
             hidden
-        >
-        </div>
+        ></div>
     `;
 
 
@@ -1877,170 +1630,154 @@ function renderCourseCategoryPanel(
         .querySelectorAll(
             ".lecture-select-btn"
         )
-        .forEach(
-            btn => {
+        .forEach(btn => {
 
-                btn.addEventListener(
-                    "click",
-                    () => {
+            btn.addEventListener(
+                "click",
+                () => {
 
-                        const lectureId =
-                            btn.dataset.lectureId;
-
-
-                        const lecture =
-                            lectures[
-                                lectureId
-                            ];
+                    const lectureId =
+                        btn.dataset.lectureId;
 
 
-                        const tests =
-                            lecture?.tests || {};
+                    const lecture =
+                        lectures[lectureId];
 
 
-                        const entries =
-                            Object.entries(
-                                tests
-                            );
+                    const tests =
+                        lecture?.tests || {};
 
 
-                        if (
-                            !entries.length
-                        ) {
-
-                            testList.hidden =
-                                false;
+                    const entries =
+                        Object.entries(
+                            tests
+                        );
 
 
-                            testList.innerHTML = `
-
-                                <div
-                                    class="course-empty-message"
-                                >
-                                    No test available
-                                    in this lecture.
-                                </div>
-
-                            `;
-
-
-                            return;
-                        }
-
+                    if (!entries.length) {
 
                         testList.hidden =
                             false;
 
-
-                        testList.innerHTML = `
-
-                            <div
-                                class="lecture-wise-heading"
-                            >
-                                Tests in
-                                ${dashboardEsc(
-                                    lecture.title ||
-                                    lectureId
-                                )}
+                        testList.innerHTML =
+                            `
+                            <div class="course-empty-message">
+                                No test available in this lecture.
                             </div>
+                            `;
 
-
-                            ${
-                                entries
-                                    .map(
-                                        ([testNumber, test]) => `
-
-                                            <button
-                                                class="test-select-btn"
-                                                type="button"
-
-                                                data-course="${dashboardEsc(
-                                                    data.courseTestId
-                                                )}"
-
-                                                data-lecture="${dashboardEsc(
-                                                    lectureId
-                                                )}"
-
-                                                data-test="${dashboardEsc(
-                                                    testNumber
-                                                )}"
-                                            >
-
-                                                <span>
-                                                    📝
-                                                    ${dashboardEsc(
-                                                        test.title ||
-                                                        `Test ${testNumber}`
-                                                    )}
-                                                </span>
-
-
-                                                <small>
-                                                    ${Number(
-                                                        test.duration ||
-                                                        30
-                                                    )}
-                                                    min •
-                                                    ${
-                                                        Array.isArray(
-                                                            test.questions
-                                                        )
-                                                            ? test.questions.length
-                                                            : 0
-                                                    }
-                                                    Questions
-                                                </small>
-
-                                            </button>
-
-                                        `
-                                    )
-                                    .join("")
-                            }
-
-                        `;
-
-
-                        testList
-                            .querySelectorAll(
-                                ".test-select-btn"
-                            )
-                            .forEach(
-                                testBtn => {
-
-                                    testBtn.addEventListener(
-                                        "click",
-                                        () => {
-
-                                            window.location.href =
-                                                "test.html?course=" +
-                                                encodeURIComponent(
-                                                    testBtn.dataset.course
-                                                ) +
-
-                                                "&lecture=" +
-                                                encodeURIComponent(
-                                                    testBtn.dataset.lecture
-                                                ) +
-
-                                                "&test=" +
-                                                encodeURIComponent(
-                                                    testBtn.dataset.test
-                                                );
-
-                                        }
-                                    );
-
-                                }
-                            );
-
+                        return;
                     }
-                );
 
-            }
-        );
 
+                    testList.hidden =
+                        false;
+
+
+                    testList.innerHTML = `
+
+                        <div
+                            class="lecture-wise-heading"
+                        >
+                            Tests in
+                            ${dashboardEsc(
+                                lecture.title ||
+                                lectureId
+                            )}
+                        </div>
+
+
+                        ${
+                            entries
+                                .map(
+                                    ([testNumber, test]) => `
+
+                                        <button
+                                            class="test-select-btn"
+                                            type="button"
+
+                                            data-course="${dashboardEsc(
+                                                data.courseTestId
+                                            )}"
+
+                                            data-lecture="${dashboardEsc(
+                                                lectureId
+                                            )}"
+
+                                            data-test="${dashboardEsc(
+                                                testNumber
+                                            )}"
+                                        >
+
+                                            <span>
+                                                📝
+                                                ${dashboardEsc(
+                                                    test.title ||
+                                                    `Test ${testNumber}`
+                                                )}
+                                            </span>
+
+                                            <small>
+                                                ${Number(
+                                                    test.duration ||
+                                                    30
+                                                )}
+                                                min •
+                                                ${
+                                                    Array.isArray(
+                                                        test.questions
+                                                    )
+                                                        ? test.questions.length
+                                                        : 0
+                                                }
+                                                Questions
+                                            </small>
+
+                                        </button>
+
+                                    `
+                                )
+                                .join("")
+                        }
+
+                    `;
+
+
+                    testList
+                        .querySelectorAll(
+                            ".test-select-btn"
+                        )
+                        .forEach(
+                            testBtn => {
+
+                                testBtn.addEventListener(
+                                    "click",
+                                    () => {
+
+                                        window.location.href =
+                                            "test.html?course=" +
+                                            encodeURIComponent(
+                                                testBtn.dataset.course
+                                            ) +
+                                            "&lecture=" +
+                                            encodeURIComponent(
+                                                testBtn.dataset.lecture
+                                            ) +
+                                            "&test=" +
+                                            encodeURIComponent(
+                                                testBtn.dataset.test
+                                            );
+
+                                    }
+                                );
+
+                            }
+                        );
+
+                }
+            );
+
+        });
 }
 
 
@@ -2053,34 +1790,26 @@ function courseLectureListHTML(
     type
 ) {
 
-    if (
-        !items.length
-    ) {
+    if (!items.length) {
 
         return `
-
-            <div
-                class="course-empty-message"
-            >
+            <div class="course-empty-message">
                 No ${
                     type === "pdf"
                         ? "PDF"
                         : type === "video"
                             ? "video lecture"
                             : "live class"
-                }
-                available.
+                } available.
             </div>
-
         `;
     }
 
 
     return `
 
-        <div
-            class="lecture-wise-heading"
-        >
+        <div class="lecture-wise-heading">
+
             ${
                 type === "video"
                     ? "🎥 Video Lectures"
@@ -2088,12 +1817,11 @@ function courseLectureListHTML(
                         ? "📄 PDF Lectures"
                         : "🔴 Live Classes"
             }
+
         </div>
 
 
-        <div
-            class="lecture-wise-list"
-        >
+        <div class="lecture-wise-list">
 
             ${
                 items
@@ -2133,7 +1861,6 @@ function courseLectureListHTML(
                                     )}
                                 </span>
 
-
                                 <span>
                                     ›
                                 </span>
@@ -2146,14 +1873,12 @@ function courseLectureListHTML(
             }
 
         </div>
-
     `;
-
 }
 
 
 /* =========================================================
-   BIND CONTENT BUTTONS
+   CONTENT BUTTONS
 ========================================================= */
 
 function bindCourseLectureButtons(panel) {
@@ -2162,75 +1887,72 @@ function bindCourseLectureButtons(panel) {
         .querySelectorAll(
             ".content-lecture-btn"
         )
-        .forEach(
-            button => {
+        .forEach(button => {
 
-                button.addEventListener(
-                    "click",
-                    () => {
+            button.addEventListener(
+                "click",
+                () => {
 
-                        const type =
-                            button.dataset.type;
-
-
-                        const url =
-                            decodeURIComponent(
-                                button.dataset.url ||
-                                ""
-                            );
+                    const type =
+                        button.dataset.type;
 
 
-                        const title =
-                            decodeURIComponent(
-                                button.dataset.title ||
-                                ""
-                            );
+                    const url =
+                        decodeURIComponent(
+                            button.dataset.url ||
+                            ""
+                        );
 
 
-                        if (
-                            type === "youtube" ||
-                            type === "video"
-                        ) {
+                    const title =
+                        decodeURIComponent(
+                            button.dataset.title ||
+                            ""
+                        );
 
-                            openYouTubeVideo(
-                                url,
-                                title
-                            );
 
-                        } else if (
-                            type === "local-video"
-                        ) {
+                    if (
+                        type === "youtube" ||
+                        type === "video"
+                    ) {
 
-                            openLocalVideo(
-                                url,
-                                title
-                            );
+                        openYouTubeVideo(
+                            url,
+                            title
+                        );
 
-                        } else if (
-                            type === "pdf"
-                        ) {
+                    } else if (
+                        type === "local-video"
+                    ) {
 
-                            openPDFViewer(
-                                url,
-                                title
-                            );
+                        openLocalVideo(
+                            url,
+                            title
+                        );
 
-                        } else if (
-                            type === "live"
-                        ) {
+                    } else if (
+                        type === "pdf"
+                    ) {
 
-                            openLiveClass(
-                                url
-                            );
+                        openPDFViewer(
+                            url,
+                            title
+                        );
 
-                        }
+                    } else if (
+                        type === "live"
+                    ) {
+
+                        openLiveClass(
+                            url
+                        );
 
                     }
-                );
 
-            }
-        );
+                }
+            );
 
+        });
 }
 
 
@@ -2246,10 +1968,7 @@ function createModal() {
         );
 
 
-    if (
-        modal
-    ) {
-
+    if (modal) {
         return modal;
     }
 
@@ -2268,7 +1987,6 @@ function createModal() {
 
         <div
             id="fjmcModalOverlay"
-
             style="
                 position:fixed;
                 inset:0;
@@ -2308,13 +2026,11 @@ function createModal() {
 
                     <strong
                         id="fjmcModalTitle"
-                    >
-                    </strong>
+                    ></strong>
 
 
                     <button
                         id="fjmcModalClose"
-
                         style="
                             border:0;
                             background:#e63946;
@@ -2334,14 +2050,12 @@ function createModal() {
 
                 <div
                     id="fjmcModalBody"
-
                     style="
                         flex:1;
                         overflow:auto;
                         background:#111;
                     "
-                >
-                </div>
+                ></div>
 
             </div>
 
@@ -2378,7 +2092,6 @@ function createModal() {
                 ) {
 
                     closeModal();
-
                 }
 
             }
@@ -2401,10 +2114,7 @@ function closeModal() {
         );
 
 
-    if (
-        watermark
-    ) {
-
+    if (watermark) {
         watermark.remove();
     }
 
@@ -2415,13 +2125,9 @@ function closeModal() {
         );
 
 
-    if (
-        modal
-    ) {
-
+    if (modal) {
         modal.remove();
     }
-
 }
 
 
@@ -2434,20 +2140,23 @@ function openYouTubeVideo(
     title
 ) {
 
-    const modal =
-        createModal();
+    createModal();
 
 
-    document.getElementById(
-        "fjmcModalTitle"
-    ).textContent =
-        title;
+    const modalTitle =
+        document.getElementById(
+            "fjmcModalTitle"
+        );
 
 
     const body =
         document.getElementById(
             "fjmcModalBody"
         );
+
+
+    modalTitle.textContent =
+        title;
 
 
     body.innerHTML = `
@@ -2462,15 +2171,12 @@ function openYouTubeVideo(
 
             <iframe
                 src="${dashboardEsc(url)}"
-
                 title="${dashboardEsc(title)}"
-
                 style="
                     width:100%;
                     height:100%;
                     border:0;
                 "
-
                 allow="
                     accelerometer;
                     autoplay;
@@ -2478,15 +2184,11 @@ function openYouTubeVideo(
                     gyroscope;
                     picture-in-picture
                 "
-
-                allowfullscreen
-            >
+                allowfullscreen>
             </iframe>
 
         </div>
-
     `;
-
 }
 
 
@@ -2508,24 +2210,15 @@ function openLocalVideo(
         title;
 
 
-    const body =
-        document.getElementById(
-            "fjmcModalBody"
-        );
-
-
-    body.innerHTML = `
+    document.getElementById(
+        "fjmcModalBody"
+    ).innerHTML = `
 
         <video
-
             controls
-
             controlsList="nodownload"
-
             disablePictureInPicture
-
             playsinline
-
             style="
                 width:100%;
                 max-height:80vh;
@@ -2542,9 +2235,7 @@ function openLocalVideo(
             Your browser does not support video.
 
         </video>
-
     `;
-
 }
 
 
@@ -2572,12 +2263,11 @@ function openLiveClass(url) {
         "_blank",
         "noopener,noreferrer"
     );
-
 }
 
 
 /* =========================================================
-   PDF VIEWER
+   PDF
 ========================================================= */
 
 async function openPDFViewer(
@@ -2588,10 +2278,10 @@ async function openPDFViewer(
     createModal();
 
 
-    document.getElementById(
-        "fjmcModalTitle"
-    ).textContent =
-        title;
+    const modalTitle =
+        document.getElementById(
+            "fjmcModalTitle"
+        );
 
 
     const body =
@@ -2600,11 +2290,14 @@ async function openPDFViewer(
         );
 
 
+    modalTitle.textContent =
+        title;
+
+
     body.innerHTML = `
 
         <div
             id="pdfLoading"
-
             style="
                 color:white;
                 text-align:center;
@@ -2617,7 +2310,6 @@ async function openPDFViewer(
 
         <div
             id="pdfPages"
-
             style="
                 padding:15px;
                 text-align:center;
@@ -2625,9 +2317,7 @@ async function openPDFViewer(
                 -webkit-user-select:none;
                 -webkit-touch-callout:none;
             "
-        >
-        </div>
-
+        ></div>
     `;
 
 
@@ -2641,7 +2331,6 @@ async function openPDFViewer(
             throw new Error(
                 "PDF.js is not loaded."
             );
-
         }
 
 
@@ -2669,10 +2358,7 @@ async function openPDFViewer(
             );
 
 
-        if (
-            loading
-        ) {
-
+        if (loading) {
             loading.remove();
         }
 
@@ -2683,10 +2369,7 @@ async function openPDFViewer(
             );
 
 
-        if (
-            oldWatermark
-        ) {
-
+        if (oldWatermark) {
             oldWatermark.remove();
         }
 
@@ -2705,60 +2388,26 @@ async function openPDFViewer(
             "FJMC ACADEMY";
 
 
-        watermark.style.position =
-            "fixed";
-
-
-        watermark.style.left =
-            "50%";
-
-
-        watermark.style.top =
-            "50%";
-
-
-        watermark.style.transform =
-            "translate(-50%, -50%) rotate(-20deg)";
-
-
-        watermark.style.color =
-            "rgba(0,0,0,1)";
-
-
-        watermark.style.fontSize =
-            "24px";
-
-
-        watermark.style.fontWeight =
-            "800";
-
-
-        watermark.style.letterSpacing =
-            "2px";
-
-
-        watermark.style.whiteSpace =
-            "nowrap";
-
-
-        watermark.style.zIndex =
-            "1000000";
-
-
-        watermark.style.pointerEvents =
-            "none";
-
-
-        watermark.style.userSelect =
-            "none";
-
-
-        watermark.style.webkitUserSelect =
-            "none";
-
-
-        watermark.style.webkitTouchCallout =
-            "none";
+        Object.assign(
+            watermark.style,
+            {
+                position: "fixed",
+                left: "50%",
+                top: "50%",
+                transform:
+                    "translate(-50%, -50%) rotate(-20deg)",
+                color: "rgba(0,0,0,1)",
+                fontSize: "24px",
+                fontWeight: "800",
+                letterSpacing: "2px",
+                whiteSpace: "nowrap",
+                zIndex: "1000000",
+                pointerEvents: "none",
+                userSelect: "none",
+                webkitUserSelect: "none",
+                webkitTouchCallout: "none"
+            }
+        );
 
 
         document.body.appendChild(
@@ -2790,28 +2439,17 @@ async function openPDFViewer(
                 );
 
 
-            wrapper.style.position =
-                "relative";
-
-
-            wrapper.style.display =
-                "inline-block";
-
-
-            wrapper.style.margin =
-                "0 auto 20px auto";
-
-
-            wrapper.style.maxWidth =
-                "100%";
-
-
-            wrapper.style.background =
-                "#ffffff";
-
-
-            wrapper.style.overflow =
-                "hidden";
+            Object.assign(
+                wrapper.style,
+                {
+                    position: "relative",
+                    display: "inline-block",
+                    margin: "0 auto 20px auto",
+                    maxWidth: "100%",
+                    background: "#ffffff",
+                    overflow: "hidden"
+                }
+            );
 
 
             const canvas =
@@ -2828,24 +2466,16 @@ async function openPDFViewer(
                 viewport.height;
 
 
-            canvas.style.maxWidth =
-                "100%";
-
-
-            canvas.style.height =
-                "auto";
-
-
-            canvas.style.display =
-                "block";
-
-
-            canvas.style.userSelect =
-                "none";
-
-
-            canvas.style.webkitUserSelect =
-                "none";
+            Object.assign(
+                canvas.style,
+                {
+                    maxWidth: "100%",
+                    height: "auto",
+                    display: "block",
+                    userSelect: "none",
+                    webkitUserSelect: "none"
+                }
+            );
 
 
             wrapper.appendChild(
@@ -2859,34 +2489,14 @@ async function openPDFViewer(
 
 
             const context =
-                canvas.getContext(
-                    "2d"
-                );
+                canvas.getContext("2d");
 
 
             await page.render({
-
-                canvasContext:
-                    context,
-
-                viewport:
-                    viewport
-
+                canvasContext: context,
+                viewport: viewport
             }).promise;
-
         }
-
-
-        pages.style.userSelect =
-            "none";
-
-
-        pages.style.webkitUserSelect =
-            "none";
-
-
-        pages.style.webkitTouchCallout =
-            "none";
 
 
     } catch (error) {
@@ -2903,10 +2513,7 @@ async function openPDFViewer(
             );
 
 
-        if (
-            watermark
-        ) {
-
+        if (watermark) {
             watermark.remove();
         }
 
@@ -2932,24 +2539,18 @@ async function openPDFViewer(
                 </p>
 
             </div>
-
         `;
-
     }
-
 }
 
 
 /* =========================================================
    LOGOUT
-
    IMPORTANT:
-   Device slot is NOT deleted.
+   DO NOT DELETE / DISABLE DEVICE SLOT
 ========================================================= */
 
-if (
-    logoutBtn
-) {
+if (logoutBtn) {
 
     logoutBtn.addEventListener(
         "click",
@@ -2957,14 +2558,11 @@ if (
 
             try {
 
-                if (
-                    deviceHeartbeat
-                ) {
+                if (deviceHeartbeat) {
 
                     clearInterval(
                         deviceHeartbeat
                     );
-
 
                     deviceHeartbeat =
                         null;
@@ -2981,9 +2579,13 @@ if (
                 );
 
 
-                await signOut(
-                    auth
-                );
+                /*
+                   IMPORTANT:
+                   Device slot is NOT deleted.
+                   3-day reservation remains.
+                */
+
+                await signOut(auth);
 
 
             } catch (error) {
@@ -2992,60 +2594,41 @@ if (
                     "Sign out:",
                     error
                 );
-
             }
 
 
             window.location.href =
                 "login.html";
-
         }
     );
-
 }
 
 
 /* =========================================================
-   BASIC CONTENT PROTECTION
+   CONTENT PROTECTION
 ========================================================= */
 
 document.addEventListener(
     "contextmenu",
-    event => {
-
-        event.preventDefault();
-
-    }
+    event => event.preventDefault()
 );
 
 
 document.addEventListener(
     "copy",
-    event => {
-
-        event.preventDefault();
-
-    }
+    event => event.preventDefault()
 );
 
 
 document.addEventListener(
     "cut",
-    event => {
-
-        event.preventDefault();
-
-    }
+    event => event.preventDefault()
 );
 
 
 document.addEventListener(
     "selectstart",
-    event => {
-
-        event.preventDefault();
-
-    }
+    event => event.preventDefault()
 );
 
 
@@ -3059,8 +2642,7 @@ document.addEventListener(
 
         if (
             (event.ctrlKey ||
-             event.metaKey) &&
-
+                event.metaKey) &&
             (
                 key === "s" ||
                 key === "p" ||
@@ -3070,9 +2652,7 @@ document.addEventListener(
         ) {
 
             event.preventDefault();
-
         }
-
     }
 );
 
@@ -3095,7 +2675,6 @@ window.addEventListener(
                 ) {
 
                     hidePageLoading();
-
                 }
 
             },
