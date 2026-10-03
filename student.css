@@ -1079,37 +1079,38 @@ video::-webkit-media-controls-enclosure {
 }
 
 /* =========================================================
-   COURSE CLICK / EXPAND STRUCTURE
-   Course itself opens PDF / Video / Test content.
-   Existing dashboard colours/layout remain unchanged.
+   COURSE CLICK STRUCTURE
+   Course itself is the button. PDF / Video / Test stay hidden
+   until the student opens the course.
 ========================================================= */
-
-.fjmc-course-toggle {
-    width: 100%;
+.course-toggle {
     display: block;
-    border: 0;
+    width: 100%;
+    padding: 0;
     margin: 0;
-    font: inherit;
+    border: 0;
+    background: transparent;
+    color: inherit;
     text-align: left;
     cursor: pointer;
-    position: relative;
 }
 
-.fjmc-course-toggle:focus-visible {
-    outline: 3px solid rgba(37, 99, 235, .45);
-    outline-offset: -3px;
+.course-toggle:focus-visible {
+    outline: 3px solid #2563eb;
+    outline-offset: 2px;
 }
 
-.fjmc-course-open-label {
-    margin-top: 12px;
+.course-open .course-title {
+    box-shadow: inset 0 -3px 0 rgba(255,255,255,.22);
+}
+
+.course-open-hint {
+    display: inline-block;
+    margin-top: 10px;
     font-size: 12px;
-    opacity: .78;
+    opacity: .82;
 }
 
-.fjmc-course-content[hidden] {
+.course-content[hidden] {
     display: none !important;
-}
-
-.fjmc-course-open .fjmc-course-toggle {
-    border-bottom: 1px solid rgba(255,255,255,.15);
 }

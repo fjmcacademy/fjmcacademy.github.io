@@ -1,0 +1,53 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == "fjmcacademy1008@gmail.com";
+    }
+
+    match /users/{userId} {
+      allow read, write: if isAdmin()
+        || (request.auth != null && request.auth.uid == userId);
+
+      match /devices/{deviceId} {
+        allow read, create, update, delete: if isAdmin()
+          || (request.auth != null && request.auth.uid == userId);
+      }
+    }
+
+    match /students/{studentId} {
+      allow read: if isAdmin()
+        || (request.auth != null
+            && request.auth.token.email == resource.data.email);
+
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /courses/{courseId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /tests/{testId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /tests/{testId}/{subCollection}/{documentId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /testResults/{resultId} {
+      allow read, create: if request.auth != null;
+      allow update, delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

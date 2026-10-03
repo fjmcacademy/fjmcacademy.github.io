@@ -1187,13 +1187,20 @@ textarea{
       <strong id="testQuestionsPdfTitle">Test Questions PDF</strong>
       <button type="button" id="closeTestQuestionsPdfBtn" class="btn danger">Close</button>
     </div>
-    <iframe id="testQuestionsPdfFrame" title="Test Questions PDF" style="width:100%;height:100%;border:0;background:#fff;"></iframe>
+    <div id="testQuestionsPdfFrame" title="Test Questions PDF" style="width:100%;height:100%;overflow:auto;background:#525252;padding:18px;display:flex;flex-direction:column;align-items:center;gap:18px;"></div>
   </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
-<script type="module" src="./admin.js?v=20261002-filters2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  if (window.pdfjsLib) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+</script>
+<script type="module" src="./admin.js?v=20261003-email-final"></script>
 
 </body>
 </html>

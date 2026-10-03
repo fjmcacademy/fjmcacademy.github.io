@@ -15,6 +15,8 @@ import {
     doc,
     getDocs,
     getDoc,
+    query,
+    where,
     setDoc,
     updateDoc,
     serverTimestamp
@@ -62,14 +64,34 @@ function studentDocId(email) {
     return email.trim().toLowerCase().replaceAll("/", "_");
 }
 
-async function loadDashboardData(email) {
-    const studentSnap = await getDoc(
-        doc(db, "students", studentDocId(email))
-    );
+async function loadDashboardData(email, uid) {
+    const normalizedEmail = String(email || "").trim().toLowerCase();
 
-    if (!studentSnap.exists()) {
-        return null;
+    if (!normalizedEmail) return null;
+
+    // CANONICAL STUDENT ID: normalized Gmail/email.
+    // New students created from Admin are saved here.
+    const emailId = studentDocId(normalizedEmail);
+    let studentSnap = await getDoc(doc(db, "students", emailId));
+
+    // Legacy compatibility: older records may have been saved with UID.
+    // This does NOT change the new email-based system.
+    if (!studentSnap.exists() && uid) {
+        const legacySnap = await getDoc(doc(db, "students", uid));
+        if (legacySnap.exists()) studentSnap = legacySnap;
     }
+
+    // Final compatibility for any older document ID.
+    if (!studentSnap.exists()) {
+        const emailQuery = query(
+            collection(db, "students"),
+            where("email", "==", normalizedEmail)
+        );
+        const result = await getDocs(emailQuery);
+        if (!result.empty) studentSnap = result.docs[0];
+    }
+
+    if (!studentSnap.exists()) return null;
 
     const student = studentSnap.data();
     const courseIds = Array.isArray(student.courses) ? student.courses : [];
@@ -86,7 +108,7 @@ async function loadDashboardData(email) {
         COURSES[id] = course;
     });
 
-    STUDENTS = { [email]: student };
+    STUDENTS = { [normalizedEmail]: student };
     return student;
 }
 
@@ -354,7 +376,7 @@ onAuthStateChanged(
 
 
             const student =
-                await loadDashboardData(email);
+                await loadDashboardData(email, user.uid);
 
 
             if (!student) {
@@ -1072,7 +1094,7 @@ function showStudentCourses(
 
     coursesContainer.innerHTML = "";
 
-    if (!student.courses || student.courses.length === 0) {
+    if (!Array.isArray(student.courses) || student.courses.length === 0) {
         coursesContainer.innerHTML = `
             <div class="no-course">
                 <h3>No Course Assigned</h3>
@@ -1083,10 +1105,7 @@ function showStudentCourses(
         return;
     }
 
-    /* =====================================================
-       STUDENT EXAM / BATCH / YEAR INFORMATION
-       Kept exactly as dashboard information.
-    ===================================================== */
+    // Keep Exam / Batch / Year information exactly as before.
     const studentInfo = document.createElement("div");
     studentInfo.className = "student-course-info";
     studentInfo.innerHTML = `
@@ -1104,16 +1123,7 @@ function showStudentCourses(
     `;
     coursesContainer.appendChild(studentInfo);
 
-    /* =====================================================
-       COURSES
-
-       IMPORTANT:
-       Course itself is now the clickable button/card.
-       PDF / Video / Test are hidden initially.
-       Clicking the course opens its contents.
-    ===================================================== */
-    student.courses.forEach(function (courseId, courseIndex) {
-
+    student.courses.forEach(function(courseId) {
         const course = COURSES[courseId];
 
         if (!course) {
@@ -1122,131 +1132,112 @@ function showStudentCourses(
         }
 
         const courseCard = document.createElement("div");
-        courseCard.className = "course-card fjmc-course-collapsed";
-        courseCard.dataset.courseId = courseId;
+        courseCard.className = "course-card";
 
-        const courseTitle = document.createElement("button");
-        courseTitle.type = "button";
-        courseTitle.className = "course-title fjmc-course-toggle";
-        courseTitle.setAttribute("aria-expanded", "false");
-        courseTitle.innerHTML = `
-            <div style="margin-bottom:10px;font-size:13px;opacity:.85;">
-                ${course.exam || student.exam || ""}
-                &nbsp;•&nbsp;
-                ${course.batch || student.batch || ""}
-                &nbsp;•&nbsp;
-                ${course.year || student.year || ""}
-            </div>
-            <h3>${course.title || "Course"}</h3>
-            <p>${course.description || ""}</p>
-            <div class="fjmc-course-open-label">Click to open course</div>
-        `;
-
-        const courseContent = document.createElement("div");
-        courseContent.className = "course-content fjmc-course-content";
-        courseContent.hidden = true;
-
+        let contentHTML = "";
         const contents = Array.isArray(course.contents) ? course.contents : [];
 
-        contents.forEach(function (content) {
-            if (!content) return;
-
+        contents.forEach(function(content) {
             if (content.type === "video") {
-                courseContent.insertAdjacentHTML("beforeend", `
+                contentHTML += `
                     <button class="content-button video-button"
                         data-type="youtube"
-                        data-url="${encodeURIComponent(content.url || "")}"
+                        data-url="${encodeURIComponent(content.url || "")}" 
                         data-title="${encodeURIComponent(content.title || "Lecture")}">
                         ▶ ${content.title || "Video"}
-                    </button>
-                `);
-            }
-            else if (content.type === "local-video") {
-                courseContent.insertAdjacentHTML("beforeend", `
+                    </button>`;
+            } else if (content.type === "local-video") {
+                contentHTML += `
                     <button class="content-button video-button"
                         data-type="local"
-                        data-url="${encodeURIComponent(content.url || "")}"
+                        data-url="${encodeURIComponent(content.url || "")}" 
                         data-title="${encodeURIComponent(content.title || "Lecture")}">
                         ▶ ${content.title || "Video"}
-                    </button>
-                `);
-            }
-            else if (content.type === "pdf") {
-                courseContent.insertAdjacentHTML("beforeend", `
+                    </button>`;
+            } else if (content.type === "pdf") {
+                contentHTML += `
                     <button class="content-button pdf-button"
                         data-type="pdf"
-                        data-url="${encodeURIComponent(content.url || "")}"
+                        data-url="${encodeURIComponent(content.url || "")}" 
                         data-title="${encodeURIComponent(content.title || "PDF")}">
                         📄 ${content.title || "PDF"}
-                    </button>
-                `);
-            }
-            else if (content.type === "live") {
-                courseContent.insertAdjacentHTML("beforeend", `
+                    </button>`;
+            } else if (content.type === "live") {
+                contentHTML += `
                     <button class="content-button live-button"
                         data-type="live"
                         data-url="${encodeURIComponent(content.url || "")}">
                         🔴 ${content.title || "Live Class"}
-                    </button>
-                `);
+                    </button>`;
             }
         });
 
-        /* Test remains inside the course after opening it. */
-        const testWrap = document.createElement("div");
-        testWrap.style.cssText = `
-            margin-top:15px;
-            padding-top:15px;
-            border-top:1px solid rgba(255,255,255,.15);
-        `;
-        testWrap.innerHTML = `
-            <button class="fjmc-test-button"
-                data-test-course="${course.testId || courseId}">
-                📝 ${course.title || "Course"} Test
+        // The course itself is the button/card. PDF/Video/Test remain hidden
+        // until the student clicks the course.
+        courseCard.innerHTML = `
+            <button type="button" class="course-toggle" aria-expanded="false">
+                <div class="course-title">
+                    <div style="margin-bottom:10px;font-size:13px;opacity:.85;">
+                        ${course.exam || student.exam || ""}
+                        &nbsp;•&nbsp;
+                        ${course.batch || student.batch || ""}
+                        &nbsp;•&nbsp;
+                        ${course.year || student.year || ""}
+                    </div>
+                    <h3>${course.title || courseId}</h3>
+                    <p>${course.description || ""}</p>
+                    <span class="course-open-hint">Tap / Click to open course</span>
+                </div>
             </button>
+
+            <div class="course-content" hidden>
+                ${contentHTML || `<div class="no-course"><p>No material added yet.</p></div>`}
+
+                <div style="
+                    margin-top:15px;
+                    padding-top:15px;
+                    border-top:1px solid rgba(0,0,0,.12);
+                ">
+                    <button
+                        type="button"
+                        class="fjmc-test-button"
+                        data-test-course="${course.testId || courseId}"
+                    >
+                        📝 ${course.title || "Course"} Test
+                    </button>
+                </div>
+            </div>
         `;
-        courseContent.appendChild(testWrap);
 
-        courseCard.appendChild(courseTitle);
-        courseCard.appendChild(courseContent);
         coursesContainer.appendChild(courseCard);
+    });
 
-        /* Course click = open/close PDF, Video and Test area. */
-        courseTitle.addEventListener("click", function () {
-            const isOpen = courseCard.classList.contains("fjmc-course-open");
+    // Course click -> reveal PDF / Video / Test.
+    coursesContainer.querySelectorAll(".course-toggle").forEach(button => {
+        button.addEventListener("click", () => {
+            const card = button.closest(".course-card");
+            const content = card?.querySelector(".course-content");
+            if (!content) return;
 
-            document.querySelectorAll(".fjmc-course-card-open-placeholder");
-
-            courseCard.classList.toggle("fjmc-course-open", !isOpen);
-            courseCard.classList.toggle("fjmc-course-collapsed", isOpen);
-            courseContent.hidden = isOpen;
-            courseTitle.setAttribute("aria-expanded", String(!isOpen));
-
-            const label = courseTitle.querySelector(".fjmc-course-open-label");
-            if (label) {
-                label.textContent = isOpen
-                    ? "Click to open course"
-                    : "Click to close course";
-            }
+            const isOpen = !content.hidden;
+            content.hidden = isOpen;
+            button.setAttribute("aria-expanded", String(!isOpen));
+            card.classList.toggle("course-open", !isOpen);
         });
     });
 
-    /* =====================================================
-       TEST BUTTONS
-    ===================================================== */
-    coursesContainer.querySelectorAll(".fjmc-test-button").forEach(function (button) {
-        button.addEventListener("click", function (event) {
+    // Test buttons.
+    coursesContainer.querySelectorAll(".fjmc-test-button").forEach(button => {
+        button.addEventListener("click", function(event) {
             event.stopPropagation();
             const courseId = button.dataset.testCourse;
             window.location.href = "test.html?course=" + encodeURIComponent(courseId);
         });
     });
 
-    /* =====================================================
-       CONTENT BUTTONS
-    ===================================================== */
-    coursesContainer.querySelectorAll(".content-button").forEach(function (button) {
-        button.addEventListener("click", function (event) {
+    // PDF / video / live content buttons.
+    coursesContainer.querySelectorAll(".content-button").forEach(button => {
+        button.addEventListener("click", function(event) {
             event.stopPropagation();
 
             const type = button.dataset.type;
@@ -1255,22 +1246,349 @@ function showStudentCourses(
                 ? decodeURIComponent(button.dataset.title)
                 : "";
 
-            if (type === "youtube") {
-                openYouTubeVideo(url, title);
-            }
-            else if (type === "local") {
-                openLocalVideo(url, title);
-            }
-            else if (type === "pdf") {
-                openPDFViewer(url, title);
-            }
-            else if (type === "live") {
-                openLiveClass(url);
-            }
+            if (type === "youtube") openYouTubeVideo(url, title);
+            else if (type === "local") openLocalVideo(url, title);
+            else if (type === "pdf") openPDFViewer(url, title);
+            else if (type === "live") openLiveClass(url);
         });
     });
 
     hidePageLoading();
+}
+
+
+/* =========================================================
+   CREATE MODAL
+========================================================= */
+
+function createModal() {
+
+    let modal =
+        document.getElementById(
+            "fjmcContentModal"
+        );
+
+
+    if (modal) {
+        return modal;
+    }
+
+
+    modal =
+        document.createElement(
+            "div"
+        );
+
+
+    modal.id =
+        "fjmcContentModal";
+
+
+    modal.innerHTML = `
+
+        <div
+            id="fjmcModalOverlay"
+            style="
+                position:fixed;
+                inset:0;
+                background:rgba(0,0,0,.85);
+                z-index:999999;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                padding:15px;
+            "
+        >
+
+            <div
+                style="
+                    width:100%;
+                    max-width:1100px;
+                    max-height:95vh;
+                    background:#111;
+                    border-radius:12px;
+                    overflow:hidden;
+                    position:relative;
+                    display:flex;
+                    flex-direction:column;
+                "
+            >
+
+                <div
+                    style="
+                        display:flex;
+                        align-items:center;
+                        justify-content:space-between;
+                        padding:10px 15px;
+                        background:#182033;
+                        color:white;
+                    "
+                >
+
+                    <strong
+                        id="fjmcModalTitle">
+                    </strong>
+
+
+                    <button
+                        id="fjmcModalClose"
+                        style="
+                            border:0;
+                            background:#e63946;
+                            color:white;
+                            width:38px;
+                            height:38px;
+                            border-radius:50%;
+                            font-size:20px;
+                            cursor:pointer;
+                        "
+                    >
+                        ×
+                    </button>
+
+                </div>
+
+
+                <div
+                    id="fjmcModalBody"
+                    style="
+                        flex:1;
+                        overflow:auto;
+                        background:#111;
+                    "
+                >
+                </div>
+
+            </div>
+
+        </div>
+    `;
+
+
+    document.body.appendChild(
+        modal
+    );
+
+
+    document
+        .getElementById(
+            "fjmcModalClose"
+        )
+        .addEventListener(
+            "click",
+            closeModal
+        );
+
+
+    document
+        .getElementById(
+            "fjmcModalOverlay"
+        )
+        .addEventListener(
+            "click",
+            function (event) {
+
+                if (
+                    event.target.id ===
+                    "fjmcModalOverlay"
+                ) {
+
+                    closeModal();
+
+                }
+
+            }
+        );
+
+
+    return modal;
+
+}
+
+
+/* =========================================================
+   CLOSE MODAL
+========================================================= */
+
+function closeModal() {
+
+    const watermark =
+        document.getElementById(
+            "fjmcScreenWatermark"
+        );
+
+
+    if (watermark) {
+
+        watermark.remove();
+
+    }
+
+
+    const modal =
+        document.getElementById(
+            "fjmcContentModal"
+        );
+
+
+    if (modal) {
+
+        modal.remove();
+
+    }
+
+}
+
+
+/* =========================================================
+   YOUTUBE VIDEO
+========================================================= */
+
+function openYouTubeVideo(
+    url,
+    title
+) {
+
+    const modal =
+        createModal();
+
+
+    const modalTitle =
+        document.getElementById(
+            "fjmcModalTitle"
+        );
+
+
+    const body =
+        document.getElementById(
+            "fjmcModalBody"
+        );
+
+
+    modalTitle.textContent =
+        title;
+
+
+    body.innerHTML = `
+
+        <div
+            style="
+                width:100%;
+                aspect-ratio:16/9;
+                background:#000;
+            "
+        >
+
+            <iframe
+                src="${url}"
+                title="${title}"
+                style="
+                    width:100%;
+                    height:100%;
+                    border:0;
+                "
+                allow="
+                    accelerometer;
+                    autoplay;
+                    
+                    encrypted-media;
+                    gyroscope;
+                    picture-in-picture
+                    
+                "
+                allowfullscreen>
+            </iframe>
+
+        </div>
+    `;
+
+}
+
+
+/* =========================================================
+   LOCAL VIDEO
+========================================================= */
+
+function openLocalVideo(
+    url,
+    title
+) {
+
+    const modal =
+        createModal();
+
+
+    const modalTitle =
+        document.getElementById(
+            "fjmcModalTitle"
+        );
+
+
+    const body =
+        document.getElementById(
+            "fjmcModalBody"
+        );
+
+
+    modalTitle.textContent =
+        title;
+
+
+    body.innerHTML = `
+
+        <video
+            controls
+            controlsList="nodownload"
+            disablePictureInPicture
+            playsinline
+            style="
+                width:100%;
+                max-height:80vh;
+                display:block;
+                background:#000;
+            "
+        >
+
+            <source
+                src="${url}"
+                type="video/mp4"
+            >
+
+            Your browser does not support video.
+
+        </video>
+    `;
+
+}
+
+
+/* =========================================================
+   LIVE CLASS
+========================================================= */
+
+function openLiveClass(
+    url
+) {
+
+    if (
+        !url ||
+        url === "#"
+    ) {
+
+        alert(
+            "Live class link is not available yet."
+        );
+
+        return;
+    }
+
+
+    window.open(
+        url,
+        "_blank",
+        "noopener,noreferrer"
+    );
+
 }
 
 

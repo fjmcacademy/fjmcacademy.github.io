@@ -76,6 +76,7 @@ let editingCourseId = null;
 
 // Test editor state
 let editingTestId = null;
+let editingTestFirestoreId = null;
 let editingTestLectureId = null;
 let editingTestNumber = null;
 let testQuestions = [];
@@ -119,6 +120,10 @@ function esc(value) {
 
 function lower(value) {
   return String(value ?? "").trim().toLowerCase();
+}
+
+function studentDocId(email) {
+  return String(email || "").trim().toLowerCase().replaceAll("/", "_");
 }
 
 function normalize(value) {
@@ -1393,8 +1398,9 @@ $("studentForm")?.addEventListener(
           );
 
 
-        studentId =
-          credential.user.uid;
+        // IMPORTANT: Student Firestore document is keyed by normalized email,
+        // not Firebase UID. This keeps dashboard lookup email-based.
+        studentId = studentDocId(email);
 
 
         await signOut(secondaryAuth);
@@ -2408,6 +2414,7 @@ function isEnrolled(result) {
 
 function clearTestForm() {
   editingTestId = null;
+  editingTestFirestoreId = null;
   editingTestLectureId = null;
   editingTestNumber = null;
   setValue("tTestId", "");
@@ -2773,16 +2780,24 @@ function renderTestManager() {
   $(id)?.addEventListener("change", renderTestManager);
 });
 
-function openTestQuestionsPDF(testId, lectureId, testNumber) {
+async function openTestQuestionsPDF(testId, lectureId, testNumber) {
   const root = tests.find(t => String(t.id) === String(testId));
-  const item = root?.lectures?.[lectureId]?.tests?.[testNumber];
+  const item = root?.lectures?.[String(lectureId)]?.tests?.[String(testNumber)];
+
   if (!root || !item) {
     alert("Test data nahi mila.");
     return;
   }
 
   const jsPDF = window.jspdf?.jsPDF;
+  const pdfjsLib = window.pdfjsLib;
+
   if (!jsPDF) {
+    alert("jsPDF library load nahi hui. Page refresh karke dobara try karo.");
+    return;
+  }
+
+  if (!pdfjsLib) {
     alert("PDF viewer library load nahi hui. Page refresh karke dobara try karo.");
     return;
   }
@@ -2797,7 +2812,7 @@ function openTestQuestionsPDF(testId, lectureId, testNumber) {
   const addWrapped = (text, x, fontSize = 10, gap = 5) => {
     pdf.setFontSize(fontSize);
     const lines = pdf.splitTextToSize(String(text ?? ""), pageWidth - x - margin);
-    const needed = lines.length * gap;
+    const needed = Math.max(lines.length, 1) * gap;
     if (y + needed > pageHeight - 14) {
       pdf.addPage();
       y = 16;
@@ -2806,52 +2821,102 @@ function openTestQuestionsPDF(testId, lectureId, testNumber) {
     y += needed + 2;
   };
 
+  pdf.setFont("helvetica", "bold");
   pdf.setFontSize(16);
   pdf.text("FJMC Academy - Test Questions", margin, y);
   y += 8;
+  pdf.setFont("helvetica", "normal");
   pdf.setFontSize(10);
-  pdf.text(`Test: ${item.title || testNumber}`, margin, y); y += 5;
-  pdf.text(`Lecture: ${root.lectures?.[lectureId]?.title || lectureId}    Duration: ${item.duration || 0} min`, margin, y); y += 8;
+  addWrapped(`Test: ${item.title || testNumber}`, margin, 10, 5);
+  addWrapped(`Lecture: ${root.lectures?.[String(lectureId)]?.title || lectureId}    Duration: ${item.duration || 0} min`, margin, 10, 5);
+  y += 3;
 
   if (!questions.length) {
-    addWrapped("No questions added to this test.", margin);
+    addWrapped("No questions added to this test.", margin, 11, 6);
   } else {
     questions.forEach((q, qi) => {
-      if (y > pageHeight - 30) { pdf.addPage(); y = 16; }
-      pdf.setFont(undefined, "bold");
+      if (y > pageHeight - 30) {
+        pdf.addPage();
+        y = 16;
+      }
+
+      pdf.setFont("helvetica", "bold");
       addWrapped(`Q${qi + 1}. ${q.question || "(Question text missing)"}`, margin, 11, 5);
-      pdf.setFont(undefined, "normal");
+      pdf.setFont("helvetica", "normal");
+
       const opts = Array.isArray(q.options) ? q.options : [];
-      [0,1,2,3].forEach(i => {
+      [0, 1, 2, 3].forEach(i => {
         const o = opts[i] || {};
         const mark = o.correct ? " [CORRECT]" : "";
-        addWrapped(`${String.fromCharCode(65+i)}. ${o.text || ""}${mark}`, margin + 5, 10, 4.5);
+        addWrapped(`${String.fromCharCode(65 + i)}. ${o.text || ""}${mark}`, margin + 5, 10, 4.5);
       });
+
       const solution = opts.find(o => o?.correct)?.solution || q.solution || "";
-      if (solution) addWrapped(`Solution / Explanation: ${solution}`, margin + 5, 9, 4);
+      if (solution) {
+        pdf.setFont("helvetica", "bold");
+        addWrapped("Solution / Explanation:", margin + 5, 9, 4);
+        pdf.setFont("helvetica", "normal");
+        addWrapped(solution, margin + 5, 9, 4);
+      }
+
       y += 4;
     });
   }
 
-  const blob = pdf.output("blob");
-  if (testPdfObjectUrl) URL.revokeObjectURL(testPdfObjectUrl);
-  testPdfObjectUrl = URL.createObjectURL(blob);
-
-  const iframe = $("testQuestionsPdfFrame");
+  const arrayBuffer = pdf.output("arraybuffer");
+  const container = $("testQuestionsPdfFrame");
   const title = $("testQuestionsPdfTitle");
-  if (iframe) iframe.src = testPdfObjectUrl;
-  if (title) title.textContent = `${item.title || testNumber} — Questions PDF`;
+
+  if (!container) return;
+
+  if (title) {
+    title.textContent = `${item.title || testNumber} — Questions PDF`;
+  }
+
+  container.innerHTML = `<div style="color:white;padding:30px;font-size:16px;">Opening PDF...</div>`;
   show("testQuestionsPdfModal");
+
+  try {
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
+    const pdfDocument = await loadingTask.promise;
+    container.innerHTML = "";
+
+    for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber++) {
+      const page = await pdfDocument.getPage(pageNumber);
+      const baseViewport = page.getViewport({ scale: 1 });
+      const availableWidth = Math.min(container.clientWidth - 36, 900);
+      const scale = Math.max(1, availableWidth / baseViewport.width);
+      const viewport = page.getViewport({ scale });
+
+      const wrapper = document.createElement("div");
+      wrapper.style.cssText = "background:white;box-shadow:0 3px 12px rgba(0,0,0,.45);max-width:100%;";
+
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      canvas.style.cssText = "display:block;max-width:100%;height:auto;";
+
+      wrapper.appendChild(canvas);
+      container.appendChild(wrapper);
+
+      const context = canvas.getContext("2d", { alpha: false });
+      await page.render({ canvasContext: context, viewport }).promise;
+    }
+  } catch (error) {
+    console.error("QUESTION PDF VIEW ERROR:", error);
+    container.innerHTML = `
+      <div style="color:white;padding:30px;text-align:center;">
+        <h3>PDF open nahi ho paayi</h3>
+        <p>${esc(error?.message || "Unknown PDF error")}</p>
+      </div>
+    `;
+  }
 }
 
 function closeTestQuestionsPDF() {
   hide("testQuestionsPdfModal");
-  const iframe = $("testQuestionsPdfFrame");
-  if (iframe) iframe.src = "about:blank";
-  if (testPdfObjectUrl) {
-    URL.revokeObjectURL(testPdfObjectUrl);
-    testPdfObjectUrl = null;
-  }
+  const container = $("testQuestionsPdfFrame");
+  if (container) container.innerHTML = "";
 }
 
 function editManagedTest(testId, lectureId, testNumber) {
@@ -2860,7 +2925,8 @@ function editManagedTest(testId, lectureId, testNumber) {
   const item = lecture?.tests?.[testNumber];
   if (!root || !lecture || !item) return;
 
-  editingTestId = testId;
+  editingTestId = root.testId || testId;
+  editingTestFirestoreId = root.id || testId;
   editingTestLectureId = lectureId;
   editingTestNumber = testNumber;
 
@@ -2893,7 +2959,11 @@ async function saveManagedTest(event) {
     return;
   }
 
-  const existing = tests.find(t => t.id === testId || t.testId === testId);
+  const existing = tests.find(t =>
+    (editingTestFirestoreId && String(t.id) === String(editingTestFirestoreId)) ||
+    String(t.id) === String(testId) ||
+    String(t.testId || "") === String(testId)
+  );
   const root = existing ? JSON.parse(JSON.stringify(existing)) : {
     testId,
     title: testTitle,
@@ -2914,7 +2984,8 @@ async function saveManagedTest(event) {
   };
 
   try {
-    await setDoc(doc(db, "tests", testId), root);
+    const firestoreId = editingTestFirestoreId || (existing?.id || testId);
+    await setDoc(doc(db, "tests", firestoreId), root);
     alert("Test saved successfully.");
     clearTestForm();
     await loadAllData();
