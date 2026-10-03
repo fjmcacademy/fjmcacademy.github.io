@@ -64,39 +64,289 @@ function studentDocId(email) {
 }
 
 async function loadDashboardData(email) {
-    const studentSnap = await getDoc(
-        doc(db, "students", studentDocId(email))
-    );
 
-    if (!studentSnap.exists()) {
-        return null;
+    try {
+
+        const cleanEmail =
+            String(email || "")
+                .trim()
+                .toLowerCase();
+
+        if (!cleanEmail) {
+            console.error("Dashboard: email missing.");
+            return null;
+        }
+
+        console.log(
+            "Dashboard: loading student:",
+            cleanEmail
+        );
+
+
+        /* =====================================================
+           1. EMAIL DOCUMENT ID
+        ===================================================== */
+
+        const emailDocId =
+            studentDocId(cleanEmail);
+
+        let studentSnap =
+            await getDoc(
+                doc(
+                    db,
+                    "students",
+                    emailDocId
+                )
+            );
+
+
+        /* =====================================================
+           2. UID DOCUMENT ID FALLBACK
+        ===================================================== */
+
+        if (
+            !studentSnap.exists() &&
+            auth.currentUser &&
+            auth.currentUser.uid
+        ) {
+
+            const uid =
+                auth.currentUser.uid;
+
+            console.log(
+                "Dashboard: email document not found. Trying UID:",
+                uid
+            );
+
+            studentSnap =
+                await getDoc(
+                    doc(
+                        db,
+                        "students",
+                        uid
+                    )
+                );
+        }
+
+
+        /* =====================================================
+           3. STUDENT NOT FOUND
+        ===================================================== */
+
+        if (!studentSnap.exists()) {
+
+            console.error(
+                "Dashboard: student document not found.",
+                {
+                    email: cleanEmail,
+                    emailDocId: emailDocId,
+                    uid: auth.currentUser
+                        ? auth.currentUser.uid
+                        : null
+                }
+            );
+
+            return null;
+        }
+
+
+        /* =====================================================
+           4. STUDENT DATA
+        ===================================================== */
+
+        const student =
+            studentSnap.data() || {};
+
+
+        console.log(
+            "Dashboard: student loaded:",
+            studentSnap.id
+        );
+
+
+        /* =====================================================
+           5. COURSES
+        ===================================================== */
+
+        const courseIds =
+            Array.isArray(student.courses)
+                ? student.courses
+                : [];
+
+
+        console.log(
+            "Dashboard: assigned courses:",
+            courseIds
+        );
+
+
+        const courseEntries =
+            await Promise.all(
+
+                courseIds.map(
+                    async function (courseId) {
+
+                        try {
+
+                            if (!courseId) {
+                                return null;
+                            }
+
+                            const snap =
+                                await getDoc(
+                                    doc(
+                                        db,
+                                        "courses",
+                                        String(courseId)
+                                    )
+                                );
+
+
+                            if (!snap.exists()) {
+
+                                console.warn(
+                                    "Dashboard: course not found:",
+                                    courseId
+                                );
+
+                                return null;
+                            }
+
+
+                            return [
+                                String(courseId),
+                                snap.data()
+                            ];
+
+
+                        } catch (error) {
+
+                            console.error(
+                                "Dashboard: course load error:",
+                                courseId,
+                                error
+                            );
+
+                            return null;
+                        }
+
+                    }
+                )
+
+            );
+
+
+        COURSES = {};
+
+        courseEntries
+            .filter(Boolean)
+            .forEach(
+                function ([id, course]) {
+
+                    COURSES[id] =
+                        course;
+
+                }
+            );
+
+
+        console.log(
+            "Dashboard: courses loaded:",
+            COURSES
+        );
+
+
+        /* =====================================================
+           6. TESTS
+
+           Test loading failure will NOT stop dashboard.
+        ===================================================== */
+
+        window.FJMC_TESTS = [];
+
+
+        try {
+
+            const testSnap =
+                await getDocs(
+                    collection(
+                        db,
+                        "tests"
+                    )
+                );
+
+
+            testSnap.forEach(
+                function (d) {
+
+                    const t =
+                        d.data();
+
+                    if (
+                        t &&
+                        courseIds.includes(
+                            t.courseId
+                        )
+                    ) {
+
+                        window.FJMC_TESTS.push({
+                            id: d.id,
+                            ...t
+                        });
+
+                    }
+
+                }
+            );
+
+
+            console.log(
+                "Dashboard: tests loaded:",
+                window.FJMC_TESTS
+            );
+
+
+        } catch (testError) {
+
+            console.warn(
+                "Dashboard: test list load failed:",
+                testError
+            );
+
+            window.FJMC_TESTS = [];
+
+        }
+
+
+        /* =====================================================
+           7. SAVE STUDENT DATA
+        ===================================================== */
+
+        STUDENTS = {
+            [cleanEmail]: student
+        };
+
+
+        console.log(
+            "Dashboard: data loaded successfully."
+        );
+
+
+        return student;
+
+
+    } catch (error) {
+
+        console.error(
+            "Dashboard: loadDashboardData FAILED:",
+            error
+        );
+
+        throw error;
+
     }
 
-    const student = studentSnap.data();
-    const courseIds = Array.isArray(student.courses) ? student.courses : [];
-
-    const courseEntries = await Promise.all(
-        courseIds.map(async courseId => {
-            const snap = await getDoc(doc(db, "courses", courseId));
-            return snap.exists() ? [courseId, snap.data()] : null;
-        })
-    );
-
-    COURSES = {};
-    courseEntries.filter(Boolean).forEach(([id, course]) => {
-        COURSES[id] = course;
-    });
-    try {
-        const testSnap = await getDocs(collection(db, "tests"));
-        window.FJMC_TESTS = [];
-        testSnap.forEach(d => { const t=d.data(); if(t && courseIds.includes(t.courseId)) window.FJMC_TESTS.push({id:d.id,...t}); });
-    } catch(e) { console.warn("Test list load failed:", e); window.FJMC_TESTS=[]; }
-
-    STUDENTS = { [email]: student };
-    return student;
 }
-
-
 /* =========================================================
    DEVICE SETTINGS
    EVERYTHING BELOW THIS POINT IS YOUR EXISTING SYSTEM
