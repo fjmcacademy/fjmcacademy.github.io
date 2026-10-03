@@ -181,29 +181,53 @@ const deviceId =
 
 function getDeviceType() {
 
-    const userAgent =
+    const userAgent = String(
         navigator.userAgent ||
         navigator.vendor ||
         window.opera ||
-        "";
+        ""
+    );
 
+    /*
+     * SLOT GROUPS
+     * -------------
+     * mobile/tablet  -> ONE shared slot
+     * desktop/laptop -> ONE shared slot
+     *
+     * Android needs special handling:
+     * - Android + "Mobile" = phone
+     * - Android without "Mobile" = tablet
+     * Both are intentionally returned as "mobile" because they
+     * share the same Mobile/Tablet reservation slot.
+     *
+     * iPhone / iPod = mobile
+     * iPad = tablet -> mobile slot
+     * Windows/macOS/Linux = desktop/laptop slot
+     */
 
-    const mobilePattern =
-        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i;
-
+    const isAndroid = /Android/i.test(userAgent);
+    const isAndroidPhone = /Android/i.test(userAgent) && /Mobile/i.test(userAgent);
+    const isAndroidTablet = isAndroid && !isAndroidPhone;
+    const isIPad = /iPad/i.test(userAgent) ||
+        (/Macintosh/i.test(userAgent) &&
+         typeof navigator.maxTouchPoints === "number" &&
+         navigator.maxTouchPoints > 1);
+    const isIPhoneOrIPod = /iPhone|iPod/i.test(userAgent);
 
     if (
-        mobilePattern.test(userAgent)
+        isAndroidPhone ||
+        isAndroidTablet ||
+        isIPad ||
+        isIPhoneOrIPod ||
+        /Tablet|Mobile/i.test(userAgent)
     ) {
-
+        // Mobile + Tablet share ONE slot.
         return "mobile";
-
     }
 
-
+    // Windows/macOS/Linux desktop and laptop share ONE slot.
     return "desktop";
 }
-
 
 const currentDeviceType =
     getDeviceType();
