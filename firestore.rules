@@ -16,6 +16,17 @@ service cloud.firestore {
         allow read, create, update, delete: if isAdmin()
           || (request.auth != null && request.auth.uid == userId);
       }
+
+      // Fixed device reservations: one mobile/tablet slot and one
+      // desktop/laptop slot. Reservation is not cleared on logout.
+      match /deviceSlots/{slotId} {
+        allow read, create, update: if isAdmin()
+          || (request.auth != null && request.auth.uid == userId);
+
+        // Students must never delete their reservation slot.
+        // Admin may delete if manual reset is required.
+        allow delete: if isAdmin();
+      }
     }
 
     match /students/{studentId} {

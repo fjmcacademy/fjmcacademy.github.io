@@ -19,7 +19,8 @@ import {
     where,
     setDoc,
     updateDoc,
-    serverTimestamp
+    serverTimestamp,
+    runTransaction
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 import {
@@ -661,207 +662,144 @@ async function countAllActiveDevices(
 
 /* =========================================================
    REGISTER / CHECK DEVICE
+
+   FIXED RESERVATION SYSTEM
+   ------------------------
+   1 MOBILE/TABLET SLOT + 1 DESKTOP/LAPTOP SLOT
+   Maximum 2 devices total.
+   Each slot is reserved for 3 days.
+   LOGOUT NEVER FREES A SLOT.
+
+   IMPORTANT:
+   We keep the old /users/{uid}/devices/{deviceId} records for
+   compatibility, but the authoritative reservation is now stored
+   in /users/{uid}/deviceSlots/{mobile|desktop}.
 ========================================================= */
+
+function deviceSlotRef(user, type) {
+    return doc(
+        db,
+        "users",
+        user.uid,
+        "deviceSlots",
+        type
+    );
+}
+
+function deviceSlotName(type) {
+    return type === "mobile" ? "mobile" : "desktop";
+}
 
 async function registerDevice(user) {
 
     try {
+        const now = Date.now();
+        const type = deviceSlotName(currentDeviceType);
+        const slotRef = deviceSlotRef(user, type);
 
-        const deviceRef =
-            doc(
-                db,
-                "users",
-                user.uid,
-                "devices",
-                deviceId
-            );
+        /*
+         * The slot document is the reservation itself.
+         * It is NOT marked inactive on logout.
+         */
+        const result = await runTransaction(db, async (transaction) => {
 
+            const slotSnap = await transaction.get(slotRef);
 
-        const now =
-            Date.now();
+            if (slotSnap.exists()) {
+                const data = slotSnap.data() || {};
+                const reservedUntil = Number(data.reservedUntil || 0);
+                const reservedDeviceId = String(data.deviceId || "");
 
+                // Same physical/browser device: keep its original
+                // 3-day reservation. Do NOT renew it on login.
+                if (
+                    reservedDeviceId === deviceId &&
+                    reservedUntil > now
+                ) {
+                    transaction.set(
+                        slotRef,
+                        {
+                            lastSeen: now,
+                            email: user.email || "",
+                            deviceType: type
+                        },
+                        { merge: true }
+                    );
 
-        const currentDevice =
-            await getDoc(
-                deviceRef
-            );
-
-
-        if (
-            currentDevice.exists()
-        ) {
-
-            const data =
-                currentDevice.data();
-
-
-            const expiresAt =
-                Number(
-                    data.expiresAt || 0
-                );
-
-
-            const savedDeviceType =
-                data.deviceType ||
-                currentDeviceType;
-
-
-            if (
-                expiresAt > now
-            ) {
-
-                await setDoc(
-                    deviceRef,
-                    {
-                        email: user.email,
-                        active: true,
-                        lastSeen: now,
-                        deviceType:
-                            savedDeviceType
-                    },
-                    {
-                        merge: true
-                    }
-                );
-
-
-                return true;
-            }
-
-
-            const sameTypeDevices =
-                await countActiveDeviceType(
-                    user,
-                    currentDeviceType,
-                    now,
-                    deviceId
-                );
-
-
-            if (
-                sameTypeDevices >= 1
-            ) {
-
-                showDeviceLimitMessage();
-
-                return false;
-            }
-
-
-            const allActiveDevices =
-                await countAllActiveDevices(
-                    user,
-                    now,
-                    deviceId
-                );
-
-
-            if (
-                allActiveDevices >=
-                MAX_DEVICES
-            ) {
-
-                showDeviceLimitMessage();
-
-                return false;
-            }
-
-
-            await setDoc(
-                deviceRef,
-                {
-                    email: user.email,
-
-                    active: true,
-
-                    deviceType:
-                        currentDeviceType,
-
-                    lastSeen: now,
-
-                    expiresAt:
-                        now +
-                        DEVICE_TIMEOUT,
-
-                    renewedAt:
-                        serverTimestamp()
-                },
-                {
-                    merge: true
+                    return { allowed: true };
                 }
+
+                // A different device cannot take an unexpired slot,
+                // even if the original device has logged out.
+                if (reservedUntil > now) {
+                    return {
+                        allowed: false,
+                        reason: "reserved"
+                    };
+                }
+            }
+
+            // The old reservation has expired. This slot can now be
+            // assigned to the new device for a fresh 3-day period.
+            transaction.set(
+                slotRef,
+                {
+                    email: user.email || "",
+                    deviceId: deviceId,
+                    deviceType: type,
+                    reservedAt: now,
+                    reservedUntil: now + DEVICE_TIMEOUT,
+                    lastSeen: now,
+                    active: true
+                },
+                { merge: true }
             );
 
+            return { allowed: true };
+        });
 
-            return true;
-        }
-
-
-        const sameTypeDevices =
-            await countActiveDeviceType(
-                user,
-                currentDeviceType,
-                now
-            );
-
-
-        if (
-            sameTypeDevices >= 1
-        ) {
-
+        if (!result.allowed) {
             showDeviceLimitMessage();
-
             return false;
         }
 
+        // Keep the existing device document for compatibility with the
+        // rest of the project. Its reservation timestamp is fixed too.
+        const deviceRef = doc(
+            db,
+            "users",
+            user.uid,
+            "devices",
+            deviceId
+        );
 
-        const allActiveDevices =
-            await countAllActiveDevices(
-                user,
-                now
-            );
-
-
-        if (
-            allActiveDevices >=
-            MAX_DEVICES
-        ) {
-
-            showDeviceLimitMessage();
-
-            return false;
-        }
-
+        const existing = await getDoc(deviceRef);
+        const existingData = existing.exists() ? existing.data() : {};
+        const existingExpiry = Number(existingData.expiresAt || 0);
 
         await setDoc(
             deviceRef,
             {
-                email: user.email,
-
+                email: user.email || "",
                 active: true,
-
-                deviceType:
-                    currentDeviceType,
-
+                deviceType: currentDeviceType,
                 lastSeen: now,
-
                 expiresAt:
-                    now +
-                    DEVICE_TIMEOUT,
-
-                createdAt:
-                    serverTimestamp()
-            }
+                    existingExpiry > now
+                        ? existingExpiry
+                        : now + DEVICE_TIMEOUT,
+                reserved: true
+            },
+            { merge: true }
         );
-
 
         console.log(
-            "New device registered:",
-            currentDeviceType
+            "Fixed 3-day device reservation registered:",
+            currentDeviceType,
+            deviceId
         );
 
-
         return true;
-
 
     } catch (error) {
 
@@ -870,21 +808,16 @@ async function registerDevice(user) {
             error
         );
 
-
         hidePageLoading();
-
 
         alert(
             "Device verification failed.\n\n" +
             "Please check your internet connection and try again."
         );
 
-
         return false;
     }
-
 }
-
 
 /* =========================================================
    DEVICE LIMIT MESSAGE
@@ -954,6 +887,9 @@ function startDeviceHeartbeat() {
 
 /* =========================================================
    UPDATE DEVICE HEARTBEAT
+
+   Heartbeat NEVER changes/removes the reservation.
+   It only records lastSeen.
 ========================================================= */
 
 async function updateDeviceHeartbeat() {
@@ -962,91 +898,69 @@ async function updateDeviceHeartbeat() {
         return;
     }
 
-
     try {
+        const now = Date.now();
+        const type = deviceSlotName(currentDeviceType);
+        const slotRef = deviceSlotRef(currentUser, type);
+        const slotSnap = await getDoc(slotRef);
 
-        const deviceRef =
-            doc(
-                db,
-                "users",
-                currentUser.uid,
-                "devices",
-                deviceId
-            );
-
-
-        const snapshot =
-            await getDoc(
-                deviceRef
-            );
-
-
-        if (
-            !snapshot.exists()
-        ) {
-
+        if (!slotSnap.exists()) {
+            console.warn("Device reservation slot missing.");
             return;
         }
 
+        const data = slotSnap.data() || {};
+        const reservedDeviceId = String(data.deviceId || "");
+        const reservedUntil = Number(data.reservedUntil || 0);
 
-        const data =
-            snapshot.data();
-
-
-        const now =
-            Date.now();
-
-
-        const expiresAt =
-            Number(
-                data.expiresAt || 0
-            );
-
-
-        if (
-            expiresAt > 0 &&
-            expiresAt <= now
-        ) {
-
-            console.log(
-                "Device reservation expired."
-            );
-
-
-            if (
-                deviceHeartbeat
-            ) {
-
-                clearInterval(
-                    deviceHeartbeat
-                );
-
-
-                deviceHeartbeat =
-                    null;
+        // If another device has replaced the slot, this session is no
+        // longer the reserved device and must be signed out.
+        if (reservedDeviceId !== deviceId) {
+            if (deviceHeartbeat) {
+                clearInterval(deviceHeartbeat);
+                deviceHeartbeat = null;
             }
 
-
-            hidePageLoading();
-
-
             alert(
-                "Your device access has expired. Please login again."
+                "This device is no longer reserved for this account. Please login again."
             );
 
-
-            await signOut(
-                auth
-            );
-
-
-            window.location.href =
-                "login.html";
-
-
+            await signOut(auth);
+            window.location.href = "login.html";
             return;
         }
 
+        if (reservedUntil > 0 && reservedUntil <= now) {
+            if (deviceHeartbeat) {
+                clearInterval(deviceHeartbeat);
+                deviceHeartbeat = null;
+            }
+
+            alert(
+                "Your 3-day device reservation has expired. Please login again."
+            );
+
+            await signOut(auth);
+            window.location.href = "login.html";
+            return;
+        }
+
+        // Only lastSeen is updated. The 3-day reservation is NEVER
+        // extended by heartbeat or logout/login.
+        await updateDoc(
+            slotRef,
+            {
+                lastSeen: now
+            }
+        );
+
+        const deviceRef = doc(
+            db,
+            "users",
+            currentUser.uid,
+            "devices",
+            deviceId
+        );
 
         await updateDoc(
             deviceRef,
@@ -1056,18 +970,10 @@ async function updateDeviceHeartbeat() {
             }
         );
 
-
     } catch (error) {
-
-        console.error(
-            "Heartbeat error:",
-            error
-        );
-
+        console.error("Heartbeat error:", error);
     }
-
 }
-
 
 /* =========================================================
    SHOW STUDENT COURSES
