@@ -1,0 +1,114 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =====================================================
+    // ADMIN
+    // =====================================================
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == "fjmcacademy1008@gmail.com";
+    }
+
+    // =====================================================
+    // STUDENTS
+    // Dashboard reads the student's document using an email-based
+    // document ID. UID-based documents are also supported.
+    // =====================================================
+    match /students/{studentId} {
+      allow read: if isAdmin()
+        || (
+          request.auth != null
+          && (
+            studentId == request.auth.uid
+            || resource.data.email == request.auth.token.email
+          )
+        );
+
+      allow create: if isAdmin()
+        || (
+          request.auth != null
+          && request.resource.data.email == request.auth.token.email
+        );
+
+      allow update: if isAdmin()
+        || (
+          request.auth != null
+          && resource.data.email == request.auth.token.email
+          && request.resource.data.email == request.auth.token.email
+        );
+
+      allow delete: if isAdmin();
+    }
+
+    // =====================================================
+    // COURSES
+    // Student dashboard can read assigned course documents.
+    // Only admin can change course/content/assignment definitions.
+    // =====================================================
+    match /courses/{courseId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // =====================================================
+    // TESTS
+    // Student can read tests; only admin manages tests/questions.
+    // =====================================================
+    match /tests/{testId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // =====================================================
+    // TEST RESULTS / LEADERBOARD
+    // First attempt is written once to a fixed document ID.
+    // Students can read leaderboard results and create their own result.
+    // Existing results cannot be changed by students.
+    // =====================================================
+    match /testResults/{resultId} {
+      allow read: if request.auth != null;
+
+      allow create: if isAdmin()
+        || (
+          request.auth != null
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.email == request.auth.token.email
+        );
+
+      allow update, delete: if isAdmin();
+    }
+
+    // =====================================================
+    // DEVICE SYSTEM
+    // IMPORTANT:
+    // users/{uid}/devices/{deviceId} = actual 3-day device records
+    // users/{uid}/deviceSlots/mobile = mobile/tablet slot
+    // users/{uid}/deviceSlots/desktop = laptop/desktop slot
+    // Only one active reservation is allowed in each category.
+    // Maximum = 2 devices total: 1 mobile/tablet + 1 laptop/desktop.
+    // =====================================================
+    match /users/{userId} {
+      allow read, write: if isAdmin()
+        || (request.auth != null && request.auth.uid == userId);
+
+      match /devices/{deviceId} {
+        allow read, write: if isAdmin()
+          || (request.auth != null && request.auth.uid == userId);
+      }
+
+      match /deviceSlots/{slotId} {
+        allow read, write: if isAdmin()
+          || (request.auth != null && request.auth.uid == userId);
+      }
+    }
+
+    // =====================================================
+    // DENY EVERYTHING ELSE
+    // =====================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
