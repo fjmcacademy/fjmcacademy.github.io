@@ -1500,6 +1500,133 @@ async function calculateRank() {
 
 
 /* =========================================================
+   SCREEN CAPTURE / RECORDING DETERRENCE
+   =========================================================
+
+   Browser pages cannot directly disable OS-level screenshots or
+   third-party screen recorders. These protections hide the test
+   whenever the page loses visibility/focus and react to common
+   screenshot keys without changing the normal test UI.
+   ========================================================= */
+
+let captureProtectionActive = false;
+let captureProtectionTimer = null;
+
+function setCaptureProtection(active) {
+
+    captureProtectionActive = active;
+
+    document.documentElement.setAttribute(
+        "data-capture-protected",
+        active ? "true" : "false"
+    );
+
+    if (active) {
+
+        document.body.setAttribute(
+            "data-screen-capture-hidden",
+            "true"
+        );
+
+    } else {
+
+        document.body.removeAttribute(
+            "data-screen-capture-hidden"
+        );
+
+    }
+}
+
+function temporarilyHideForCapture() {
+
+    setCaptureProtection(true);
+
+    clearTimeout(captureProtectionTimer);
+
+    captureProtectionTimer = setTimeout(
+        function() {
+
+            if (!document.hidden && document.hasFocus()) {
+                setCaptureProtection(false);
+            }
+
+        },
+        900
+    );
+}
+
+document.addEventListener(
+    "visibilitychange",
+    function() {
+
+        if (document.hidden) {
+            setCaptureProtection(true);
+        }
+
+    }
+);
+
+window.addEventListener(
+    "blur",
+    function() {
+        setCaptureProtection(true);
+    }
+);
+
+window.addEventListener(
+    "focus",
+    function() {
+
+        if (!document.hidden) {
+            clearTimeout(captureProtectionTimer);
+            captureProtectionTimer = setTimeout(
+                function() {
+                    setCaptureProtection(false);
+                },
+                250
+            );
+        }
+
+    }
+);
+
+document.addEventListener(
+    "keydown",
+    function(event) {
+
+        const key =
+            String(event.key || "").toLowerCase();
+
+        /* Common screenshot/capture keys.
+           The browser/OS may still capture before JS can react. */
+        if (
+            key === "printscreen" ||
+            key === "prtsc" ||
+            key === "snapshot" ||
+            (
+                event.metaKey &&
+                event.shiftKey &&
+                (key === "3" || key === "4" || key === "5")
+            )
+        ) {
+
+            event.preventDefault();
+            event.stopPropagation();
+            temporarilyHideForCapture();
+            return;
+
+        }
+
+    },
+    true
+);
+
+/* Prevent the page itself from exposing useful content to print/save
+   paths already covered below, while keeping the existing UI intact. */
+setCaptureProtection(false);
+
+
+/* =========================================================
    BASIC COPY / CONTEXT PROTECTION
    ========================================================= */
 

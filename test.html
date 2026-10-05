@@ -260,6 +260,24 @@ header h2 {
 
 
 /* ================================
+   SCREEN CAPTURE PROTECTION
+   ================================ */
+
+html[data-capture-protected="true"] body {
+    visibility: hidden !important;
+}
+
+html[data-capture-protected="true"]::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    background: #fff;
+    visibility: visible !important;
+}
+
+
+/* ================================
    PRINT / SAVE PDF
    ================================ */
 
