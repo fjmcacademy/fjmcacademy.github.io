@@ -20,7 +20,8 @@ import {
     setDoc,
     updateDoc,
     serverTimestamp,
-    runTransaction
+    runTransaction,
+    onSnapshot
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 import {
@@ -1071,6 +1072,15 @@ function showStudentCourses(
     `;
     coursesContainer.appendChild(studentInfo);
 
+    // Student-only test results button. It is created here so the existing
+    // dashboard HTML/layout stays unchanged.
+    const resultsButton = document.createElement("button");
+    resultsButton.type = "button";
+    resultsButton.textContent = "ℹ️ My Test Results";
+    resultsButton.style.cssText = "display:block;width:100%;max-width:420px;margin:0 auto 20px;padding:12px 16px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:700;font-size:15px;cursor:pointer;";
+    resultsButton.addEventListener("click", openMyTestResults);
+    coursesContainer.appendChild(resultsButton);
+
     student.courses.forEach(function(courseId) {
         const course = COURSES[courseId];
 
@@ -1204,6 +1214,103 @@ function showStudentCourses(
     hidePageLoading();
 }
 
+
+/* =========================================================
+   MY TEST RESULTS / LIVE RANK
+   Only the logged-in student's own results are shown.
+========================================================= */
+
+let fjmcResultsUnsubscribe = null;
+
+function closeMyTestResults() {
+    if (fjmcResultsUnsubscribe) {
+        fjmcResultsUnsubscribe();
+        fjmcResultsUnsubscribe = null;
+    }
+    const modal = document.getElementById("fjmcMyResultsModal");
+    if (modal) modal.remove();
+}
+
+function openMyTestResults() {
+    closeMyTestResults();
+
+    const modal = document.createElement("div");
+    modal.id = "fjmcMyResultsModal";
+    modal.style.cssText = "position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px;";
+
+    modal.innerHTML = `
+        <div style="width:min(900px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:16px;padding:20px;color:#111827;position:relative;">
+            <button id="fjmcCloseMyResults" type="button" style="position:absolute;right:12px;top:12px;border:0;background:#eee;border-radius:50%;width:36px;height:36px;font-size:20px;cursor:pointer;">×</button>
+            <h2 style="margin:0 45px 6px 0;">📊 My Test Results</h2>
+            <p style="margin:0 0 16px;color:#6b7280;font-size:14px;">Your rank updates automatically when other students submit the same test.</p>
+            <div id="fjmcMyResultsList">Loading results...</div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+    document.getElementById("fjmcCloseMyResults")?.addEventListener("click", closeMyTestResults);
+    modal.addEventListener("click", function(event) {
+        if (event.target === modal) closeMyTestResults();
+    });
+
+    const list = document.getElementById("fjmcMyResultsList");
+
+    fjmcResultsUnsubscribe = onSnapshot(
+        collection(db, "testResults"),
+        function(snapshot) {
+            const all = [];
+            snapshot.forEach(function(resultDoc) {
+                const data = resultDoc.data();
+                if (data.uid === currentUser?.uid) all.push(data);
+            });
+
+            if (!all.length) {
+                list.innerHTML = "<p>No test attempted yet.</p>";
+                return;
+            }
+
+            // Group by testId, then calculate rank against ALL first attempts
+            // for that test. Only this student's own row is rendered.
+            const groups = new Map();
+            snapshot.forEach(function(resultDoc) {
+                const data = resultDoc.data();
+                if (!data.testId) return;
+                if (!groups.has(data.testId)) groups.set(data.testId, []);
+                groups.get(data.testId).push(data);
+            });
+
+            const rows = all.map(function(mine) {
+                const peers = (groups.get(mine.testId) || []).slice().sort(function(a,b) {
+                    const scoreDiff = Number(b.score) - Number(a.score);
+                    if (scoreDiff !== 0) return scoreDiff;
+                    return Number(a.submittedAt || 0) - Number(b.submittedAt || 0);
+                });
+                const index = peers.findIndex(r => r.uid === currentUser?.uid);
+                return { mine, rank: index >= 0 ? index + 1 : "-" };
+            });
+
+            rows.sort((a,b) => Number(b.mine.submittedAt || 0) - Number(a.mine.submittedAt || 0));
+
+            list.innerHTML = rows.map(function(row) {
+                const r = row.mine;
+                return `
+                    <div style="padding:14px;margin:10px 0;border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc;">
+                        <div style="font-weight:800;margin-bottom:7px;">${r.testId || "Test"}</div>
+                        <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:14px;">
+                            <span><strong>Score:</strong> ${r.score}/${r.total}</span>
+                            <span><strong>Percentage:</strong> ${Number(r.percentage || 0).toFixed(2)}%</span>
+                            <span><strong>Rank:</strong> #${row.rank}</span>
+                        </div>
+                    </div>
+                `;
+            }).join("");
+        },
+        function(error) {
+            console.error("My test results error:", error);
+            if (list) list.textContent = "Test results could not be loaded.";
+        }
+    );
+}
 
 /* =========================================================
    CREATE MODAL
@@ -1458,7 +1565,7 @@ function fjmcApplyVideoProtection() {
         -webkit-user-select:none;
         -webkit-touch-callout:none;
         z-index:30;
-        transition:left 1.2s ease, top 1.2s ease, transform 1.2s ease;
+        transition:left 8.5s ease-in-out, top 8.5s ease-in-out, transform 8.5s ease-in-out;
     `;
 
     stage.appendChild(watermark);
@@ -1612,11 +1719,19 @@ function fjmcApplyVideoProtection() {
     const watermarkTimer =
         window.setInterval(
             updateWatermark,
-            1000
+            9000
         );
 
     document.addEventListener(
         "visibilitychange",
+        pauseForHiddenPage,
+        true
+    );
+
+    // Best-effort additional guard: if the browser window loses focus,
+    // immediately cover the video. This is NOT OS-level recording detection.
+    window.addEventListener(
+        "blur",
         pauseForHiddenPage,
         true
     );
@@ -1683,6 +1798,12 @@ function fjmcApplyVideoProtection() {
 
             document.removeEventListener(
                 "visibilitychange",
+                pauseForHiddenPage,
+                true
+            );
+
+            window.removeEventListener(
+                "blur",
                 pauseForHiddenPage,
                 true
             );
