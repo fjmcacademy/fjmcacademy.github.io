@@ -32,6 +32,17 @@ const courses = [
     buyLink: ""
   },
   {
+    exam: "CSIR NET",
+    category: "Mathematics",
+    name: "Mathematics Complete Course",
+    price: "₹13,999",
+    duration: "Full Preparation",
+    mode: "Online",
+    tag: "Complete",
+    description: "Focused Mathematics preparation for CSIRNET.",
+    buyLink: ""
+  },
+  {
     exam: "IIT JAM",
     category: "Mathematics",
     name: "Calculus",
@@ -54,10 +65,21 @@ const courses = [
     buyLink: ""
   },
   {
+    exam: "IIT JAM",
+    category: "Mathematics",
+    name: "Mathematics Complete Course",
+    price: "₹11,000",
+    duration: "Full Preparation",
+    mode: "Online",
+    tag: "Complete",
+    description: "Focused Mathematics preparation for IITJAM.",
+    buyLink: ""
+  },
+  {
     exam: "GATE",
     category: "Mathematics",
     name: "Mathematics Complete Course",
-    price: "₹9,999",
+    price: "₹13,000",
     duration: "Full Preparation",
     mode: "Online",
     tag: "Complete",
