@@ -20,8 +20,7 @@ import {
     setDoc,
     updateDoc,
     serverTimestamp,
-    runTransaction,
-    onSnapshot
+    runTransaction
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
 import {
@@ -1072,15 +1071,6 @@ function showStudentCourses(
     `;
     coursesContainer.appendChild(studentInfo);
 
-    // Student-only test results button. It is created here so the existing
-    // dashboard HTML/layout stays unchanged.
-    const resultsButton = document.createElement("button");
-    resultsButton.type = "button";
-    resultsButton.textContent = "ℹ️ My Test Results";
-    resultsButton.style.cssText = "display:block;width:100%;max-width:420px;margin:0 auto 20px;padding:12px 16px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-weight:700;font-size:15px;cursor:pointer;";
-    resultsButton.addEventListener("click", openMyTestResults);
-    coursesContainer.appendChild(resultsButton);
-
     student.courses.forEach(function(courseId) {
         const course = COURSES[courseId];
 
@@ -1214,103 +1204,6 @@ function showStudentCourses(
     hidePageLoading();
 }
 
-
-/* =========================================================
-   MY TEST RESULTS / LIVE RANK
-   Only the logged-in student's own results are shown.
-========================================================= */
-
-let fjmcResultsUnsubscribe = null;
-
-function closeMyTestResults() {
-    if (fjmcResultsUnsubscribe) {
-        fjmcResultsUnsubscribe();
-        fjmcResultsUnsubscribe = null;
-    }
-    const modal = document.getElementById("fjmcMyResultsModal");
-    if (modal) modal.remove();
-}
-
-function openMyTestResults() {
-    closeMyTestResults();
-
-    const modal = document.createElement("div");
-    modal.id = "fjmcMyResultsModal";
-    modal.style.cssText = "position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px;";
-
-    modal.innerHTML = `
-        <div style="width:min(900px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:16px;padding:20px;color:#111827;position:relative;">
-            <button id="fjmcCloseMyResults" type="button" style="position:absolute;right:12px;top:12px;border:0;background:#eee;border-radius:50%;width:36px;height:36px;font-size:20px;cursor:pointer;">×</button>
-            <h2 style="margin:0 45px 6px 0;">📊 My Test Results</h2>
-            <p style="margin:0 0 16px;color:#6b7280;font-size:14px;">Your rank updates automatically when other students submit the same test.</p>
-            <div id="fjmcMyResultsList">Loading results...</div>
-        </div>
-    `;
-
-    document.body.appendChild(modal);
-    document.getElementById("fjmcCloseMyResults")?.addEventListener("click", closeMyTestResults);
-    modal.addEventListener("click", function(event) {
-        if (event.target === modal) closeMyTestResults();
-    });
-
-    const list = document.getElementById("fjmcMyResultsList");
-
-    fjmcResultsUnsubscribe = onSnapshot(
-        collection(db, "testResults"),
-        function(snapshot) {
-            const all = [];
-            snapshot.forEach(function(resultDoc) {
-                const data = resultDoc.data();
-                if (data.uid === currentUser?.uid) all.push(data);
-            });
-
-            if (!all.length) {
-                list.innerHTML = "<p>No test attempted yet.</p>";
-                return;
-            }
-
-            // Group by testId, then calculate rank against ALL first attempts
-            // for that test. Only this student's own row is rendered.
-            const groups = new Map();
-            snapshot.forEach(function(resultDoc) {
-                const data = resultDoc.data();
-                if (!data.testId) return;
-                if (!groups.has(data.testId)) groups.set(data.testId, []);
-                groups.get(data.testId).push(data);
-            });
-
-            const rows = all.map(function(mine) {
-                const peers = (groups.get(mine.testId) || []).slice().sort(function(a,b) {
-                    const scoreDiff = Number(b.score) - Number(a.score);
-                    if (scoreDiff !== 0) return scoreDiff;
-                    return Number(a.submittedAt || 0) - Number(b.submittedAt || 0);
-                });
-                const index = peers.findIndex(r => r.uid === currentUser?.uid);
-                return { mine, rank: index >= 0 ? index + 1 : "-" };
-            });
-
-            rows.sort((a,b) => Number(b.mine.submittedAt || 0) - Number(a.mine.submittedAt || 0));
-
-            list.innerHTML = rows.map(function(row) {
-                const r = row.mine;
-                return `
-                    <div style="padding:14px;margin:10px 0;border:1px solid #e5e7eb;border-radius:12px;background:#f8fafc;">
-                        <div style="font-weight:800;margin-bottom:7px;">${r.testId || "Test"}</div>
-                        <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:14px;">
-                            <span><strong>Score:</strong> ${r.score}/${r.total}</span>
-                            <span><strong>Percentage:</strong> ${Number(r.percentage || 0).toFixed(2)}%</span>
-                            <span><strong>Rank:</strong> #${row.rank}</span>
-                        </div>
-                    </div>
-                `;
-            }).join("");
-        },
-        function(error) {
-            console.error("My test results error:", error);
-            if (list) list.textContent = "Test results could not be loaded.";
-        }
-    );
-}
 
 /* =========================================================
    CREATE MODAL
@@ -1467,11 +1360,6 @@ function createModal() {
 
 function closeModal() {
 
-    if (fjmcVideoSecurityCleanup) {
-        fjmcVideoSecurityCleanup();
-        fjmcVideoSecurityCleanup = null;
-    }
-
     const watermark =
         document.getElementById(
             "fjmcScreenWatermark"
@@ -1499,376 +1387,6 @@ function closeModal() {
 
 }
 
-/* =========================================================
-   VIDEO SECURITY / SCREEN-RECORDING DETERRENCE
-   Best-effort browser protection only.
-========================================================= */
-
-let fjmcVideoSecurityCleanup = null;
-
-
-function fjmcGetStudentWatermarkText() {
-
-    const name =
-        (currentUser?.displayName || studentName?.textContent || "FJMC Student")
-            .replace(/^Welcome,\s*/i, "")
-            .trim();
-
-    const email =
-        (currentUser?.email || sessionStorage.getItem("loggedInStudent") || "")
-            .trim()
-            .toLowerCase();
-
-    return `${name || "Student"}  •  ${email || "Account"}`;
-}
-
-
-function fjmcApplyVideoProtection() {
-
-    const stage =
-        document.getElementById("fjmcProtectedVideoStage");
-
-    if (!stage) {
-        return;
-    }
-
-    if (fjmcVideoSecurityCleanup) {
-        fjmcVideoSecurityCleanup();
-        fjmcVideoSecurityCleanup = null;
-    }
-
-    const watermark =
-        document.createElement("div");
-
-    watermark.id =
-        "fjmcVideoWatermark";
-
-    watermark.setAttribute("aria-hidden", "true");
-
-    watermark.style.cssText = `
-        position:absolute;
-        left:12%;
-        top:18%;
-        transform:translate(-50%,-50%) rotate(-18deg);
-        width:92%;
-        text-align:center;
-        color:rgba(255,255,255,.48);
-        text-shadow:0 1px 3px rgba(0,0,0,.85);
-        font-size:clamp(11px,1.55vw,18px);
-        font-weight:800;
-        letter-spacing:1.2px;
-        line-height:1.5;
-        white-space:normal;
-        word-break:break-word;
-        pointer-events:none;
-        user-select:none;
-        -webkit-user-select:none;
-        -webkit-touch-callout:none;
-        z-index:30;
-        transition:left 8.5s ease-in-out, top 8.5s ease-in-out, transform 8.5s ease-in-out;
-    `;
-
-    stage.appendChild(watermark);
-
-
-    const captureOverlay =
-        document.createElement("div");
-
-    captureOverlay.id =
-        "fjmcCaptureGuard";
-
-    captureOverlay.innerHTML = `
-        <div style="
-            text-align:center;
-            color:#fff;
-            padding:24px;
-            max-width:520px;
-            font-family:Arial,Helvetica,sans-serif;
-        ">
-            <div style="font-size:42px;margin-bottom:12px;">🔒</div>
-            <div style="font-size:20px;font-weight:800;margin-bottom:8px;">
-                Video paused for security
-            </div>
-            <div style="font-size:14px;line-height:1.6;opacity:.9;margin-bottom:18px;">
-                The video was paused because the browser page became hidden.
-                Return to this page and tap Resume to continue.
-            </div>
-            <button id="fjmcResumeVideo" type="button" style="
-                border:0;
-                border-radius:8px;
-                padding:10px 18px;
-                font-weight:700;
-                cursor:pointer;
-            ">Resume Video</button>
-        </div>
-    `;
-
-    captureOverlay.style.cssText = `
-        position:absolute;
-        inset:0;
-        display:none;
-        align-items:center;
-        justify-content:center;
-        background:#000;
-        z-index:40;
-    `;
-
-    stage.appendChild(captureOverlay);
-
-
-    let watermarkPosition = 0;
-
-    function updateWatermark() {
-
-        if (
-            document.getElementById("fjmcVideoWatermark")
-        ) {
-            watermark.textContent =
-                fjmcGetStudentWatermarkText();
-
-            const positions = [
-                [12, 18, -18],
-                [82, 24, 14],
-                [68, 78, -12],
-                [18, 72, 16],
-                [50, 48, -16]
-            ];
-
-            const position = positions[watermarkPosition % positions.length];
-            watermark.style.left = position[0] + "%";
-            watermark.style.top = position[1] + "%";
-            watermark.style.transform =
-                `translate(-50%,-50%) rotate(${position[2]}deg)`;
-
-            watermarkPosition++;
-        }
-    }
-
-
-    function pauseForHiddenPage() {
-
-        if (document.visibilityState !== "hidden") {
-            return;
-        }
-
-        const video =
-            stage.querySelector("video");
-
-        if (video) {
-            try {
-                video.pause();
-            } catch (_) {}
-        }
-
-        captureOverlay.style.display =
-            "flex";
-    }
-
-
-    function resumeVideo() {
-
-        captureOverlay.style.display =
-            "none";
-
-        const video =
-            stage.querySelector("video");
-
-        if (video) {
-            video.play().catch(() => {});
-        }
-    }
-
-
-    function blockSensitiveShortcut(event) {
-
-        const key =
-            String(event.key || "").toLowerCase();
-
-        const blocked =
-            key === "printscreen" ||
-            key === "f12" ||
-            (event.ctrlKey && key === "u") ||
-            (event.ctrlKey && key === "s") ||
-            (event.ctrlKey && event.shiftKey &&
-                ["i", "j", "c", "s"].includes(key)) ||
-            (event.metaKey && event.shiftKey &&
-                ["3", "4", "5"].includes(key));
-
-        if (blocked) {
-            event.preventDefault();
-            event.stopPropagation();
-
-            captureOverlay.style.display =
-                "flex";
-        }
-    }
-
-
-    function blockContextMenu(event) {
-        event.preventDefault();
-    }
-
-
-    function blockSelection(event) {
-        event.preventDefault();
-    }
-
-
-    updateWatermark();
-
-    const watermarkTimer =
-        window.setInterval(
-            updateWatermark,
-            9000
-        );
-
-    document.addEventListener(
-        "visibilitychange",
-        pauseForHiddenPage,
-        true
-    );
-
-    // Best-effort additional guard: if the browser window loses focus,
-    // immediately cover the video. This is NOT OS-level recording detection.
-    window.addEventListener(
-        "blur",
-        pauseForHiddenPage,
-        true
-    );
-
-    document.addEventListener(
-        "keydown",
-        blockSensitiveShortcut,
-        true
-    );
-
-    stage.addEventListener(
-        "contextmenu",
-        blockContextMenu,
-        true
-    );
-
-    stage.addEventListener(
-        "selectstart",
-        blockSelection,
-        true
-    );
-
-    async function keepWatermarkInFullscreen() {
-        const fullscreenElement = document.fullscreenElement;
-
-        if (!fullscreenElement || fullscreenElement === stage) return;
-
-        if (
-            fullscreenElement === stage.querySelector("video") ||
-            fullscreenElement === stage.querySelector("iframe")
-        ) {
-            try {
-                await document.exitFullscreen();
-                await stage.requestFullscreen();
-            } catch (error) {
-                console.warn("Protected fullscreen unavailable:", error);
-            }
-        }
-    }
-
-    document.addEventListener(
-        "fullscreenchange",
-        keepWatermarkInFullscreen,
-        true
-    );
-
-    const resumeButton =
-        document.getElementById("fjmcResumeVideo");
-
-    if (resumeButton) {
-        resumeButton.addEventListener(
-            "click",
-            resumeVideo
-        );
-    }
-
-
-    fjmcVideoSecurityCleanup =
-        function () {
-
-            window.clearInterval(
-                watermarkTimer
-            );
-
-            document.removeEventListener(
-                "visibilitychange",
-                pauseForHiddenPage,
-                true
-            );
-
-            window.removeEventListener(
-                "blur",
-                pauseForHiddenPage,
-                true
-            );
-
-            document.removeEventListener(
-                "keydown",
-                blockSensitiveShortcut,
-                true
-            );
-
-            stage.removeEventListener(
-                "contextmenu",
-                blockContextMenu,
-                true
-            );
-
-            stage.removeEventListener(
-                "selectstart",
-                blockSelection,
-                true
-            );
-
-            document.removeEventListener(
-                "fullscreenchange",
-                keepWatermarkInFullscreen,
-                true
-            );
-
-            if (watermark.parentNode) {
-                watermark.remove();
-            }
-
-            if (captureOverlay.parentNode) {
-                captureOverlay.remove();
-            }
-        };
-}
-
-
-function fjmcPrepareProtectedStage(body) {
-
-    body.innerHTML = `
-        <div
-            id="fjmcProtectedVideoStage"
-            style="
-                position:relative;
-                width:100%;
-                aspect-ratio:16/9;
-                background:#000;
-                overflow:hidden;
-            "
-        ></div>
-    `;
-
-    const stage =
-        document.getElementById(
-            "fjmcProtectedVideoStage"
-        );
-
-    fjmcApplyVideoProtection();
-
-    return stage;
-}
-
-
 
 /* =========================================================
    YOUTUBE VIDEO
@@ -1882,50 +1400,55 @@ function openYouTubeVideo(
     const modal =
         createModal();
 
+
     const modalTitle =
         document.getElementById(
             "fjmcModalTitle"
         );
+
 
     const body =
         document.getElementById(
             "fjmcModalBody"
         );
 
+
     modalTitle.textContent =
         title;
 
-    const stage =
-        fjmcPrepareProtectedStage(body);
 
-    const iframe =
-        document.createElement("iframe");
+    body.innerHTML = `
 
-    iframe.src =
-        url;
+        <div
+            style="
+                width:100%;
+                aspect-ratio:16/9;
+                background:#000;
+            "
+        >
 
-    iframe.title =
-        title;
+            <iframe
+                src="${url}"
+                title="${title}"
+                style="
+                    width:100%;
+                    height:100%;
+                    border:0;
+                "
+                allow="
+                    accelerometer;
+                    autoplay;
+                    
+                    encrypted-media;
+                    gyroscope;
+                    picture-in-picture
+                    
+                "
+                allowfullscreen>
+            </iframe>
 
-    iframe.setAttribute(
-        "allow",
-        "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-    );
-
-    iframe.setAttribute(
-        "allowfullscreen",
-        ""
-    );
-
-    iframe.style.cssText = `
-        position:absolute;
-        inset:0;
-        width:100%;
-        height:100%;
-        border:0;
+        </div>
     `;
-
-    stage.appendChild(iframe);
 
 }
 
@@ -1942,64 +1465,48 @@ function openLocalVideo(
     const modal =
         createModal();
 
+
     const modalTitle =
         document.getElementById(
             "fjmcModalTitle"
         );
+
 
     const body =
         document.getElementById(
             "fjmcModalBody"
         );
 
+
     modalTitle.textContent =
         title;
 
-    const stage =
-        fjmcPrepareProtectedStage(body);
 
-    const video =
-        document.createElement("video");
+    body.innerHTML = `
 
-    video.controls = true;
-    video.playsInline = true;
-    video.disablePictureInPicture = true;
-    video.controlsList = "nodownload noplaybackrate";
-    video.preload = "metadata";
+        <video
+            controls
+            controlsList="nodownload"
+            disablePictureInPicture
+            playsinline
+            style="
+                width:100%;
+                max-height:80vh;
+                display:block;
+                background:#000;
+            "
+        >
 
-    video.style.cssText = `
-        position:absolute;
-        inset:0;
-        width:100%;
-        height:100%;
-        display:block;
-        background:#000;
-        object-fit:contain;
+            <source
+                src="${url}"
+                type="video/mp4"
+            >
+
+            Your browser does not support video.
+
+        </video>
     `;
 
-    const source =
-        document.createElement("source");
-
-    source.src =
-        url;
-
-    source.type =
-        "video/mp4";
-
-    video.appendChild(source);
-    stage.appendChild(video);
-
-    video.addEventListener(
-        "error",
-        function () {
-            console.error(
-                "Protected video could not be loaded:",
-                url
-            );
-        }
-    );
-
-    video.play().catch(() => {});
 }
 
 

@@ -12,7 +12,6 @@ import {
     doc,
     getDoc,
     getDocs,
-    onSnapshot,
     setDoc
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-firestore.js";
 
@@ -56,7 +55,6 @@ let timerInterval = null;
 let remainingSeconds = 0;
 
 let testSubmitted = false;
-let leaderboardUnsubscribe = null;
 
 
 /* =========================================================
@@ -1251,84 +1249,253 @@ async function showResult(
 
 async function calculateRank() {
 
-    const rankBox = document.getElementById("rankBox");
-    const leaderboardList = document.getElementById("leaderboardList");
+    const rankBox =
+        document.getElementById(
+            "rankBox"
+        );
+
+
+    const leaderboardList =
+        document.getElementById(
+            "leaderboardList"
+        );
+
 
     try {
-        if (leaderboardUnsubscribe) {
-            leaderboardUnsubscribe();
-            leaderboardUnsubscribe = null;
-        }
+
+        const snapshot =
+            await getDocs(
+                collection(
+                    db,
+                    "testResults"
+                )
+            );
+
 
         const currentTestId =
-            courseId + "-lecture-" + lectureId + "-test-" + testNumber;
+            courseId +
+            "-lecture-" +
+            lectureId +
+            "-test-" +
+            testNumber;
 
-        const renderLiveRank = (snapshot) => {
-            const results = [];
 
-            snapshot.forEach(function(resultDoc) {
-                const data = resultDoc.data();
-                if (data.testId === currentTestId) results.push(data);
-            });
+        const results = [];
 
-            results.sort(function(a, b) {
-                const difference = Number(b.score) - Number(a.score);
-                if (difference !== 0) return difference;
-                return Number(a.submittedAt || 0) - Number(b.submittedAt || 0);
-            });
 
-            const myIndex = results.findIndex(function(result) {
-                return result.uid === currentUser.uid;
-            });
+        snapshot.forEach(
+            function(resultDoc) {
 
-            const rank = myIndex >= 0 ? myIndex + 1 : "-";
+                const data =
+                    resultDoc.data();
 
-            if (rankBox) {
-                rankBox.innerHTML = `
-                    🏆 Your First Attempt Rank:
-                    <strong>#${rank}</strong>
-                    <div style="font-size:13px;font-weight:500;margin-top:6px;opacity:.8;">
-                        Live rank — updates when other students submit this test.
-                    </div>
-                `;
-            }
 
-            // Privacy: only the logged-in student's own row is visible.
-            const mine = myIndex >= 0 ? results[myIndex] : null;
-            let html = "";
+                if (
+                    data.testId ===
+                    currentTestId
+                ) {
 
-            if (mine) {
-                const name = mine.name || (mine.email ? mine.email.split("@")[0] : "Student");
-                html = `
-                    <div class="leaderboard-row my-rank">
-                        <span class="lb-rank">#${rank}</span>
-                        <span class="lb-name">${name} 👈</span>
-                        <span class="lb-score">${mine.score}/${mine.total}</span>
-                    </div>
-                `;
-            }
+                    results.push(
+                        data
+                    );
 
-            if (leaderboardList) {
-                leaderboardList.innerHTML = html || "<p>No result found for this test.</p>";
-            }
-        };
+                }
 
-        // Live listener: rank changes automatically as other students submit.
-        leaderboardUnsubscribe = onSnapshot(
-            collection(db, "testResults"),
-            renderLiveRank,
-            function(error) {
-                console.error("Live leaderboard error:", error);
-                if (rankBox) rankBox.textContent = "Rank unavailable";
-                if (leaderboardList) leaderboardList.textContent = "Leaderboard unavailable.";
             }
         );
 
+
+        results.sort(
+            function(a, b) {
+
+                const difference =
+                    Number(b.score) -
+                    Number(a.score);
+
+
+                if (
+                    difference !== 0
+                ) {
+
+                    return difference;
+
+                }
+
+
+                return (
+                    Number(
+                        a.submittedAt || 0
+                    ) -
+                    Number(
+                        b.submittedAt || 0
+                    )
+                );
+
+            }
+        );
+
+
+        const myIndex =
+            results.findIndex(
+                function(result) {
+
+                    return (
+                        result.uid ===
+                        currentUser.uid
+                    );
+
+                }
+            );
+
+
+        const rank =
+            myIndex >= 0
+                ? myIndex + 1
+                : "-";
+
+
+        if (rankBox) {
+
+            rankBox.innerHTML = `
+
+                🏆 Your First Attempt Rank:
+
+                <strong>
+                    #${rank}
+                </strong>
+
+            `;
+
+        }
+
+
+        let html = "";
+
+
+        results.forEach(
+            function(
+                result,
+                index
+            ) {
+
+                const name =
+                    result.name ||
+                    (
+                        result.email
+                            ? result.email
+                                .split("@")[0]
+                            : "Student"
+                    );
+
+
+                let rankText =
+                    "#" +
+                    (
+                        index + 1
+                    );
+
+
+                if (index === 0) {
+
+                    rankText =
+                        "🥇 #1";
+
+                } else if (index === 1) {
+
+                    rankText =
+                        "🥈 #2";
+
+                } else if (index === 2) {
+
+                    rankText =
+                        "🥉 #3";
+
+                }
+
+
+                const isMe =
+                    result.uid ===
+                    currentUser.uid;
+
+
+                html += `
+
+                    <div
+                        class="
+                            leaderboard-row
+                            ${
+                                isMe
+                                    ? "my-rank"
+                                    : ""
+                            }
+                        "
+                    >
+
+                        <span
+                            class="lb-rank"
+                        >
+                            ${rankText}
+                        </span>
+
+                        <span
+                            class="lb-name"
+                        >
+                            ${name}
+                            ${
+                                isMe
+                                    ? " 👈"
+                                    : ""
+                            }
+                        </span>
+
+                        <span
+                            class="lb-score"
+                        >
+                            ${result.score}/${result.total}
+                        </span>
+
+                    </div>
+
+                `;
+
+            }
+        );
+
+
+        if (leaderboardList) {
+
+            leaderboardList.innerHTML =
+                html ||
+                "<p>No results yet.</p>";
+
+        }
+
+
     } catch (error) {
-        console.error("Leaderboard error:", error);
-        if (rankBox) rankBox.textContent = "Rank unavailable";
-        if (leaderboardList) leaderboardList.textContent = "Leaderboard unavailable.";
+
+        console.error(
+            "Leaderboard error:",
+            error
+        );
+
+
+        if (rankBox) {
+
+            rankBox.textContent =
+                "Rank unavailable";
+
+        }
+
+
+        if (leaderboardList) {
+
+            leaderboardList.textContent =
+                "Leaderboard unavailable.";
+
+        }
+
     }
+
 }
 
 
