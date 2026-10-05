@@ -1412,21 +1412,7 @@ function fjmcGetStudentWatermarkText() {
             .trim()
             .toLowerCase();
 
-    const now =
-        new Date().toLocaleString(
-            "en-IN",
-            {
-                hour12: true,
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit"
-            }
-        );
-
-    return `FJMC ACADEMY  •  ${name || "Student"}  •  ${email || "Account"}  •  ${now}`;
+    return `${name || "Student"}  •  ${email || "Account"}`;
 }
 
 
@@ -1454,8 +1440,8 @@ function fjmcApplyVideoProtection() {
 
     watermark.style.cssText = `
         position:absolute;
-        left:50%;
-        top:50%;
+        left:12%;
+        top:18%;
         transform:translate(-50%,-50%) rotate(-18deg);
         width:92%;
         text-align:center;
@@ -1472,6 +1458,7 @@ function fjmcApplyVideoProtection() {
         -webkit-user-select:none;
         -webkit-touch-callout:none;
         z-index:30;
+        transition:left 1.2s ease, top 1.2s ease, transform 1.2s ease;
     `;
 
     stage.appendChild(watermark);
@@ -1522,6 +1509,8 @@ function fjmcApplyVideoProtection() {
     stage.appendChild(captureOverlay);
 
 
+    let watermarkPosition = 0;
+
     function updateWatermark() {
 
         if (
@@ -1529,6 +1518,22 @@ function fjmcApplyVideoProtection() {
         ) {
             watermark.textContent =
                 fjmcGetStudentWatermarkText();
+
+            const positions = [
+                [12, 18, -18],
+                [82, 24, 14],
+                [68, 78, -12],
+                [18, 72, 16],
+                [50, 48, -16]
+            ];
+
+            const position = positions[watermarkPosition % positions.length];
+            watermark.style.left = position[0] + "%";
+            watermark.style.top = position[1] + "%";
+            watermark.style.transform =
+                `translate(-50%,-50%) rotate(${position[2]}deg)`;
+
+            watermarkPosition++;
         }
     }
 
@@ -1634,6 +1639,30 @@ function fjmcApplyVideoProtection() {
         true
     );
 
+    async function keepWatermarkInFullscreen() {
+        const fullscreenElement = document.fullscreenElement;
+
+        if (!fullscreenElement || fullscreenElement === stage) return;
+
+        if (
+            fullscreenElement === stage.querySelector("video") ||
+            fullscreenElement === stage.querySelector("iframe")
+        ) {
+            try {
+                await document.exitFullscreen();
+                await stage.requestFullscreen();
+            } catch (error) {
+                console.warn("Protected fullscreen unavailable:", error);
+            }
+        }
+    }
+
+    document.addEventListener(
+        "fullscreenchange",
+        keepWatermarkInFullscreen,
+        true
+    );
+
     const resumeButton =
         document.getElementById("fjmcResumeVideo");
 
@@ -1673,6 +1702,12 @@ function fjmcApplyVideoProtection() {
             stage.removeEventListener(
                 "selectstart",
                 blockSelection,
+                true
+            );
+
+            document.removeEventListener(
+                "fullscreenchange",
+                keepWatermarkInFullscreen,
                 true
             );
 
