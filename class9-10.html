@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>Class 9th & 10th Mathematics</title>
+    <link rel="manifest" href="./manifest.json">
 
     <style>
         body {
@@ -89,7 +90,7 @@
         }
     </style>
     <!-- FJMC Academy Logo / Favicon -->
-    <link rel="icon" type="image/jpeg" href="image/favicon">
+    <link rel="icon" type="image/png" href="image/favicon">
     <link rel="apple-touch-icon" href="image/favicon">
 </head>
 
@@ -148,6 +149,16 @@
         </a>
 
     </div>
+
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js", { scope: "./" })
+      .catch(error => console.error("FJMC PWA service worker error:", error));
+  });
+}
+</script>
 
 </body>
 

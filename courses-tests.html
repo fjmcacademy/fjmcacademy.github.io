@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0b1220">
   <title>Courses & Test Series | FJMC Academy</title>
+    <link rel="manifest" href="./manifest.json">
   <meta name="description" content="FJMC Academy courses and test series for competitive mathematics examinations.">
   <link rel="stylesheet" href="courses-tests.css">
     <!-- FJMC Academy Logo / Favicon -->
-    <link rel="icon" type="image/jpeg" href="image/favicon">
+    <link rel="icon" type="image/png" href="image/favicon">
     <link rel="apple-touch-icon" href="image/favicon">
 </head>
 <body>
@@ -128,5 +129,15 @@
 </footer>
 
 <script src="courses-tests.js"></script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js", { scope: "./" })
+      .catch(error => console.error("FJMC PWA service worker error:", error));
+  });
+}
+</script>
+
 </body>
 </html>

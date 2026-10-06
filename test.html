@@ -11,6 +11,7 @@
 >
 
 <title>FJMC Academy - Test</title>
+    <link rel="manifest" href="./manifest.json">
 
 <style>
 
@@ -303,7 +304,7 @@ html[data-capture-protected="true"]::before {
 }
 </style>
     <!-- FJMC Academy Logo / Favicon -->
-    <link rel="icon" type="image/jpeg" href="image/favicon">
+    <link rel="icon" type="image/png" href="image/favicon">
     <link rel="apple-touch-icon" href="image/favicon">
 </head>
 
@@ -334,6 +335,16 @@ html[data-capture-protected="true"]::before {
 </main>
 
 <script type="module" src="./test.js"></script>
+
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js", { scope: "./" })
+      .catch(error => console.error("FJMC PWA service worker error:", error));
+  });
+}
+</script>
 
 </body>
 

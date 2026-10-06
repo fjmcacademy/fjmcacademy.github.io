@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>FJMC Academy | Admin Panel</title>
+    <link rel="manifest" href="./manifest.json">
 
 <style>
 *{
@@ -552,7 +553,7 @@ textarea{
 }
 </style>
     <!-- FJMC Academy Logo / Favicon -->
-    <link rel="icon" type="image/jpeg" href="image/favicon">
+    <link rel="icon" type="image/png" href="image/favicon">
     <link rel="apple-touch-icon" href="image/favicon">
 </head>
 
@@ -1204,6 +1205,16 @@ textarea{
   }
 </script>
 <script type="module" src="./admin.js?v=20261003-email-final"></script>
+
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js", { scope: "./" })
+      .catch(error => console.error("FJMC PWA service worker error:", error));
+  });
+}
+</script>
 
 </body>
 </html>
