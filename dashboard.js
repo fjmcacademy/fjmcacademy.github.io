@@ -31,31 +31,6 @@ import {
 
 /* =========================================================
    STUDENT DATA
-
-   FORMAT:
-
-   email: {
-       name: "Student Name",
-
-       exam: "Exam Name",
-       batch: "Batch 1",
-       year: "2026",
-
-       courses: [
-           "course-id"
-       ]
-   }
-
-   IMPORTANT:
-   Different batch/year can have completely
-   different courses and materials.
-========================================================= */
-
-/* =========================================================
-   STUDENT / COURSE DATA
-
-   Managed from admin.html -> Firestore.
-   Dashboard is read-only for assignments/content.
 ========================================================= */
 
 let STUDENTS = {};
@@ -66,57 +41,124 @@ function studentDocId(email) {
 }
 
 async function loadDashboardData(email, uid) {
-    const normalizedEmail = String(email || "").trim().toLowerCase();
+
+    const normalizedEmail =
+        String(email || "")
+            .trim()
+            .toLowerCase();
 
     if (!normalizedEmail) return null;
 
-    // CANONICAL STUDENT ID: normalized Gmail/email.
-    // New students created from Admin are saved here.
-    const emailId = studentDocId(normalizedEmail);
-    let studentSnap = await getDoc(doc(db, "students", emailId));
+    const emailId =
+        studentDocId(normalizedEmail);
 
-    // Legacy compatibility: older records may have been saved with UID.
-    // This does NOT change the new email-based system.
-    if (!studentSnap.exists() && uid) {
-        const legacySnap = await getDoc(doc(db, "students", uid));
-        if (legacySnap.exists()) studentSnap = legacySnap;
-    }
-
-    // Final compatibility for any older document ID.
-    if (!studentSnap.exists()) {
-        const emailQuery = query(
-            collection(db, "students"),
-            where("email", "==", normalizedEmail)
+    let studentSnap =
+        await getDoc(
+            doc(
+                db,
+                "students",
+                emailId
+            )
         );
-        const result = await getDocs(emailQuery);
-        if (!result.empty) studentSnap = result.docs[0];
+
+    if (!studentSnap.exists() && uid) {
+
+        const legacySnap =
+            await getDoc(
+                doc(
+                    db,
+                    "students",
+                    uid
+                )
+            );
+
+        if (legacySnap.exists()) {
+            studentSnap = legacySnap;
+        }
     }
 
-    if (!studentSnap.exists()) return null;
+    if (!studentSnap.exists()) {
 
-    const student = studentSnap.data();
-    const courseIds = Array.isArray(student.courses) ? student.courses : [];
+        const emailQuery =
+            query(
+                collection(
+                    db,
+                    "students"
+                ),
+                where(
+                    "email",
+                    "==",
+                    normalizedEmail
+                )
+            );
 
-    const courseEntries = await Promise.all(
-        courseIds.map(async courseId => {
-            const snap = await getDoc(doc(db, "courses", courseId));
-            return snap.exists() ? [courseId, snap.data()] : null;
-        })
-    );
+        const result =
+            await getDocs(
+                emailQuery
+            );
+
+        if (!result.empty) {
+            studentSnap =
+                result.docs[0];
+        }
+    }
+
+    if (!studentSnap.exists()) {
+        return null;
+    }
+
+    const student =
+        studentSnap.data();
+
+    const courseIds =
+        Array.isArray(student.courses)
+            ? student.courses
+            : [];
+
+    const courseEntries =
+        await Promise.all(
+            courseIds.map(
+                async courseId => {
+
+                    const snap =
+                        await getDoc(
+                            doc(
+                                db,
+                                "courses",
+                                courseId
+                            )
+                        );
+
+                    return snap.exists()
+                        ? [courseId, snap.data()]
+                        : null;
+                }
+            )
+        );
 
     COURSES = {};
-    courseEntries.filter(Boolean).forEach(([id, course]) => {
-        COURSES[id] = course;
-    });
 
-    STUDENTS = { [normalizedEmail]: student };
+    courseEntries
+        .filter(Boolean)
+        .forEach(
+            ([id, course]) => {
+
+                COURSES[id] =
+                    course;
+
+            }
+        );
+
+    STUDENTS = {
+        [normalizedEmail]: student
+    };
+
     return student;
 }
 
 
 /* =========================================================
    DEVICE SETTINGS
-   EVERYTHING BELOW THIS POINT IS YOUR EXISTING SYSTEM
 ========================================================= */
 
 const MAX_DEVICES = 2;
@@ -135,7 +177,6 @@ function getDeviceId() {
         localStorage.getItem(
             "fjmcDeviceId"
         );
-
 
     if (!id) {
 
@@ -157,8 +198,8 @@ function getDeviceId() {
                 Math.random()
                     .toString(36)
                     .substring(2);
-        }
 
+        }
 
         localStorage.setItem(
             "fjmcDeviceId",
@@ -166,10 +207,8 @@ function getDeviceId() {
         );
     }
 
-
     return id;
 }
-
 
 const deviceId =
     getDeviceId();
@@ -181,49 +220,72 @@ const deviceId =
 
 function getDeviceType() {
 
-    const userAgent = String(
-        navigator.userAgent ||
-        navigator.vendor ||
-        window.opera ||
-        ""
-    );
+    const userAgent =
+        String(
+            navigator.userAgent ||
+            navigator.vendor ||
+            window.opera ||
+            ""
+        );
 
-    /*
-     * SLOT GROUPS
-     * -------------
-     * Mobile phone + Tablet/iPad = ONE shared MOBILE slot
-     * Desktop + Laptop           = ONE shared DESKTOP slot
-     *
-     * Important:
-     * Some Android tablets can be opened in Chrome's "Desktop site"
-     * mode. In that mode the browser may report a desktop-like UA.
-     * We therefore also use touch/screen information to recognise
-     * tablet-sized touch devices.
-     */
+    const isAndroid =
+        /Android/i.test(
+            userAgent
+        );
 
-    const isAndroid = /Android/i.test(userAgent);
-    const isAndroidPhone = isAndroid && /Mobile/i.test(userAgent);
-    const isAndroidTablet = isAndroid && !isAndroidPhone;
+    const isAndroidPhone =
+        isAndroid &&
+        /Mobile/i.test(
+            userAgent
+        );
 
-    const isIPhoneOrIPod = /iPhone|iPod/i.test(userAgent);
-    const isIPadUA = /iPad/i.test(userAgent);
+    const isAndroidTablet =
+        isAndroid &&
+        !isAndroidPhone;
 
-    // iPadOS can report itself as Macintosh when "Desktop website"
-    // is enabled, so detect a touch-capable Mac-like device as iPad.
+    const isIPhoneOrIPod =
+        /iPhone|iPod/i.test(
+            userAgent
+        );
+
+    const isIPadUA =
+        /iPad/i.test(
+            userAgent
+        );
+
     const isTouchMac =
-        /Macintosh/i.test(userAgent) &&
+        /Macintosh/i.test(
+            userAgent
+        ) &&
         typeof navigator.maxTouchPoints === "number" &&
         navigator.maxTouchPoints > 1;
 
-    // Android tablet / iPad in desktop-site mode can sometimes expose
-    // a desktop-looking UA. A touch device with a tablet-sized display
-    // is treated as MOBILE/TABLET, not desktop.
-    const maxTouchPoints = Number(navigator.maxTouchPoints || 0);
-    const screenWidth = Number(window.screen && window.screen.width || 0);
-    const screenHeight = Number(window.screen && window.screen.height || 0);
-    const shortSide = Math.min(screenWidth || 99999, screenHeight || 99999);
+    const maxTouchPoints =
+        Number(
+            navigator.maxTouchPoints || 0
+        );
 
-    const hasMultiTouch = maxTouchPoints >= 2;
+    const screenWidth =
+        Number(
+            window.screen &&
+            window.screen.width || 0
+        );
+
+    const screenHeight =
+        Number(
+            window.screen &&
+            window.screen.height || 0
+        );
+
+    const shortSide =
+        Math.min(
+            screenWidth || 99999,
+            screenHeight || 99999
+        );
+
+    const hasMultiTouch =
+        maxTouchPoints >= 2;
+
     const tabletSizedTouchScreen =
         hasMultiTouch &&
         shortSide > 0 &&
@@ -238,18 +300,16 @@ function getDeviceType() {
         tabletSizedTouchScreen ||
         /Tablet|Mobile/i.test(userAgent)
     ) {
-        // Mobile + Tablet share ONE reservation slot.
+
         return "mobile";
+
     }
 
-    // Windows/macOS/Linux desktop and laptop share ONE reservation slot.
     return "desktop";
 }
 
-
 const currentDeviceType =
     getDeviceType();
-
 
 console.log(
     "Current device type:",
@@ -262,6 +322,7 @@ console.log(
 ========================================================= */
 
 let currentUser = null;
+
 let deviceHeartbeat = null;
 
 
@@ -286,7 +347,6 @@ function hidePageLoading() {
 
     ];
 
-
     selectors.forEach(
         function (selector) {
 
@@ -294,7 +354,6 @@ function hidePageLoading() {
                 document.querySelectorAll(
                     selector
                 );
-
 
             elements.forEach(
                 function (element) {
@@ -317,12 +376,10 @@ function hidePageLoading() {
         }
     );
 
-
     const possibleLoaders =
         document.querySelectorAll(
             "[id*='loading'], [id*='Loading'], [class*='loading'], [class*='Loading']"
         );
-
 
     possibleLoaders.forEach(
         function (element) {
@@ -331,7 +388,6 @@ function hidePageLoading() {
                 (element.textContent || "")
                     .trim()
                     .toLowerCase();
-
 
             if (
                 text.includes("page loading") ||
@@ -368,12 +424,10 @@ const coursesContainer =
         "coursesContainer"
     );
 
-
 const studentName =
     document.getElementById(
         "studentName"
     );
-
 
 const logoutBtn =
     document.getElementById(
@@ -401,26 +455,24 @@ onAuthStateChanged(
                 return;
             }
 
-
             currentUser =
                 user;
-
 
             const email =
                 (user.email || "")
                     .trim()
                     .toLowerCase();
 
-
             console.log(
                 "Logged in:",
                 email
             );
 
-
             const student =
-                await loadDashboardData(email, user.uid);
-
+                await loadDashboardData(
+                    email,
+                    user.uid
+                );
 
             if (!student) {
 
@@ -429,18 +481,14 @@ onAuthStateChanged(
                     email
                 );
 
-
                 hidePageLoading();
-
 
                 await signOut(
                     auth
                 );
 
-
                 window.location.href =
                     "login.html";
-
 
                 return;
             }
@@ -454,7 +502,6 @@ onAuthStateChanged(
                 "loggedInStudent",
                 email
             );
-
 
             sessionStorage.setItem(
                 "firebaseUID",
@@ -484,12 +531,10 @@ onAuthStateChanged(
                     user
                 );
 
-
             console.log(
                 "Device allowed:",
                 allowed
             );
-
 
             if (!allowed) {
 
@@ -511,9 +556,7 @@ onAuthStateChanged(
                 student
             );
 
-
             hidePageLoading();
-
 
             startDeviceHeartbeat();
 
@@ -525,14 +568,11 @@ onAuthStateChanged(
                 error
             );
 
-
             hidePageLoading();
-
 
             alert(
                 "Dashboard could not be loaded. Please login again."
             );
-
 
             try {
 
@@ -548,7 +588,6 @@ onAuthStateChanged(
                 );
 
             }
-
 
             window.location.href =
                 "login.html";
@@ -591,9 +630,7 @@ async function countActiveDeviceType(
             devicesCollection(user)
         );
 
-
     let count = 0;
-
 
     devices.forEach(
         function (deviceDoc) {
@@ -607,21 +644,17 @@ async function countActiveDeviceType(
                 return;
             }
 
-
             const data =
                 deviceDoc.data();
-
 
             const expiry =
                 Number(
                     data.expiresAt || 0
                 );
 
-
             const deviceType =
                 data.deviceType ||
                 "";
-
 
             if (
                 data.active === true &&
@@ -636,9 +669,7 @@ async function countActiveDeviceType(
         }
     );
 
-
     return count;
-
 }
 
 
@@ -657,9 +688,7 @@ async function countAllActiveDevices(
             devicesCollection(user)
         );
 
-
     let count = 0;
-
 
     devices.forEach(
         function (deviceDoc) {
@@ -673,16 +702,13 @@ async function countAllActiveDevices(
                 return;
             }
 
-
             const data =
                 deviceDoc.data();
-
 
             const expiry =
                 Number(
                     data.expiresAt || 0
                 );
-
 
             if (
                 data.active === true &&
@@ -696,29 +722,19 @@ async function countAllActiveDevices(
         }
     );
 
-
     return count;
-
 }
 
 
 /* =========================================================
-   REGISTER / CHECK DEVICE
-
-   FIXED RESERVATION SYSTEM
-   ------------------------
-   1 MOBILE/TABLET SLOT + 1 DESKTOP/LAPTOP SLOT
-   Maximum 2 devices total.
-   Each slot is reserved for 3 days.
-   LOGOUT NEVER FREES A SLOT.
-
-   IMPORTANT:
-   We keep the old /users/{uid}/devices/{deviceId} records for
-   compatibility, but the authoritative reservation is now stored
-   in /users/{uid}/deviceSlots/{mobile|desktop}.
+   DEVICE SLOT
 ========================================================= */
 
-function deviceSlotRef(user, type) {
+function deviceSlotRef(
+    user,
+    type
+) {
+
     return doc(
         db,
         "users",
@@ -728,112 +744,239 @@ function deviceSlotRef(user, type) {
     );
 }
 
-function deviceSlotName(type) {
-    return type === "mobile" ? "mobile" : "desktop";
+
+function deviceSlotName(
+    type
+) {
+
+    return type === "mobile"
+        ? "mobile"
+        : "desktop";
+
 }
 
-async function registerDevice(user) {
+
+/* =========================================================
+   REGISTER / CHECK DEVICE
+
+   1 MOBILE/TABLET SLOT
+   +
+   1 DESKTOP/LAPTOP SLOT
+
+   3-DAY FIXED RESERVATION
+
+   LOGOUT DOES NOT FREE SLOT
+========================================================= */
+
+async function registerDevice(
+    user
+) {
 
     try {
-        const now = Date.now();
-        const type = deviceSlotName(currentDeviceType);
-        const slotRef = deviceSlotRef(user, type);
 
-        /*
-         * The slot document is the reservation itself.
-         * It is NOT marked inactive on logout.
-         */
-        const result = await runTransaction(db, async (transaction) => {
+        const now =
+            Date.now();
 
-            const slotSnap = await transaction.get(slotRef);
+        const type =
+            deviceSlotName(
+                currentDeviceType
+            );
 
-            if (slotSnap.exists()) {
-                const data = slotSnap.data() || {};
-                const reservedUntil = Number(data.reservedUntil || 0);
-                const reservedDeviceId = String(data.deviceId || "");
+        const slotRef =
+            deviceSlotRef(
+                user,
+                type
+            );
 
-                // Same physical/browser device: keep its original
-                // 3-day reservation. Do NOT renew it on login.
-                if (
-                    reservedDeviceId === deviceId &&
-                    reservedUntil > now
-                ) {
+        const result =
+            await runTransaction(
+                db,
+                async function (transaction) {
+
+                    const slotSnap =
+                        await transaction.get(
+                            slotRef
+                        );
+
+                    if (slotSnap.exists()) {
+
+                        const data =
+                            slotSnap.data() ||
+                            {};
+
+                        const reservedUntil =
+                            Number(
+                                data.reservedUntil ||
+                                0
+                            );
+
+                        const reservedDeviceId =
+                            String(
+                                data.deviceId ||
+                                ""
+                            );
+
+
+                        /* SAME DEVICE */
+
+                        if (
+                            reservedDeviceId ===
+                                deviceId &&
+                            reservedUntil > now
+                        ) {
+
+                            transaction.set(
+                                slotRef,
+                                {
+                                    lastSeen: now,
+                                    email:
+                                        user.email ||
+                                        "",
+                                    deviceType:
+                                        type
+                                },
+                                {
+                                    merge: true
+                                }
+                            );
+
+                            return {
+                                allowed: true
+                            };
+                        }
+
+
+                        /* DIFFERENT DEVICE */
+
+                        if (
+                            reservedUntil > now
+                        ) {
+
+                            return {
+                                allowed: false,
+                                reason:
+                                    "reserved"
+                            };
+
+                        }
+
+                    }
+
+
+                    /* =====================================
+                       EXPIRED SLOT
+                       NEW 3-DAY RESERVATION
+                    ===================================== */
+
                     transaction.set(
                         slotRef,
                         {
-                            lastSeen: now,
-                            email: user.email || "",
-                            deviceType: type
+                            email:
+                                user.email ||
+                                "",
+
+                            deviceId:
+                                deviceId,
+
+                            deviceType:
+                                type,
+
+                            reservedAt:
+                                now,
+
+                            reservedUntil:
+                                now +
+                                DEVICE_TIMEOUT,
+
+                            lastSeen:
+                                now,
+
+                            active:
+                                true
+
                         },
-                        { merge: true }
+                        {
+                            merge: true
+                        }
                     );
 
-                    return { allowed: true };
-                }
-
-                // A different device cannot take an unexpired slot,
-                // even if the original device has logged out.
-                if (reservedUntil > now) {
                     return {
-                        allowed: false,
-                        reason: "reserved"
+                        allowed: true
                     };
-                }
-            }
 
-            // The old reservation has expired. This slot can now be
-            // assigned to the new device for a fresh 3-day period.
-            transaction.set(
-                slotRef,
-                {
-                    email: user.email || "",
-                    deviceId: deviceId,
-                    deviceType: type,
-                    reservedAt: now,
-                    reservedUntil: now + DEVICE_TIMEOUT,
-                    lastSeen: now,
-                    active: true
-                },
-                { merge: true }
+                }
             );
 
-            return { allowed: true };
-        });
 
         if (!result.allowed) {
+
             showDeviceLimitMessage();
+
             return false;
         }
 
-        // Keep the existing device document for compatibility with the
-        // rest of the project. Its reservation timestamp is fixed too.
-        const deviceRef = doc(
-            db,
-            "users",
-            user.uid,
-            "devices",
-            deviceId
-        );
 
-        const existing = await getDoc(deviceRef);
-        const existingData = existing.exists() ? existing.data() : {};
-        const existingExpiry = Number(existingData.expiresAt || 0);
+        /* =============================================
+           COMPATIBILITY DEVICE RECORD
+        ============================================= */
+
+        const deviceRef =
+            doc(
+                db,
+                "users",
+                user.uid,
+                "devices",
+                deviceId
+            );
+
+        const existing =
+            await getDoc(
+                deviceRef
+            );
+
+        const existingData =
+            existing.exists()
+                ? existing.data()
+                : {};
+
+        const existingExpiry =
+            Number(
+                existingData.expiresAt ||
+                0
+            );
+
 
         await setDoc(
             deviceRef,
             {
-                email: user.email || "",
-                active: true,
-                deviceType: currentDeviceType,
-                lastSeen: now,
+                email:
+                    user.email ||
+                    "",
+
+                active:
+                    true,
+
+                deviceType:
+                    currentDeviceType,
+
+                lastSeen:
+                    now,
+
                 expiresAt:
                     existingExpiry > now
                         ? existingExpiry
-                        : now + DEVICE_TIMEOUT,
-                reserved: true
+                        : now +
+                          DEVICE_TIMEOUT,
+
+                reserved:
+                    true
+
             },
-            { merge: true }
+            {
+                merge: true
+            }
         );
+
 
         console.log(
             "Fixed 3-day device reservation registered:",
@@ -842,6 +985,7 @@ async function registerDevice(user) {
         );
 
         return true;
+
 
     } catch (error) {
 
@@ -861,6 +1005,7 @@ async function registerDevice(user) {
     }
 }
 
+
 /* =========================================================
    DEVICE LIMIT MESSAGE
 ========================================================= */
@@ -872,29 +1017,23 @@ function showDeviceLimitMessage() {
             "deviceLimitMessage"
         );
 
-
     const text =
         "Maximum 2 devices are already active for this account.";
-
 
     if (message) {
 
         message.textContent =
             text;
 
-
         message.style.display =
             "block";
-
 
         return;
     }
 
-
     alert(
         text
     );
-
 }
 
 
@@ -914,24 +1053,18 @@ function startDeviceHeartbeat() {
 
     }
 
-
     updateDeviceHeartbeat();
-
 
     deviceHeartbeat =
         setInterval(
             updateDeviceHeartbeat,
             2 * 60 * 1000
         );
-
 }
 
 
 /* =========================================================
    UPDATE DEVICE HEARTBEAT
-
-   Heartbeat NEVER changes/removes the reservation.
-   It only records lastSeen.
 ========================================================= */
 
 async function updateDeviceHeartbeat() {
@@ -941,93 +1074,166 @@ async function updateDeviceHeartbeat() {
     }
 
     try {
-        const now = Date.now();
-        const type = deviceSlotName(currentDeviceType);
-        const slotRef = deviceSlotRef(currentUser, type);
-        const slotSnap = await getDoc(slotRef);
+
+        const now =
+            Date.now();
+
+        const type =
+            deviceSlotName(
+                currentDeviceType
+            );
+
+        const slotRef =
+            deviceSlotRef(
+                currentUser,
+                type
+            );
+
+        const slotSnap =
+            await getDoc(
+                slotRef
+            );
 
         if (!slotSnap.exists()) {
-            console.warn("Device reservation slot missing.");
+
+            console.warn(
+                "Device reservation slot missing."
+            );
+
             return;
         }
 
-        const data = slotSnap.data() || {};
-        const reservedDeviceId = String(data.deviceId || "");
-        const reservedUntil = Number(data.reservedUntil || 0);
+        const data =
+            slotSnap.data() ||
+            {};
 
-        // If another device has replaced the slot, this session is no
-        // longer the reserved device and must be signed out.
-        if (reservedDeviceId !== deviceId) {
+        const reservedDeviceId =
+            String(
+                data.deviceId ||
+                ""
+            );
+
+        const reservedUntil =
+            Number(
+                data.reservedUntil ||
+                0
+            );
+
+
+        /* =============================================
+           DEVICE REPLACED
+        ============================================= */
+
+        if (
+            reservedDeviceId !==
+            deviceId
+        ) {
+
             if (deviceHeartbeat) {
-                clearInterval(deviceHeartbeat);
-                deviceHeartbeat = null;
+
+                clearInterval(
+                    deviceHeartbeat
+                );
+
+                deviceHeartbeat =
+                    null;
             }
 
             alert(
                 "This device is no longer reserved for this account. Please login again."
             );
 
-            await signOut(auth);
-            window.location.href = "login.html";
+            await signOut(
+                auth
+            );
+
+            window.location.href =
+                "login.html";
+
             return;
         }
 
-        if (reservedUntil > 0 && reservedUntil <= now) {
+
+        /* =============================================
+           RESERVATION EXPIRED
+        ============================================= */
+
+        if (
+            reservedUntil > 0 &&
+            reservedUntil <= now
+        ) {
+
             if (deviceHeartbeat) {
-                clearInterval(deviceHeartbeat);
-                deviceHeartbeat = null;
+
+                clearInterval(
+                    deviceHeartbeat
+                );
+
+                deviceHeartbeat =
+                    null;
             }
 
             alert(
                 "Your 3-day device reservation has expired. Please login again."
             );
 
-            await signOut(auth);
-            window.location.href = "login.html";
+            await signOut(
+                auth
+            );
+
+            window.location.href =
+                "login.html";
+
             return;
         }
 
-        // Only lastSeen is updated. The 3-day reservation is NEVER
-        // extended by heartbeat or logout/login.
+
+        /* =============================================
+           ONLY LAST SEEN CHANGES
+        ============================================= */
+
         await updateDoc(
             slotRef,
             {
-                lastSeen: now
+                lastSeen:
+                    now
             }
         );
 
-        const deviceRef = doc(
-            db,
-            "users",
-            currentUser.uid,
-            "devices",
-            deviceId
-        );
+
+        const deviceRef =
+            doc(
+                db,
+                "users",
+                currentUser.uid,
+                "devices",
+                deviceId
+            );
 
         await updateDoc(
             deviceRef,
             {
-                lastSeen: now,
-                active: true
+                lastSeen:
+                    now,
+
+                active:
+                    true
             }
         );
 
     } catch (error) {
-        console.error("Heartbeat error:", error);
+
+        console.error(
+            "Heartbeat error:",
+            error
+        );
+
     }
 }
 
+
 /* =========================================================
    SHOW STUDENT COURSES
-
-   NOW SHOWS:
-
-   Exam
-   Batch
-   Year
-   Subject
-   Description
-   Course Material
 ========================================================= */
 
 function showStudentCourses(
@@ -1035,27 +1241,51 @@ function showStudentCourses(
 ) {
 
     if (!coursesContainer) {
-        console.error("coursesContainer not found");
+
+        console.error(
+            "coursesContainer not found"
+        );
+
         hidePageLoading();
+
         return;
     }
 
-    coursesContainer.innerHTML = "";
+    coursesContainer.innerHTML =
+        "";
 
-    if (!Array.isArray(student.courses) || student.courses.length === 0) {
+    if (
+        !Array.isArray(
+            student.courses
+        ) ||
+        student.courses.length === 0
+    ) {
+
         coursesContainer.innerHTML = `
             <div class="no-course">
                 <h3>No Course Assigned</h3>
                 <p>Please contact FJMC Academy.</p>
             </div>
         `;
+
         hidePageLoading();
+
         return;
     }
 
-    // Keep Exam / Batch / Year information exactly as before.
-    const studentInfo = document.createElement("div");
-    studentInfo.className = "student-course-info";
+
+    /* =============================================
+       STUDENT INFORMATION
+    ============================================= */
+
+    const studentInfo =
+        document.createElement(
+            "div"
+        );
+
+    studentInfo.className =
+        "student-course-info";
+
     studentInfo.innerHTML = `
         <div style="
             margin-bottom:20px;
@@ -1064,142 +1294,398 @@ function showStudentCourses(
             background:rgba(255,255,255,.06);
             border:1px solid rgba(255,255,255,.12);
         ">
-            <h3 style="margin:0 0 12px 0;">${student.exam || ""}</h3>
-            <p style="margin:5px 0;"><strong>Batch:</strong> ${student.batch || ""}</p>
-            <p style="margin:5px 0;"><strong>Year:</strong> ${student.year || ""}</p>
+            <h3 style="margin:0 0 12px 0;">
+                ${student.exam || ""}
+            </h3>
+
+            <p style="margin:5px 0;">
+                <strong>Batch:</strong>
+                ${student.batch || ""}
+            </p>
+
+            <p style="margin:5px 0;">
+                <strong>Year:</strong>
+                ${student.year || ""}
+            </p>
         </div>
     `;
-    coursesContainer.appendChild(studentInfo);
 
-    student.courses.forEach(function(courseId) {
-        const course = COURSES[courseId];
+    coursesContainer.appendChild(
+        studentInfo
+    );
 
-        if (!course) {
-            console.warn("Course not found:", courseId);
-            return;
-        }
 
-        const courseCard = document.createElement("div");
-        courseCard.className = "course-card";
+    /* =============================================
+       COURSES
+    ============================================= */
 
-        let contentHTML = "";
-        const contents = Array.isArray(course.contents) ? course.contents : [];
+    student.courses.forEach(
+        function(courseId) {
 
-        contents.forEach(function(content) {
-            if (content.type === "video") {
-                contentHTML += `
-                    <button class="content-button video-button"
-                        data-type="youtube"
-                        data-url="${encodeURIComponent(content.url || "")}" 
-                        data-title="${encodeURIComponent(content.title || "Lecture")}">
-                        ▶ ${content.title || "Video"}
-                    </button>`;
-            } else if (content.type === "local-video") {
-                contentHTML += `
-                    <button class="content-button video-button"
-                        data-type="local"
-                        data-url="${encodeURIComponent(content.url || "")}" 
-                        data-title="${encodeURIComponent(content.title || "Lecture")}">
-                        ▶ ${content.title || "Video"}
-                    </button>`;
-            } else if (content.type === "pdf") {
-                contentHTML += `
-                    <button class="content-button pdf-button"
-                        data-type="pdf"
-                        data-url="${encodeURIComponent(content.url || "")}" 
-                        data-title="${encodeURIComponent(content.title || "PDF")}">
-                        📄 ${content.title || "PDF"}
-                    </button>`;
-            } else if (content.type === "live") {
-                contentHTML += `
-                    <button class="content-button live-button"
-                        data-type="live"
-                        data-url="${encodeURIComponent(content.url || "")}">
-                        🔴 ${content.title || "Live Class"}
-                    </button>`;
+            const course =
+                COURSES[
+                    courseId
+                ];
+
+            if (!course) {
+
+                console.warn(
+                    "Course not found:",
+                    courseId
+                );
+
+                return;
             }
-        });
 
-        // The course itself is the button/card. PDF/Video/Test remain hidden
-        // until the student clicks the course.
-        courseCard.innerHTML = `
-            <button type="button" class="course-toggle" aria-expanded="false">
-                <div class="course-title">
-                    <div style="margin-bottom:10px;font-size:13px;opacity:.85;">
-                        ${course.exam || student.exam || ""}
-                        &nbsp;•&nbsp;
-                        ${course.batch || student.batch || ""}
-                        &nbsp;•&nbsp;
-                        ${course.year || student.year || ""}
+            const courseCard =
+                document.createElement(
+                    "div"
+                );
+
+            courseCard.className =
+                "course-card";
+
+            let contentHTML =
+                "";
+
+            const contents =
+                Array.isArray(
+                    course.contents
+                )
+                    ? course.contents
+                    : [];
+
+
+            contents.forEach(
+                function(content) {
+
+                    if (
+                        content.type ===
+                        "video"
+                    ) {
+
+                        contentHTML += `
+                            <button
+                                class="content-button video-button"
+                                data-type="youtube"
+                                data-url="${encodeURIComponent(content.url || "")}"
+                                data-title="${encodeURIComponent(content.title || "Lecture")}"
+                            >
+                                ▶ ${content.title || "Video"}
+                            </button>
+                        `;
+
+                    } else if (
+                        content.type ===
+                        "local-video"
+                    ) {
+
+                        contentHTML += `
+                            <button
+                                class="content-button video-button"
+                                data-type="local"
+                                data-url="${encodeURIComponent(content.url || "")}"
+                                data-title="${encodeURIComponent(content.title || "Lecture")}"
+                            >
+                                ▶ ${content.title || "Video"}
+                            </button>
+                        `;
+
+                    } else if (
+                        content.type ===
+                        "pdf"
+                    ) {
+
+                        contentHTML += `
+                            <button
+                                class="content-button pdf-button"
+                                data-type="pdf"
+                                data-url="${encodeURIComponent(content.url || "")}"
+                                data-title="${encodeURIComponent(content.title || "PDF")}"
+                            >
+                                📄 ${content.title || "PDF"}
+                            </button>
+                        `;
+
+                    } else if (
+                        content.type ===
+                        "live"
+                    ) {
+
+                        contentHTML += `
+                            <button
+                                class="content-button live-button"
+                                data-type="live"
+                                data-url="${encodeURIComponent(content.url || "")}"
+                            >
+                                🔴 ${content.title || "Live Class"}
+                            </button>
+                        `;
+
+                    }
+
+                }
+            );
+
+
+            /* =============================================
+               COURSE CARD
+            ============================================= */
+
+            courseCard.innerHTML = `
+                <button
+                    type="button"
+                    class="course-toggle"
+                    aria-expanded="false"
+                >
+
+                    <div class="course-title">
+
+                        <div style="
+                            margin-bottom:10px;
+                            font-size:13px;
+                            opacity:.85;
+                        ">
+
+                            ${course.exam || student.exam || ""}
+
+                            &nbsp;•&nbsp;
+
+                            ${course.batch || student.batch || ""}
+
+                            &nbsp;•&nbsp;
+
+                            ${course.year || student.year || ""}
+
+                        </div>
+
+                        <h3>
+                            ${course.title || courseId}
+                        </h3>
+
+                        <p>
+                            ${course.description || ""}
+                        </p>
+
+                        <span class="course-open-hint">
+                            Tap / Click to open course
+                        </span>
+
                     </div>
-                    <h3>${course.title || courseId}</h3>
-                    <p>${course.description || ""}</p>
-                    <span class="course-open-hint">Tap / Click to open course</span>
+
+                </button>
+
+
+                <div
+                    class="course-content"
+                    hidden
+                >
+
+                    ${
+                        contentHTML ||
+                        `
+                        <div class="no-course">
+                            <p>No material added yet.</p>
+                        </div>
+                        `
+                    }
+
+
+                    <div style="
+                        margin-top:15px;
+                        padding-top:15px;
+                        border-top:1px solid rgba(0,0,0,.12);
+                    ">
+
+                        <button
+                            type="button"
+                            class="fjmc-test-button"
+                            data-test-course="${course.testId || courseId}"
+                        >
+                            📝 ${course.title || "Course"} Test
+                        </button>
+
+                    </div>
+
                 </div>
-            </button>
+            `;
 
-            <div class="course-content" hidden>
-                ${contentHTML || `<div class="no-course"><p>No material added yet.</p></div>`}
 
-                <div style="
-                    margin-top:15px;
-                    padding-top:15px;
-                    border-top:1px solid rgba(0,0,0,.12);
-                ">
-                    <button
-                        type="button"
-                        class="fjmc-test-button"
-                        data-test-course="${course.testId || courseId}"
-                    >
-                        📝 ${course.title || "Course"} Test
-                    </button>
-                </div>
-            </div>
-        `;
+            coursesContainer.appendChild(
+                courseCard
+            );
 
-        coursesContainer.appendChild(courseCard);
-    });
+        }
+    );
 
-    // Course click -> reveal PDF / Video / Test.
-    coursesContainer.querySelectorAll(".course-toggle").forEach(button => {
-        button.addEventListener("click", () => {
-            const card = button.closest(".course-card");
-            const content = card?.querySelector(".course-content");
-            if (!content) return;
 
-            const isOpen = !content.hidden;
-            content.hidden = isOpen;
-            button.setAttribute("aria-expanded", String(!isOpen));
-            card.classList.toggle("course-open", !isOpen);
-        });
-    });
+    /* =============================================
+       COURSE TOGGLE
+    ============================================= */
 
-    // Test buttons.
-    coursesContainer.querySelectorAll(".fjmc-test-button").forEach(button => {
-        button.addEventListener("click", function(event) {
-            event.stopPropagation();
-            const courseId = button.dataset.testCourse;
-            window.location.href = "test.html?course=" + encodeURIComponent(courseId);
-        });
-    });
+    coursesContainer
+        .querySelectorAll(
+            ".course-toggle"
+        )
+        .forEach(
+            button => {
 
-    // PDF / video / live content buttons.
-    coursesContainer.querySelectorAll(".content-button").forEach(button => {
-        button.addEventListener("click", function(event) {
-            event.stopPropagation();
+                button.addEventListener(
+                    "click",
+                    function() {
 
-            const type = button.dataset.type;
-            const url = decodeURIComponent(button.dataset.url || "");
-            const title = button.dataset.title
-                ? decodeURIComponent(button.dataset.title)
-                : "";
+                        const card =
+                            button.closest(
+                                ".course-card"
+                            );
 
-            if (type === "youtube") openYouTubeVideo(url, title);
-            else if (type === "local") openLocalVideo(url, title);
-            else if (type === "pdf") openPDFViewer(url, title);
-            else if (type === "live") openLiveClass(url);
-        });
-    });
+                        const content =
+                            card?.querySelector(
+                                ".course-content"
+                            );
+
+                        if (!content) {
+                            return;
+                        }
+
+                        const isOpen =
+                            !content.hidden;
+
+                        content.hidden =
+                            isOpen;
+
+                        button.setAttribute(
+                            "aria-expanded",
+                            String(
+                                !isOpen
+                            )
+                        );
+
+                        card.classList.toggle(
+                            "course-open",
+                            !isOpen
+                        );
+
+                    }
+                );
+
+            }
+        );
+
+
+    /* =============================================
+       TEST BUTTONS
+    ============================================= */
+
+    coursesContainer
+        .querySelectorAll(
+            ".fjmc-test-button"
+        )
+        .forEach(
+            button => {
+
+                button.addEventListener(
+                    "click",
+                    function(event) {
+
+                        event.stopPropagation();
+
+                        const courseId =
+                            button.dataset.testCourse;
+
+                        window.location.href =
+                            "test.html?course=" +
+                            encodeURIComponent(
+                                courseId
+                            );
+
+                    }
+                );
+
+            }
+        );
+
+
+    /* =============================================
+       CONTENT BUTTONS
+    ============================================= */
+
+    coursesContainer
+        .querySelectorAll(
+            ".content-button"
+        )
+        .forEach(
+            button => {
+
+                button.addEventListener(
+                    "click",
+                    function(event) {
+
+                        event.stopPropagation();
+
+                        const type =
+                            button.dataset.type;
+
+                        const url =
+                            decodeURIComponent(
+                                button.dataset.url ||
+                                ""
+                            );
+
+                        const title =
+                            button.dataset.title
+                                ? decodeURIComponent(
+                                    button.dataset.title
+                                )
+                                : "";
+
+                        if (
+                            type ===
+                            "youtube"
+                        ) {
+
+                            openYouTubeVideo(
+                                url,
+                                title
+                            );
+
+                        } else if (
+                            type ===
+                            "local"
+                        ) {
+
+                            openLocalVideo(
+                                url,
+                                title
+                            );
+
+                        } else if (
+                            type ===
+                            "pdf"
+                        ) {
+
+                            openPDFViewer(
+                                url,
+                                title
+                            );
+
+                        } else if (
+                            type ===
+                            "live"
+                        ) {
+
+                            openLiveClass(
+                                url
+                            );
+
+                        }
+
+                    }
+                );
+
+            }
+        );
+
 
     hidePageLoading();
 }
@@ -1216,21 +1702,17 @@ function createModal() {
             "fjmcContentModal"
         );
 
-
     if (modal) {
         return modal;
     }
-
 
     modal =
         document.createElement(
             "div"
         );
 
-
     modal.id =
         "fjmcContentModal";
-
 
     modal.innerHTML = `
 
@@ -1277,7 +1759,6 @@ function createModal() {
                         id="fjmcModalTitle">
                     </strong>
 
-
                     <button
                         id="fjmcModalClose"
                         style="
@@ -1312,7 +1793,6 @@ function createModal() {
         </div>
     `;
 
-
     document.body.appendChild(
         modal
     );
@@ -1334,7 +1814,7 @@ function createModal() {
         )
         .addEventListener(
             "click",
-            function (event) {
+            function(event) {
 
                 if (
                     event.target.id ===
@@ -1350,7 +1830,6 @@ function createModal() {
 
 
     return modal;
-
 }
 
 
@@ -1360,21 +1839,24 @@ function createModal() {
 
 function closeModal() {
 
-    if (fjmcVideoSecurityCleanup) {
+    if (
+        fjmcVideoSecurityCleanup
+    ) {
+
         fjmcVideoSecurityCleanup();
-        fjmcVideoSecurityCleanup = null;
+
+        fjmcVideoSecurityCleanup =
+            null;
     }
+
 
     const watermark =
         document.getElementById(
             "fjmcScreenWatermark"
         );
 
-
     if (watermark) {
-
         watermark.remove();
-
     }
 
 
@@ -1383,60 +1865,109 @@ function closeModal() {
             "fjmcContentModal"
         );
 
-
     if (modal) {
-
         modal.remove();
-
     }
 
 }
 
+
 /* =========================================================
-   VIDEO SECURITY / SCREEN-RECORDING DETERRENCE
-   Best-effort browser protection only.
+   VIDEO SECURITY / SCREEN RECORDING DETERRENCE
 ========================================================= */
 
-let fjmcVideoSecurityCleanup = null;
+let fjmcVideoSecurityCleanup =
+    null;
 
+
+/* =========================================================
+   WATERMARK TEXT
+========================================================= */
 
 function fjmcGetStudentWatermarkText() {
 
     const name =
-        (currentUser?.displayName || studentName?.textContent || "FJMC Student")
-            .replace(/^Welcome,\s*/i, "")
+        (
+            currentUser?.displayName ||
+            studentName?.textContent ||
+            "FJMC Student"
+        )
+            .replace(
+                /^Welcome,\s*/i,
+                ""
+            )
             .trim();
 
     const email =
-        (currentUser?.email || sessionStorage.getItem("loggedInStudent") || "")
+        (
+            currentUser?.email ||
+            sessionStorage.getItem(
+                "loggedInStudent"
+            ) ||
+            ""
+        )
             .trim()
             .toLowerCase();
 
-    return `${name || "Student"}\n${email || "Account"}`;
+    return (
+        `${name || "Student"}\n` +
+        `${email || "Account"}`
+    );
 }
 
+
+/* =========================================================
+   VIDEO PROTECTION
+   RED + HORIZONTAL WATERMARK
+========================================================= */
 
 function fjmcApplyVideoProtection() {
 
     const stage =
-        document.getElementById("fjmcProtectedVideoStage");
+        document.getElementById(
+            "fjmcProtectedVideoStage"
+        );
 
     if (!stage) {
         return;
     }
 
-    if (fjmcVideoSecurityCleanup) {
+
+    if (
+        fjmcVideoSecurityCleanup
+    ) {
+
         fjmcVideoSecurityCleanup();
-        fjmcVideoSecurityCleanup = null;
+
+        fjmcVideoSecurityCleanup =
+            null;
     }
 
+
+    /* =============================================
+       WATERMARK
+    ============================================= */
+
     const watermark =
-        document.createElement("div");
+        document.createElement(
+            "div"
+        );
 
     watermark.id =
         "fjmcVideoWatermark";
 
-    watermark.setAttribute("aria-hidden", "true");
+    watermark.setAttribute(
+        "aria-hidden",
+        "true"
+    );
+
+
+    /*
+     * IMPORTANT:
+     * RED
+     * HORIZONTAL
+     * NO ROTATION
+     */
 
     watermark.style.cssText = `
         position:absolute;
@@ -1445,11 +1976,12 @@ function fjmcApplyVideoProtection() {
         transform:translate(-50%,-50%);
         width:92%;
         text-align:center;
-        color:rgba(255,255,255,.48);
-        text-shadow:0 1px 3px rgba(0,0,0,.85);
-        font-size:clamp(5px,0.6vw,8px);
+        color:rgba(255,0,0,.68);
+        text-shadow:
+            0 1px 3px rgba(0,0,0,.90);
+        font-size:clamp(7px,0.75vw,10px);
         font-weight:800;
-        letter-spacing:0.3px;
+        letter-spacing:0.4px;
         line-height:1.1;
         white-space:pre-line;
         word-break:break-word;
@@ -1458,14 +1990,31 @@ function fjmcApplyVideoProtection() {
         -webkit-user-select:none;
         -webkit-touch-callout:none;
         z-index:30;
-        transition:left 1.2s ease, top 1.2s ease, transform 1.2s ease;
+
+        /*
+         * NO ROTATION
+         */
+        rotate:0deg;
+
+        transition:
+            left 1.2s ease,
+            top 1.2s ease,
+            transform 1.2s ease;
     `;
 
-    stage.appendChild(watermark);
+    stage.appendChild(
+        watermark
+    );
 
+
+    /* =============================================
+       CAPTURE / HIDDEN PAGE OVERLAY
+    ============================================= */
 
     const captureOverlay =
-        document.createElement("div");
+        document.createElement(
+            "div"
+        );
 
     captureOverlay.id =
         "fjmcCaptureGuard";
@@ -1478,21 +2027,46 @@ function fjmcApplyVideoProtection() {
             max-width:520px;
             font-family:Arial,Helvetica,sans-serif;
         ">
-            <div style="font-size:42px;margin-bottom:12px;">🔒</div>
-            <div style="font-size:20px;font-weight:800;margin-bottom:8px;">
+
+            <div style="
+                font-size:42px;
+                margin-bottom:12px;
+            ">
+                🔒
+            </div>
+
+            <div style="
+                font-size:20px;
+                font-weight:800;
+                margin-bottom:8px;
+            ">
                 Video paused for security
             </div>
-            <div style="font-size:14px;line-height:1.6;opacity:.9;margin-bottom:18px;">
+
+            <div style="
+                font-size:14px;
+                line-height:1.6;
+                opacity:.9;
+                margin-bottom:18px;
+            ">
                 The video was paused because the browser page became hidden.
                 Return to this page and tap Resume to continue.
             </div>
-            <button id="fjmcResumeVideo" type="button" style="
-                border:0;
-                border-radius:8px;
-                padding:10px 18px;
-                font-weight:700;
-                cursor:pointer;
-            ">Resume Video</button>
+
+            <button
+                id="fjmcResumeVideo"
+                type="button"
+                style="
+                    border:0;
+                    border-radius:8px;
+                    padding:10px 18px;
+                    font-weight:700;
+                    cursor:pointer;
+                "
+            >
+                Resume Video
+            </button>
+
         </div>
     `;
 
@@ -1506,51 +2080,100 @@ function fjmcApplyVideoProtection() {
         z-index:40;
     `;
 
-    stage.appendChild(captureOverlay);
+    stage.appendChild(
+        captureOverlay
+    );
 
 
-    let watermarkPosition = 0;
+    let watermarkPosition =
+        0;
+
+
+    /* =============================================
+       WATERMARK POSITION
+       ALL HORIZONTAL
+    ============================================= */
 
     function updateWatermark() {
 
         if (
-            document.getElementById("fjmcVideoWatermark")
+            document.getElementById(
+                "fjmcVideoWatermark"
+            )
         ) {
+
             watermark.textContent =
                 fjmcGetStudentWatermarkText();
 
+
             const positions = [
-                [12, 18, -18],
-                [82, 24, 14],
-                [68, 78, -12],
-                [18, 72, 16],
-                [50, 48, -16]
+
+                [12, 18],
+                [82, 24],
+                [68, 78],
+                [18, 72],
+                [50, 48]
+
             ];
 
-            const position = positions[watermarkPosition % positions.length];
-            watermark.style.left = position[0] + "%";
-            watermark.style.top = position[1] + "%";
+
+            const position =
+                positions[
+                    watermarkPosition %
+                    positions.length
+                ];
+
+
+            watermark.style.left =
+                position[0] +
+                "%";
+
+            watermark.style.top =
+                position[1] +
+                "%";
+
+
+            /*
+             * IMPORTANT:
+             * NO rotate()
+             */
+
             watermark.style.transform =
-                `translate(-50%,-50%) rotate(${position[2]}deg)`;
+                "translate(-50%, -50%)";
+
 
             watermarkPosition++;
         }
     }
 
 
+    /* =============================================
+       PAUSE WHEN PAGE HIDDEN
+    ============================================= */
+
     function pauseForHiddenPage() {
 
-        if (document.visibilityState !== "hidden") {
+        if (
+            document.visibilityState !==
+            "hidden"
+        ) {
+
             return;
         }
 
         const video =
-            stage.querySelector("video");
+            stage.querySelector(
+                "video"
+            );
 
         if (video) {
+
             try {
+
                 video.pause();
+
             } catch (_) {}
+
         }
 
         captureOverlay.style.display =
@@ -1558,56 +2181,122 @@ function fjmcApplyVideoProtection() {
     }
 
 
+    /* =============================================
+       RESUME
+    ============================================= */
+
     function resumeVideo() {
 
         captureOverlay.style.display =
             "none";
 
         const video =
-            stage.querySelector("video");
+            stage.querySelector(
+                "video"
+            );
 
         if (video) {
-            video.play().catch(() => {});
+
+            video
+                .play()
+                .catch(
+                    () => {}
+                );
+
         }
     }
 
 
-    function blockSensitiveShortcut(event) {
+    /* =============================================
+       SHORTCUT PROTECTION
+    ============================================= */
+
+    function blockSensitiveShortcut(
+        event
+    ) {
 
         const key =
-            String(event.key || "").toLowerCase();
+            String(
+                event.key || ""
+            )
+                .toLowerCase();
 
         const blocked =
             key === "printscreen" ||
             key === "f12" ||
-            (event.ctrlKey && key === "u") ||
-            (event.ctrlKey && key === "s") ||
-            (event.ctrlKey && event.shiftKey &&
-                ["i", "j", "c", "s"].includes(key)) ||
-            (event.metaKey && event.shiftKey &&
-                ["3", "4", "5"].includes(key));
+            (
+                event.ctrlKey &&
+                key === "u"
+            ) ||
+            (
+                event.ctrlKey &&
+                key === "s"
+            ) ||
+            (
+                event.ctrlKey &&
+                event.shiftKey &&
+                [
+                    "i",
+                    "j",
+                    "c",
+                    "s"
+                ].includes(key)
+            ) ||
+            (
+                event.metaKey &&
+                event.shiftKey &&
+                [
+                    "3",
+                    "4",
+                    "5"
+                ].includes(key)
+            );
 
         if (blocked) {
+
             event.preventDefault();
+
             event.stopPropagation();
 
             captureOverlay.style.display =
                 "flex";
+
         }
     }
 
 
-    function blockContextMenu(event) {
+    /* =============================================
+       CONTEXT MENU
+    ============================================= */
+
+    function blockContextMenu(
+        event
+    ) {
+
         event.preventDefault();
+
     }
 
 
-    function blockSelection(event) {
+    /* =============================================
+       SELECTION
+    ============================================= */
+
+    function blockSelection(
+        event
+    ) {
+
         event.preventDefault();
+
     }
 
+
+    /* =============================================
+       INITIAL WATERMARK
+    ============================================= */
 
     updateWatermark();
+
 
     const watermarkTimer =
         window.setInterval(
@@ -1615,11 +2304,17 @@ function fjmcApplyVideoProtection() {
             5000
         );
 
+
+    /* =============================================
+       EVENT LISTENERS
+    ============================================= */
+
     document.addEventListener(
         "visibilitychange",
         pauseForHiddenPage,
         true
     );
+
 
     document.addEventListener(
         "keydown",
@@ -1627,11 +2322,13 @@ function fjmcApplyVideoProtection() {
         true
     );
 
+
     stage.addEventListener(
         "contextmenu",
         blockContextMenu,
         true
     );
+
 
     stage.addEventListener(
         "selectstart",
@@ -1639,23 +2336,51 @@ function fjmcApplyVideoProtection() {
         true
     );
 
-    async function keepWatermarkInFullscreen() {
-        const fullscreenElement = document.fullscreenElement;
 
-        if (!fullscreenElement || fullscreenElement === stage) return;
+    /* =============================================
+       KEEP WATERMARK/STAGE IN FULLSCREEN
+    ============================================= */
+
+    async function keepWatermarkInFullscreen() {
+
+        const fullscreenElement =
+            document.fullscreenElement;
 
         if (
-            fullscreenElement === stage.querySelector("video") ||
-            fullscreenElement === stage.querySelector("iframe")
+            !fullscreenElement ||
+            fullscreenElement === stage
         ) {
-            try {
-                await document.exitFullscreen();
-                await stage.requestFullscreen();
-            } catch (error) {
-                console.warn("Protected fullscreen unavailable:", error);
-            }
+
+            return;
         }
+
+
+        if (
+            fullscreenElement ===
+                stage.querySelector("video") ||
+            fullscreenElement ===
+                stage.querySelector("iframe")
+        ) {
+
+            try {
+
+                await document.exitFullscreen();
+
+                await stage.requestFullscreen();
+
+            } catch (error) {
+
+                console.warn(
+                    "Protected fullscreen unavailable:",
+                    error
+                );
+
+            }
+
+        }
+
     }
+
 
     document.addEventListener(
         "fullscreenchange",
@@ -1663,23 +2388,37 @@ function fjmcApplyVideoProtection() {
         true
     );
 
+
+    /* =============================================
+       RESUME BUTTON
+    ============================================= */
+
     const resumeButton =
-        document.getElementById("fjmcResumeVideo");
+        document.getElementById(
+            "fjmcResumeVideo"
+        );
 
     if (resumeButton) {
+
         resumeButton.addEventListener(
             "click",
             resumeVideo
         );
+
     }
 
 
+    /* =============================================
+       CLEANUP
+    ============================================= */
+
     fjmcVideoSecurityCleanup =
-        function () {
+        function() {
 
             window.clearInterval(
                 watermarkTimer
             );
+
 
             document.removeEventListener(
                 "visibilitychange",
@@ -1687,11 +2426,13 @@ function fjmcApplyVideoProtection() {
                 true
             );
 
+
             document.removeEventListener(
                 "keydown",
                 blockSensitiveShortcut,
                 true
             );
+
 
             stage.removeEventListener(
                 "contextmenu",
@@ -1699,11 +2440,13 @@ function fjmcApplyVideoProtection() {
                 true
             );
 
+
             stage.removeEventListener(
                 "selectstart",
                 blockSelection,
                 true
             );
+
 
             document.removeEventListener(
                 "fullscreenchange",
@@ -1711,18 +2454,36 @@ function fjmcApplyVideoProtection() {
                 true
             );
 
-            if (watermark.parentNode) {
+
+            if (
+                watermark.parentNode
+            ) {
+
                 watermark.remove();
+
             }
 
-            if (captureOverlay.parentNode) {
+
+            if (
+                captureOverlay.parentNode
+            ) {
+
                 captureOverlay.remove();
+
             }
+
         };
+
 }
 
 
-function fjmcPrepareProtectedStage(body) {
+/* =========================================================
+   PREPARE PROTECTED VIDEO STAGE
+========================================================= */
+
+function fjmcPrepareProtectedStage(
+    body
+) {
 
     body.innerHTML = `
         <div
@@ -1748,9 +2509,9 @@ function fjmcPrepareProtectedStage(body) {
 }
 
 
-
 /* =========================================================
    YOUTUBE VIDEO
+   FULLSCREEN ENABLED
 ========================================================= */
 
 function openYouTubeVideo(
@@ -1775,10 +2536,16 @@ function openYouTubeVideo(
         title;
 
     const stage =
-        fjmcPrepareProtectedStage(body);
+        fjmcPrepareProtectedStage(
+            body
+        );
+
 
     const iframe =
-        document.createElement("iframe");
+        document.createElement(
+            "iframe"
+        );
+
 
     iframe.src =
         url;
@@ -1786,15 +2553,30 @@ function openYouTubeVideo(
     iframe.title =
         title;
 
+
     iframe.setAttribute(
         "allow",
-        "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+        "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
     );
+
 
     iframe.setAttribute(
         "allowfullscreen",
         ""
     );
+
+
+    iframe.setAttribute(
+        "webkitallowfullscreen",
+        ""
+    );
+
+
+    iframe.setAttribute(
+        "mozallowfullscreen",
+        ""
+    );
+
 
     iframe.style.cssText = `
         position:absolute;
@@ -1804,13 +2586,17 @@ function openYouTubeVideo(
         border:0;
     `;
 
-    stage.appendChild(iframe);
+
+    stage.appendChild(
+        iframe
+    );
 
 }
 
 
 /* =========================================================
-   LOCAL VIDEO
+   LOCAL MP4 VIDEO
+   CUSTOM FULLSCREEN BUTTON
 ========================================================= */
 
 function openLocalVideo(
@@ -1834,17 +2620,40 @@ function openLocalVideo(
     modalTitle.textContent =
         title;
 
+
     const stage =
-        fjmcPrepareProtectedStage(body);
+        fjmcPrepareProtectedStage(
+            body
+        );
+
 
     const video =
-        document.createElement("video");
+        document.createElement(
+            "video"
+        );
 
-    video.controls = true;
-    video.playsInline = true;
-    video.disablePictureInPicture = true;
-    video.controlsList = "nodownload noplaybackrate";
-    video.preload = "metadata";
+
+    video.controls =
+        true;
+
+    video.playsInline =
+        true;
+
+    video.disablePictureInPicture =
+        true;
+
+    video.controlsList =
+        "nodownload noplaybackrate";
+
+    video.preload =
+        "metadata";
+
+
+    video.setAttribute(
+        "webkit-playsinline",
+        "true"
+    );
+
 
     video.style.cssText = `
         position:absolute;
@@ -1856,8 +2665,12 @@ function openLocalVideo(
         object-fit:contain;
     `;
 
+
     const source =
-        document.createElement("source");
+        document.createElement(
+            "source"
+        );
+
 
     source.src =
         url;
@@ -1865,20 +2678,193 @@ function openLocalVideo(
     source.type =
         "video/mp4";
 
-    video.appendChild(source);
-    stage.appendChild(video);
+
+    video.appendChild(
+        source
+    );
+
+
+    stage.appendChild(
+        video
+    );
+
+
+    /* =============================================
+       CUSTOM FULLSCREEN BUTTON
+    ============================================= */
+
+    const fullscreenButton =
+        document.createElement(
+            "button"
+        );
+
+
+    fullscreenButton.type =
+        "button";
+
+
+    fullscreenButton.textContent =
+        "⛶ Fullscreen";
+
+
+    fullscreenButton.setAttribute(
+        "aria-label",
+        "Fullscreen"
+    );
+
+
+    fullscreenButton.style.cssText = `
+        position:absolute;
+        right:15px;
+        bottom:15px;
+        z-index:50;
+        border:0;
+        border-radius:8px;
+        padding:9px 13px;
+        background:rgba(0,0,0,.78);
+        color:#fff;
+        font-size:14px;
+        font-weight:700;
+        cursor:pointer;
+        box-shadow:0 2px 8px rgba(0,0,0,.4);
+    `;
+
+
+    fullscreenButton.addEventListener(
+        "click",
+        async function() {
+
+            try {
+
+                if (
+                    document.fullscreenElement
+                ) {
+
+                    await document.exitFullscreen();
+
+                    return;
+                }
+
+
+                if (
+                    stage.requestFullscreen
+                ) {
+
+                    await stage.requestFullscreen();
+
+                    return;
+                }
+
+
+                /* iPhone/iPad Safari */
+
+                if (
+                    video.webkitEnterFullscreen
+                ) {
+
+                    video.webkitEnterFullscreen();
+
+                    return;
+                }
+
+            } catch (error) {
+
+                console.warn(
+                    "Fullscreen error:",
+                    error
+                );
+
+            }
+
+        }
+    );
+
+
+    stage.appendChild(
+        fullscreenButton
+    );
+
+
+    /* =============================================
+       FULLSCREEN BUTTON TEXT
+    ============================================= */
+
+    function updateFullscreenButton() {
+
+        if (
+            document.fullscreenElement
+        ) {
+
+            fullscreenButton.textContent =
+                "⛶ Exit Fullscreen";
+
+        } else {
+
+            fullscreenButton.textContent =
+                "⛶ Fullscreen";
+
+        }
+
+    }
+
+
+    document.addEventListener(
+        "fullscreenchange",
+        updateFullscreenButton
+    );
+
+
+    /* =============================================
+       VIDEO ERROR
+    ============================================= */
 
     video.addEventListener(
         "error",
-        function () {
+        function() {
+
             console.error(
                 "Protected video could not be loaded:",
                 url
             );
+
         }
     );
 
-    video.play().catch(() => {});
+
+    /* =============================================
+       REMOVE FULLSCREEN LISTENER WHEN MODAL CLOSES
+    ============================================= */
+
+    const oldCleanup =
+        fjmcVideoSecurityCleanup;
+
+
+    fjmcVideoSecurityCleanup =
+        function() {
+
+            document.removeEventListener(
+                "fullscreenchange",
+                updateFullscreenButton
+            );
+
+
+            if (oldCleanup) {
+                oldCleanup();
+            }
+
+        };
+
+
+    /* =============================================
+       AUTOPLAY
+    ============================================= */
+
+    video
+        .play()
+        .catch(
+            () => {}
+        );
+
 }
 
 
@@ -1966,6 +2952,7 @@ async function openPDFViewer(
             "
         >
         </div>
+
     `;
 
 
@@ -2019,11 +3006,14 @@ async function openPDFViewer(
 
 
         if (oldWatermark) {
-
             oldWatermark.remove();
-
         }
 
+
+        /* =============================================
+           PDF WATERMARK
+           UNCHANGED
+        ============================================= */
 
         const watermark =
             document.createElement(
@@ -2099,6 +3089,10 @@ async function openPDFViewer(
             watermark
         );
 
+
+        /* =============================================
+           PDF PAGES
+        ============================================= */
 
         for (
             let pageNumber = 1;
@@ -2238,9 +3232,7 @@ async function openPDFViewer(
 
 
         if (watermark) {
-
             watermark.remove();
-
         }
 
 
@@ -2281,7 +3273,7 @@ if (logoutBtn) {
 
     logoutBtn.addEventListener(
         "click",
-        async function () {
+        async function() {
 
             try {
 
@@ -2292,7 +3284,6 @@ if (logoutBtn) {
                     clearInterval(
                         deviceHeartbeat
                     );
-
 
                     deviceHeartbeat =
                         null;
@@ -2339,7 +3330,7 @@ if (logoutBtn) {
 
 document.addEventListener(
     "contextmenu",
-    function (event) {
+    function(event) {
 
         event.preventDefault();
 
@@ -2349,7 +3340,7 @@ document.addEventListener(
 
 document.addEventListener(
     "copy",
-    function (event) {
+    function(event) {
 
         event.preventDefault();
 
@@ -2359,7 +3350,7 @@ document.addEventListener(
 
 document.addEventListener(
     "cut",
-    function (event) {
+    function(event) {
 
         event.preventDefault();
 
@@ -2369,7 +3360,7 @@ document.addEventListener(
 
 document.addEventListener(
     "selectstart",
-    function (event) {
+    function(event) {
 
         event.preventDefault();
 
@@ -2379,15 +3370,17 @@ document.addEventListener(
 
 document.addEventListener(
     "keydown",
-    function (event) {
+    function(event) {
 
         const key =
             event.key.toLowerCase();
 
 
         if (
-            (event.ctrlKey ||
-                event.metaKey) &&
+            (
+                event.ctrlKey ||
+                event.metaKey
+            ) &&
             (
                 key === "s" ||
                 key === "p" ||
@@ -2410,10 +3403,10 @@ document.addEventListener(
 
 window.addEventListener(
     "load",
-    function () {
+    function() {
 
         setTimeout(
-            function () {
+            function() {
 
                 if (
                     currentUser &&
