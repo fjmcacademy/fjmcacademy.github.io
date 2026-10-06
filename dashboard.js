@@ -1360,6 +1360,11 @@ function createModal() {
 
 function closeModal() {
 
+    if (fjmcVideoSecurityCleanup) {
+        fjmcVideoSecurityCleanup();
+        fjmcVideoSecurityCleanup = null;
+    }
+
     const watermark =
         document.getElementById(
             "fjmcScreenWatermark"
@@ -1387,6 +1392,362 @@ function closeModal() {
 
 }
 
+/* =========================================================
+   VIDEO SECURITY / SCREEN-RECORDING DETERRENCE
+   Best-effort browser protection only.
+========================================================= */
+
+let fjmcVideoSecurityCleanup = null;
+
+
+function fjmcGetStudentWatermarkText() {
+
+    const name =
+        (currentUser?.displayName || studentName?.textContent || "FJMC Student")
+            .replace(/^Welcome,\s*/i, "")
+            .trim();
+
+    const email =
+        (currentUser?.email || sessionStorage.getItem("loggedInStudent") || "")
+            .trim()
+            .toLowerCase();
+
+    return `${name || "Student"}  •  ${email || "Account"}`;
+}
+
+
+function fjmcApplyVideoProtection() {
+
+    const stage =
+        document.getElementById("fjmcProtectedVideoStage");
+
+    if (!stage) {
+        return;
+    }
+
+    if (fjmcVideoSecurityCleanup) {
+        fjmcVideoSecurityCleanup();
+        fjmcVideoSecurityCleanup = null;
+    }
+
+    const watermark =
+        document.createElement("div");
+
+    watermark.id =
+        "fjmcVideoWatermark";
+
+    watermark.setAttribute("aria-hidden", "true");
+
+    watermark.style.cssText = `
+        position:absolute;
+        left:12%;
+        top:18%;
+        transform:translate(-50%,-50%) rotate(-18deg);
+        width:92%;
+        text-align:center;
+        color:rgba(255,255,255,.48);
+        text-shadow:0 1px 3px rgba(0,0,0,.85);
+        font-size:clamp(11px,1.55vw,18px);
+        font-weight:800;
+        letter-spacing:1.2px;
+        line-height:1.5;
+        white-space:normal;
+        word-break:break-word;
+        pointer-events:none;
+        user-select:none;
+        -webkit-user-select:none;
+        -webkit-touch-callout:none;
+        z-index:30;
+        transition:left 1.2s ease, top 1.2s ease, transform 1.2s ease;
+    `;
+
+    stage.appendChild(watermark);
+
+
+    const captureOverlay =
+        document.createElement("div");
+
+    captureOverlay.id =
+        "fjmcCaptureGuard";
+
+    captureOverlay.innerHTML = `
+        <div style="
+            text-align:center;
+            color:#fff;
+            padding:24px;
+            max-width:520px;
+            font-family:Arial,Helvetica,sans-serif;
+        ">
+            <div style="font-size:42px;margin-bottom:12px;">🔒</div>
+            <div style="font-size:20px;font-weight:800;margin-bottom:8px;">
+                Video paused for security
+            </div>
+            <div style="font-size:14px;line-height:1.6;opacity:.9;margin-bottom:18px;">
+                The video was paused because the browser page became hidden.
+                Return to this page and tap Resume to continue.
+            </div>
+            <button id="fjmcResumeVideo" type="button" style="
+                border:0;
+                border-radius:8px;
+                padding:10px 18px;
+                font-weight:700;
+                cursor:pointer;
+            ">Resume Video</button>
+        </div>
+    `;
+
+    captureOverlay.style.cssText = `
+        position:absolute;
+        inset:0;
+        display:none;
+        align-items:center;
+        justify-content:center;
+        background:#000;
+        z-index:40;
+    `;
+
+    stage.appendChild(captureOverlay);
+
+
+    let watermarkPosition = 0;
+
+    function updateWatermark() {
+
+        if (
+            document.getElementById("fjmcVideoWatermark")
+        ) {
+            watermark.textContent =
+                fjmcGetStudentWatermarkText();
+
+            const positions = [
+                [12, 18, -18],
+                [82, 24, 14],
+                [68, 78, -12],
+                [18, 72, 16],
+                [50, 48, -16]
+            ];
+
+            const position = positions[watermarkPosition % positions.length];
+            watermark.style.left = position[0] + "%";
+            watermark.style.top = position[1] + "%";
+            watermark.style.transform =
+                `translate(-50%,-50%) rotate(${position[2]}deg)`;
+
+            watermarkPosition++;
+        }
+    }
+
+
+    function pauseForHiddenPage() {
+
+        if (document.visibilityState !== "hidden") {
+            return;
+        }
+
+        const video =
+            stage.querySelector("video");
+
+        if (video) {
+            try {
+                video.pause();
+            } catch (_) {}
+        }
+
+        captureOverlay.style.display =
+            "flex";
+    }
+
+
+    function resumeVideo() {
+
+        captureOverlay.style.display =
+            "none";
+
+        const video =
+            stage.querySelector("video");
+
+        if (video) {
+            video.play().catch(() => {});
+        }
+    }
+
+
+    function blockSensitiveShortcut(event) {
+
+        const key =
+            String(event.key || "").toLowerCase();
+
+        const blocked =
+            key === "printscreen" ||
+            key === "f12" ||
+            (event.ctrlKey && key === "u") ||
+            (event.ctrlKey && key === "s") ||
+            (event.ctrlKey && event.shiftKey &&
+                ["i", "j", "c", "s"].includes(key)) ||
+            (event.metaKey && event.shiftKey &&
+                ["3", "4", "5"].includes(key));
+
+        if (blocked) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            captureOverlay.style.display =
+                "flex";
+        }
+    }
+
+
+    function blockContextMenu(event) {
+        event.preventDefault();
+    }
+
+
+    function blockSelection(event) {
+        event.preventDefault();
+    }
+
+
+    updateWatermark();
+
+    const watermarkTimer =
+        window.setInterval(
+            updateWatermark,
+            1000
+        );
+
+    document.addEventListener(
+        "visibilitychange",
+        pauseForHiddenPage,
+        true
+    );
+
+    document.addEventListener(
+        "keydown",
+        blockSensitiveShortcut,
+        true
+    );
+
+    stage.addEventListener(
+        "contextmenu",
+        blockContextMenu,
+        true
+    );
+
+    stage.addEventListener(
+        "selectstart",
+        blockSelection,
+        true
+    );
+
+    async function keepWatermarkInFullscreen() {
+        const fullscreenElement = document.fullscreenElement;
+
+        if (!fullscreenElement || fullscreenElement === stage) return;
+
+        if (
+            fullscreenElement === stage.querySelector("video") ||
+            fullscreenElement === stage.querySelector("iframe")
+        ) {
+            try {
+                await document.exitFullscreen();
+                await stage.requestFullscreen();
+            } catch (error) {
+                console.warn("Protected fullscreen unavailable:", error);
+            }
+        }
+    }
+
+    document.addEventListener(
+        "fullscreenchange",
+        keepWatermarkInFullscreen,
+        true
+    );
+
+    const resumeButton =
+        document.getElementById("fjmcResumeVideo");
+
+    if (resumeButton) {
+        resumeButton.addEventListener(
+            "click",
+            resumeVideo
+        );
+    }
+
+
+    fjmcVideoSecurityCleanup =
+        function () {
+
+            window.clearInterval(
+                watermarkTimer
+            );
+
+            document.removeEventListener(
+                "visibilitychange",
+                pauseForHiddenPage,
+                true
+            );
+
+            document.removeEventListener(
+                "keydown",
+                blockSensitiveShortcut,
+                true
+            );
+
+            stage.removeEventListener(
+                "contextmenu",
+                blockContextMenu,
+                true
+            );
+
+            stage.removeEventListener(
+                "selectstart",
+                blockSelection,
+                true
+            );
+
+            document.removeEventListener(
+                "fullscreenchange",
+                keepWatermarkInFullscreen,
+                true
+            );
+
+            if (watermark.parentNode) {
+                watermark.remove();
+            }
+
+            if (captureOverlay.parentNode) {
+                captureOverlay.remove();
+            }
+        };
+}
+
+
+function fjmcPrepareProtectedStage(body) {
+
+    body.innerHTML = `
+        <div
+            id="fjmcProtectedVideoStage"
+            style="
+                position:relative;
+                width:100%;
+                aspect-ratio:16/9;
+                background:#000;
+                overflow:hidden;
+            "
+        ></div>
+    `;
+
+    const stage =
+        document.getElementById(
+            "fjmcProtectedVideoStage"
+        );
+
+    fjmcApplyVideoProtection();
+
+    return stage;
+}
+
+
 
 /* =========================================================
    YOUTUBE VIDEO
@@ -1400,55 +1761,50 @@ function openYouTubeVideo(
     const modal =
         createModal();
 
-
     const modalTitle =
         document.getElementById(
             "fjmcModalTitle"
         );
-
 
     const body =
         document.getElementById(
             "fjmcModalBody"
         );
 
-
     modalTitle.textContent =
         title;
 
+    const stage =
+        fjmcPrepareProtectedStage(body);
 
-    body.innerHTML = `
+    const iframe =
+        document.createElement("iframe");
 
-        <div
-            style="
-                width:100%;
-                aspect-ratio:16/9;
-                background:#000;
-            "
-        >
+    iframe.src =
+        url;
 
-            <iframe
-                src="${url}"
-                title="${title}"
-                style="
-                    width:100%;
-                    height:100%;
-                    border:0;
-                "
-                allow="
-                    accelerometer;
-                    autoplay;
-                    
-                    encrypted-media;
-                    gyroscope;
-                    picture-in-picture
-                    
-                "
-                allowfullscreen>
-            </iframe>
+    iframe.title =
+        title;
 
-        </div>
+    iframe.setAttribute(
+        "allow",
+        "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+    );
+
+    iframe.setAttribute(
+        "allowfullscreen",
+        ""
+    );
+
+    iframe.style.cssText = `
+        position:absolute;
+        inset:0;
+        width:100%;
+        height:100%;
+        border:0;
     `;
+
+    stage.appendChild(iframe);
 
 }
 
@@ -1465,48 +1821,64 @@ function openLocalVideo(
     const modal =
         createModal();
 
-
     const modalTitle =
         document.getElementById(
             "fjmcModalTitle"
         );
-
 
     const body =
         document.getElementById(
             "fjmcModalBody"
         );
 
-
     modalTitle.textContent =
         title;
 
+    const stage =
+        fjmcPrepareProtectedStage(body);
 
-    body.innerHTML = `
+    const video =
+        document.createElement("video");
 
-        <video
-            controls
-            controlsList="nodownload"
-            disablePictureInPicture
-            playsinline
-            style="
-                width:100%;
-                max-height:80vh;
-                display:block;
-                background:#000;
-            "
-        >
+    video.controls = true;
+    video.playsInline = true;
+    video.disablePictureInPicture = true;
+    video.controlsList = "nodownload noplaybackrate";
+    video.preload = "metadata";
 
-            <source
-                src="${url}"
-                type="video/mp4"
-            >
-
-            Your browser does not support video.
-
-        </video>
+    video.style.cssText = `
+        position:absolute;
+        inset:0;
+        width:100%;
+        height:100%;
+        display:block;
+        background:#000;
+        object-fit:contain;
     `;
 
+    const source =
+        document.createElement("source");
+
+    source.src =
+        url;
+
+    source.type =
+        "video/mp4";
+
+    video.appendChild(source);
+    stage.appendChild(video);
+
+    video.addEventListener(
+        "error",
+        function () {
+            console.error(
+                "Protected video could not be loaded:",
+                url
+            );
+        }
+    );
+
+    video.play().catch(() => {});
 }
 
 

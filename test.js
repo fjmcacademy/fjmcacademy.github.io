@@ -1371,8 +1371,14 @@ async function calculateRank() {
 
         let html = "";
 
+        // Rank is still calculated against all students, but only the
+        // logged-in student's own result is shown in the visible leaderboard.
+        const visibleResults = results.filter(function(result) {
+            return result.uid === currentUser.uid;
+        });
 
-        results.forEach(
+
+        visibleResults.forEach(
             function(
                 result,
                 index
