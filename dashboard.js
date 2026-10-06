@@ -1718,15 +1718,15 @@ function closeModal() {
 
 const fjmcVideoWatermarkPositions = [
 
-    [12, 18, -18],
+    [12, 18, 0],
 
-    [82, 24, 14],
+    [82, 24, 0],
 
-    [68, 78, -12],
+    [68, 78, 0],
 
-    [18, 72, 16],
+    [18, 72, 0],
 
-    [50, 48, -16]
+    [50, 48, 0]
 
 ];
 
@@ -1814,7 +1814,7 @@ function fjmcCreateVideoWatermark() {
             0 1px 3px rgba(0,0,0,0.8);
 
         font-size:
-            clamp(10px, 1.2vw, 18px);
+            clamp(5px, .6vw, 11px);
 
         font-weight:800;
 
@@ -1915,7 +1915,7 @@ function fjmcStartVideoWatermark(
     fjmcVideoWatermarkTimer =
         setInterval(
             moveWatermark,
-            6000
+            5000
         );
 
 }
