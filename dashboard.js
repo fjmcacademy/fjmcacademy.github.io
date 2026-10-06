@@ -41,45 +41,114 @@ function studentDocId(email) {
 }
 
 async function loadDashboardData(email, uid) {
-    const normalizedEmail = String(email || "").trim().toLowerCase();
+
+    const normalizedEmail =
+        String(email || "").trim().toLowerCase();
 
     if (!normalizedEmail) return null;
 
-    const emailId = studentDocId(normalizedEmail);
-    let studentSnap = await getDoc(doc(db, "students", emailId));
+    const emailId =
+        studentDocId(normalizedEmail);
+
+    let studentSnap =
+        await getDoc(
+            doc(
+                db,
+                "students",
+                emailId
+            )
+        );
 
     if (!studentSnap.exists() && uid) {
-        const legacySnap = await getDoc(doc(db, "students", uid));
-        if (legacySnap.exists()) studentSnap = legacySnap;
+
+        const legacySnap =
+            await getDoc(
+                doc(
+                    db,
+                    "students",
+                    uid
+                )
+            );
+
+        if (legacySnap.exists()) {
+            studentSnap = legacySnap;
+        }
     }
 
     if (!studentSnap.exists()) {
-        const emailQuery = query(
-            collection(db, "students"),
-            where("email", "==", normalizedEmail)
-        );
-        const result = await getDocs(emailQuery);
-        if (!result.empty) studentSnap = result.docs[0];
+
+        const emailQuery =
+            query(
+                collection(
+                    db,
+                    "students"
+                ),
+                where(
+                    "email",
+                    "==",
+                    normalizedEmail
+                )
+            );
+
+        const result =
+            await getDocs(
+                emailQuery
+            );
+
+        if (!result.empty) {
+            studentSnap =
+                result.docs[0];
+        }
     }
 
-    if (!studentSnap.exists()) return null;
+    if (!studentSnap.exists()) {
+        return null;
+    }
 
-    const student = studentSnap.data();
-    const courseIds = Array.isArray(student.courses) ? student.courses : [];
+    const student =
+        studentSnap.data();
 
-    const courseEntries = await Promise.all(
-        courseIds.map(async courseId => {
-            const snap = await getDoc(doc(db, "courses", courseId));
-            return snap.exists() ? [courseId, snap.data()] : null;
-        })
-    );
+    const courseIds =
+        Array.isArray(student.courses)
+            ? student.courses
+            : [];
+
+    const courseEntries =
+        await Promise.all(
+            courseIds.map(
+                async courseId => {
+
+                    const snap =
+                        await getDoc(
+                            doc(
+                                db,
+                                "courses",
+                                courseId
+                            )
+                        );
+
+                    return snap.exists()
+                        ? [courseId, snap.data()]
+                        : null;
+                }
+            )
+        );
 
     COURSES = {};
-    courseEntries.filter(Boolean).forEach(([id, course]) => {
-        COURSES[id] = course;
-    });
 
-    STUDENTS = { [normalizedEmail]: student };
+    courseEntries
+        .filter(Boolean)
+        .forEach(
+            ([id, course]) => {
+                COURSES[id] =
+                    course;
+            }
+        );
+
+    STUDENTS = {
+        [normalizedEmail]: student
+    };
+
     return student;
 }
 
@@ -154,24 +223,53 @@ function getDeviceType() {
         ""
     );
 
-    const isAndroid = /Android/i.test(userAgent);
-    const isAndroidPhone = isAndroid && /Mobile/i.test(userAgent);
-    const isAndroidTablet = isAndroid && !isAndroidPhone;
+    const isAndroid =
+        /Android/i.test(userAgent);
 
-    const isIPhoneOrIPod = /iPhone|iPod/i.test(userAgent);
-    const isIPadUA = /iPad/i.test(userAgent);
+    const isAndroidPhone =
+        isAndroid &&
+        /Mobile/i.test(userAgent);
+
+    const isAndroidTablet =
+        isAndroid &&
+        !isAndroidPhone;
+
+    const isIPhoneOrIPod =
+        /iPhone|iPod/i.test(userAgent);
+
+    const isIPadUA =
+        /iPad/i.test(userAgent);
 
     const isTouchMac =
         /Macintosh/i.test(userAgent) &&
         typeof navigator.maxTouchPoints === "number" &&
         navigator.maxTouchPoints > 1;
 
-    const maxTouchPoints = Number(navigator.maxTouchPoints || 0);
-    const screenWidth = Number(window.screen && window.screen.width || 0);
-    const screenHeight = Number(window.screen && window.screen.height || 0);
-    const shortSide = Math.min(screenWidth || 99999, screenHeight || 99999);
+    const maxTouchPoints =
+        Number(
+            navigator.maxTouchPoints || 0
+        );
 
-    const hasMultiTouch = maxTouchPoints >= 2;
+    const screenWidth =
+        Number(
+            window.screen &&
+            window.screen.width || 0
+        );
+
+    const screenHeight =
+        Number(
+            window.screen &&
+            window.screen.height || 0
+        );
+
+    const shortSide =
+        Math.min(
+            screenWidth || 99999,
+            screenHeight || 99999
+        );
+
+    const hasMultiTouch =
+        maxTouchPoints >= 2;
 
     const tabletSizedTouchScreen =
         hasMultiTouch &&
@@ -187,6 +285,7 @@ function getDeviceType() {
         tabletSizedTouchScreen ||
         /Tablet|Mobile/i.test(userAgent)
     ) {
+
         return "mobile";
     }
 
@@ -310,12 +409,10 @@ const coursesContainer =
         "coursesContainer"
     );
 
-
 const studentName =
     document.getElementById(
         "studentName"
     );
-
 
 const logoutBtn =
     document.getElementById(
@@ -357,7 +454,10 @@ onAuthStateChanged(
             );
 
             const student =
-                await loadDashboardData(email, user.uid);
+                await loadDashboardData(
+                    email,
+                    user.uid
+                );
 
             if (!student) {
 
@@ -504,7 +604,6 @@ async function countActiveDeviceType(
                 deviceDoc.id ===
                 excludeDeviceId
             ) {
-
                 return;
             }
 
@@ -563,7 +662,6 @@ async function countAllActiveDevices(
                 deviceDoc.id ===
                 excludeDeviceId
             ) {
-
                 return;
             }
 
@@ -596,7 +694,10 @@ async function countAllActiveDevices(
    REGISTER / CHECK DEVICE
 ========================================================= */
 
-function deviceSlotRef(user, type) {
+function deviceSlotRef(
+    user,
+    type
+) {
 
     return doc(
         db,
@@ -608,7 +709,9 @@ function deviceSlotRef(user, type) {
 
 }
 
-function deviceSlotName(type) {
+function deviceSlotName(
+    type
+) {
 
     return type === "mobile"
         ? "mobile"
@@ -616,7 +719,9 @@ function deviceSlotName(type) {
 
 }
 
-async function registerDevice(user) {
+async function registerDevice(
+    user
+) {
 
     try {
 
@@ -637,14 +742,18 @@ async function registerDevice(user) {
         const result =
             await runTransaction(
                 db,
-                async function (transaction) {
+                async (
+                    transaction
+                ) => {
 
                     const slotSnap =
                         await transaction.get(
                             slotRef
                         );
 
-                    if (slotSnap.exists()) {
+                    if (
+                        slotSnap.exists()
+                    ) {
 
                         const data =
                             slotSnap.data() || {};
@@ -669,8 +778,10 @@ async function registerDevice(user) {
                                 slotRef,
                                 {
                                     lastSeen: now,
-                                    email: user.email || "",
-                                    deviceType: type
+                                    email:
+                                        user.email || "",
+                                    deviceType:
+                                        type
                                 },
                                 {
                                     merge: true
@@ -680,21 +791,18 @@ async function registerDevice(user) {
                             return {
                                 allowed: true
                             };
-
                         }
 
                         if (
-                            reservedUntil >
-                            now
+                            reservedUntil > now
                         ) {
 
                             return {
                                 allowed: false,
-                                reason: "reserved"
+                                reason:
+                                    "reserved"
                             };
-
                         }
-
                     }
 
                     transaction.set(
@@ -702,23 +810,17 @@ async function registerDevice(user) {
                         {
                             email:
                                 user.email || "",
-
                             deviceId:
                                 deviceId,
-
                             deviceType:
                                 type,
-
                             reservedAt:
                                 now,
-
                             reservedUntil:
                                 now +
                                 DEVICE_TIMEOUT,
-
                             lastSeen:
                                 now,
-
                             active:
                                 true
                         },
@@ -739,7 +841,6 @@ async function registerDevice(user) {
             showDeviceLimitMessage();
 
             return false;
-
         }
 
         const deviceRef =
@@ -771,22 +872,17 @@ async function registerDevice(user) {
             {
                 email:
                     user.email || "",
-
                 active:
                     true,
-
                 deviceType:
                     currentDeviceType,
-
                 lastSeen:
                     now,
-
                 expiresAt:
                     existingExpiry > now
                         ? existingExpiry
                         : now +
                           DEVICE_TIMEOUT,
-
                 reserved:
                     true
             },
@@ -818,7 +914,6 @@ async function registerDevice(user) {
         );
 
         return false;
-
     }
 
 }
@@ -847,7 +942,6 @@ function showDeviceLimitMessage() {
             "block";
 
         return;
-
     }
 
     alert(
@@ -950,7 +1044,6 @@ async function updateDeviceHeartbeat() {
 
                 deviceHeartbeat =
                     null;
-
             }
 
             alert(
@@ -980,7 +1073,6 @@ async function updateDeviceHeartbeat() {
 
                 deviceHeartbeat =
                     null;
-
             }
 
             alert(
@@ -1019,7 +1111,6 @@ async function updateDeviceHeartbeat() {
             {
                 lastSeen:
                     now,
-
                 active:
                     true
             }
@@ -1094,9 +1185,19 @@ function showStudentCourses(
             background:rgba(255,255,255,.06);
             border:1px solid rgba(255,255,255,.12);
         ">
-            <h3 style="margin:0 0 12px 0;">${student.exam || ""}</h3>
-            <p style="margin:5px 0;"><strong>Batch:</strong> ${student.batch || ""}</p>
-            <p style="margin:5px 0;"><strong>Year:</strong> ${student.year || ""}</p>
+            <h3 style="margin:0 0 12px 0;">
+                ${student.exam || ""}
+            </h3>
+
+            <p style="margin:5px 0;">
+                <strong>Batch:</strong>
+                ${student.batch || ""}
+            </p>
+
+            <p style="margin:5px 0;">
+                <strong>Year:</strong>
+                ${student.year || ""}
+            </p>
         </div>
     `;
 
@@ -1147,12 +1248,15 @@ function showStudentCourses(
                     ) {
 
                         contentHTML += `
-                            <button class="content-button video-button"
+                            <button
+                                class="content-button video-button"
                                 data-type="youtube"
-                                data-url="${encodeURIComponent(content.url || "")}" 
-                                data-title="${encodeURIComponent(content.title || "Lecture")}">
+                                data-url="${encodeURIComponent(content.url || "")}"
+                                data-title="${encodeURIComponent(content.title || "Lecture")}"
+                            >
                                 ▶ ${content.title || "Video"}
-                            </button>`;
+                            </button>
+                        `;
 
                     } else if (
                         content.type ===
@@ -1160,12 +1264,15 @@ function showStudentCourses(
                     ) {
 
                         contentHTML += `
-                            <button class="content-button video-button"
+                            <button
+                                class="content-button video-button"
                                 data-type="local"
-                                data-url="${encodeURIComponent(content.url || "")}" 
-                                data-title="${encodeURIComponent(content.title || "Lecture")}">
+                                data-url="${encodeURIComponent(content.url || "")}"
+                                data-title="${encodeURIComponent(content.title || "Lecture")}"
+                            >
                                 ▶ ${content.title || "Video"}
-                            </button>`;
+                            </button>
+                        `;
 
                     } else if (
                         content.type ===
@@ -1173,12 +1280,15 @@ function showStudentCourses(
                     ) {
 
                         contentHTML += `
-                            <button class="content-button pdf-button"
+                            <button
+                                class="content-button pdf-button"
                                 data-type="pdf"
-                                data-url="${encodeURIComponent(content.url || "")}" 
-                                data-title="${encodeURIComponent(content.title || "PDF")}">
+                                data-url="${encodeURIComponent(content.url || "")}"
+                                data-title="${encodeURIComponent(content.title || "PDF")}"
+                            >
                                 📄 ${content.title || "PDF"}
-                            </button>`;
+                            </button>
+                        `;
 
                     } else if (
                         content.type ===
@@ -1186,11 +1296,14 @@ function showStudentCourses(
                     ) {
 
                         contentHTML += `
-                            <button class="content-button live-button"
+                            <button
+                                class="content-button live-button"
                                 data-type="live"
-                                data-url="${encodeURIComponent(content.url || "")}">
+                                data-url="${encodeURIComponent(content.url || "")}"
+                            >
                                 🔴 ${content.title || "Live Class"}
-                            </button>`;
+                            </button>
+                        `;
 
                     }
 
@@ -1198,29 +1311,62 @@ function showStudentCourses(
             );
 
             courseCard.innerHTML = `
-                <button type="button" class="course-toggle" aria-expanded="false">
+                <button
+                    type="button"
+                    class="course-toggle"
+                    aria-expanded="false"
+                >
+
                     <div class="course-title">
-                        <div style="margin-bottom:10px;font-size:13px;opacity:.85;">
+
+                        <div style="
+                            margin-bottom:10px;
+                            font-size:13px;
+                            opacity:.85;
+                        ">
                             ${course.exam || student.exam || ""}
                             &nbsp;•&nbsp;
                             ${course.batch || student.batch || ""}
                             &nbsp;•&nbsp;
                             ${course.year || student.year || ""}
                         </div>
-                        <h3>${course.title || courseId}</h3>
-                        <p>${course.description || ""}</p>
-                        <span class="course-open-hint">Tap / Click to open course</span>
+
+                        <h3>
+                            ${course.title || courseId}
+                        </h3>
+
+                        <p>
+                            ${course.description || ""}
+                        </p>
+
+                        <span class="course-open-hint">
+                            Tap / Click to open course
+                        </span>
+
                     </div>
+
                 </button>
 
-                <div class="course-content" hidden>
-                    ${contentHTML || `<div class="no-course"><p>No material added yet.</p></div>`}
+                <div
+                    class="course-content"
+                    hidden
+                >
+
+                    ${
+                        contentHTML ||
+                        `
+                        <div class="no-course">
+                            <p>No material added yet.</p>
+                        </div>
+                        `
+                    }
 
                     <div style="
                         margin-top:15px;
                         padding-top:15px;
                         border-top:1px solid rgba(0,0,0,.12);
                     ">
+
                         <button
                             type="button"
                             class="fjmc-test-button"
@@ -1228,7 +1374,9 @@ function showStudentCourses(
                         >
                             📝 ${course.title || "Course"} Test
                         </button>
+
                     </div>
+
                 </div>
             `;
 
@@ -1244,11 +1392,11 @@ function showStudentCourses(
             ".course-toggle"
         )
         .forEach(
-            function(button) {
+            button => {
 
                 button.addEventListener(
                     "click",
-                    function() {
+                    () => {
 
                         const card =
                             button.closest(
@@ -1260,8 +1408,9 @@ function showStudentCourses(
                                 ".course-content"
                             );
 
-                        if (!content)
+                        if (!content) {
                             return;
+                        }
 
                         const isOpen =
                             !content.hidden;
@@ -1292,7 +1441,7 @@ function showStudentCourses(
             ".fjmc-test-button"
         )
         .forEach(
-            function(button) {
+            button => {
 
                 button.addEventListener(
                     "click",
@@ -1321,7 +1470,7 @@ function showStudentCourses(
             ".content-button"
         )
         .forEach(
-            function(button) {
+            button => {
 
                 button.addEventListener(
                     "click",
@@ -1334,8 +1483,7 @@ function showStudentCourses(
 
                         const url =
                             decodeURIComponent(
-                                button.dataset.url ||
-                                ""
+                                button.dataset.url || ""
                             );
 
                         const title =
@@ -1564,8 +1712,30 @@ function closeModal() {
 
 
 /* =========================================================
-   VIDEO WATERMARK
-   RED + HORIZONTAL + NO ROTATION
+   VIDEO WATERMARK SYSTEM
+   MOVING POSITIONS
+========================================================= */
+
+const fjmcVideoWatermarkPositions = [
+
+    [12, 18, -18],
+
+    [82, 24, 14],
+
+    [68, 78, -12],
+
+    [18, 72, 16],
+
+    [50, 48, -16]
+
+];
+
+
+let fjmcVideoWatermarkTimer = null;
+
+
+/* =========================================================
+   GET STUDENT WATERMARK TEXT
 ========================================================= */
 
 function fjmcGetVideoWatermarkText() {
@@ -1602,6 +1772,10 @@ function fjmcGetVideoWatermarkText() {
 }
 
 
+/* =========================================================
+   CREATE MOVING VIDEO WATERMARK
+========================================================= */
+
 function fjmcCreateVideoWatermark() {
 
     const watermark =
@@ -1622,9 +1796,13 @@ function fjmcCreateVideoWatermark() {
 
     watermark.style.cssText = `
         position:absolute;
+
         left:50%;
         top:50%;
-        transform:translate(-50%, -50%);
+
+        transform:
+            translate(-50%, -50%)
+            rotate(0deg);
 
         width:90%;
 
@@ -1635,7 +1813,8 @@ function fjmcCreateVideoWatermark() {
         text-shadow:
             0 1px 3px rgba(0,0,0,0.8);
 
-        font-size:clamp(10px, 1.2vw, 18px);
+        font-size:
+            clamp(10px, 1.2vw, 18px);
 
         font-weight:800;
 
@@ -1653,12 +1832,308 @@ function fjmcCreateVideoWatermark() {
         -webkit-user-select:none;
         -webkit-touch-callout:none;
 
-        z-index:9999;
+        z-index:999999;
+
+        transition:
+            left 1.2s ease,
+            top 1.2s ease,
+            transform 1.2s ease;
     `;
 
     return watermark;
 
 }
+
+
+/* =========================================================
+   START WATERMARK MOVEMENT
+========================================================= */
+
+function fjmcStartVideoWatermark(
+    stage
+) {
+
+    fjmcStopVideoWatermark();
+
+    if (!stage) {
+        return;
+    }
+
+    const watermark =
+        stage.querySelector(
+            ".fjmc-video-watermark"
+        );
+
+    if (!watermark) {
+        return;
+    }
+
+    let positionIndex = 0;
+
+    function moveWatermark() {
+
+        const position =
+            fjmcVideoWatermarkPositions[
+                positionIndex
+            ];
+
+        if (!position) {
+            return;
+        }
+
+        const left =
+            position[0];
+
+        const top =
+            position[1];
+
+        const rotation =
+            position[2];
+
+        watermark.style.left =
+            left + "%";
+
+        watermark.style.top =
+            top + "%";
+
+        watermark.style.transform =
+            `
+            translate(-50%, -50%)
+            rotate(${rotation}deg)
+            `;
+
+        positionIndex =
+            (
+                positionIndex + 1
+            ) %
+            fjmcVideoWatermarkPositions.length;
+
+    }
+
+    moveWatermark();
+
+    fjmcVideoWatermarkTimer =
+        setInterval(
+            moveWatermark,
+            6000
+        );
+
+}
+
+
+/* =========================================================
+   STOP WATERMARK MOVEMENT
+========================================================= */
+
+function fjmcStopVideoWatermark() {
+
+    if (
+        fjmcVideoWatermarkTimer
+    ) {
+
+        clearInterval(
+            fjmcVideoWatermarkTimer
+        );
+
+        fjmcVideoWatermarkTimer =
+            null;
+    }
+
+}
+
+
+/* =========================================================
+   FULLSCREEN SUPPORT
+   FULLSCREEN THE STAGE, NOT THE VIDEO
+========================================================= */
+
+async function fjmcToggleVideoFullscreen(
+    stage
+) {
+
+    if (!stage) {
+        return;
+    }
+
+    try {
+
+        if (
+            document.fullscreenElement
+        ) {
+
+            await document.exitFullscreen();
+
+            return;
+        }
+
+        if (
+            stage.requestFullscreen
+        ) {
+
+            await stage.requestFullscreen();
+
+        } else if (
+            stage.webkitRequestFullscreen
+        ) {
+
+            stage.webkitRequestFullscreen();
+
+        }
+
+    } catch (error) {
+
+        console.error(
+            "Fullscreen error:",
+            error
+        );
+
+    }
+
+}
+
+
+/* =========================================================
+   ADD CUSTOM FULLSCREEN BUTTON
+========================================================= */
+
+function fjmcAddFullscreenButton(
+    stage
+) {
+
+    if (!stage) {
+        return;
+    }
+
+    const button =
+        document.createElement(
+            "button"
+        );
+
+    button.type =
+        "button";
+
+    button.className =
+        "fjmc-video-fullscreen-button";
+
+    button.innerHTML =
+        "⛶";
+
+    button.title =
+        "Fullscreen";
+
+    button.setAttribute(
+        "aria-label",
+        "Fullscreen"
+    );
+
+    button.style.cssText = `
+        position:absolute;
+
+        right:12px;
+        bottom:12px;
+
+        width:42px;
+        height:38px;
+
+        border:0;
+        border-radius:7px;
+
+        background:rgba(0,0,0,.72);
+
+        color:#fff;
+
+        font-size:24px;
+        line-height:1;
+
+        cursor:pointer;
+
+        z-index:1000000;
+
+        display:flex;
+        align-items:center;
+        justify-content:center;
+
+        opacity:.90;
+    `;
+
+    button.addEventListener(
+        "click",
+        function(event) {
+
+            event.preventDefault();
+
+            event.stopPropagation();
+
+            fjmcToggleVideoFullscreen(
+                stage
+            );
+
+        }
+    );
+
+    stage.appendChild(
+        button
+    );
+
+}
+
+
+/* =========================================================
+   FULLSCREEN CHANGE
+========================================================= */
+
+document.addEventListener(
+    "fullscreenchange",
+    function() {
+
+        const fullscreenStage =
+            document.fullscreenElement;
+
+        if (
+            fullscreenStage &&
+            fullscreenStage.classList.contains(
+                "fjmc-video-stage"
+            )
+        ) {
+
+            fullscreenStage.style.width =
+                "100vw";
+
+            fullscreenStage.style.height =
+                "100vh";
+
+            fullscreenStage.style.aspectRatio =
+                "auto";
+
+            fullscreenStage.style.background =
+                "#000";
+
+        } else {
+
+            const stages =
+                document.querySelectorAll(
+                    ".fjmc-video-stage"
+                );
+
+            stages.forEach(
+                function(stage) {
+
+                    stage.style.width =
+                        "100%";
+
+                    stage.style.height =
+                        "";
+
+                    stage.style.aspectRatio =
+                        "16/9";
+
+                }
+            );
+
+        }
+
+    }
+);
 
 
 /* =========================================================
@@ -1686,10 +2161,49 @@ function openYouTubeVideo(
     modalTitle.textContent =
         title;
 
+
+    /*
+     * Disable YouTube's own fullscreen button.
+     * Our custom fullscreen button fullscreen's the
+     * complete stage, so watermark remains visible.
+     */
+    let youtubeUrl =
+        url || "";
+
+    try {
+
+        const separator =
+            youtubeUrl.includes("?")
+                ? "&"
+                : "?";
+
+        if (
+            !/[?&]fs=/.test(
+                youtubeUrl
+            )
+        ) {
+
+            youtubeUrl +=
+                separator +
+                "fs=0";
+
+        }
+
+    } catch (error) {
+
+        console.warn(
+            "YouTube URL processing:",
+            error
+        );
+
+    }
+
+
     body.innerHTML = `
 
         <div
-            id="fjmcVideoStage"
+            id="fjmcYouTubeVideoStage"
+            class="fjmc-video-stage"
             style="
                 position:relative;
                 width:100%;
@@ -1700,7 +2214,7 @@ function openYouTubeVideo(
         >
 
             <iframe
-                src="${url}"
+                src="${youtubeUrl}"
                 title="${title}"
                 style="
                     width:100%;
@@ -1722,18 +2236,35 @@ function openYouTubeVideo(
         </div>
     `;
 
+
     const stage =
         document.getElementById(
-            "fjmcVideoStage"
+            "fjmcYouTubeVideoStage"
         );
 
-    if (stage) {
 
-        stage.appendChild(
-            fjmcCreateVideoWatermark()
-        );
-
+    if (!stage) {
+        return;
     }
+
+
+    const watermark =
+        fjmcCreateVideoWatermark();
+
+
+    stage.appendChild(
+        watermark
+    );
+
+
+    fjmcAddFullscreenButton(
+        stage
+    );
+
+
+    fjmcStartVideoWatermark(
+        stage
+    );
 
 }
 
@@ -1763,13 +2294,16 @@ function openLocalVideo(
     modalTitle.textContent =
         title;
 
+
     body.innerHTML = `
 
         <div
             id="fjmcLocalVideoStage"
+            class="fjmc-video-stage"
             style="
                 position:relative;
                 width:100%;
+                aspect-ratio:16/9;
                 max-height:80vh;
                 background:#000;
                 overflow:hidden;
@@ -1778,14 +2312,15 @@ function openLocalVideo(
 
             <video
                 controls
-                controlsList="nodownload"
+                controlsList="nodownload nofullscreen"
                 disablePictureInPicture
                 playsinline
                 style="
                     width:100%;
-                    max-height:80vh;
+                    height:100%;
                     display:block;
                     background:#000;
+                    object-fit:contain;
                 "
             >
 
@@ -1801,18 +2336,35 @@ function openLocalVideo(
         </div>
     `;
 
+
     const stage =
         document.getElementById(
             "fjmcLocalVideoStage"
         );
 
-    if (stage) {
 
-        stage.appendChild(
-            fjmcCreateVideoWatermark()
-        );
-
+    if (!stage) {
+        return;
     }
+
+
+    const watermark =
+        fjmcCreateVideoWatermark();
+
+
+    stage.appendChild(
+        watermark
+    );
+
+
+    fjmcAddFullscreenButton(
+        stage
+    );
+
+
+    fjmcStartVideoWatermark(
+        stage
+    );
 
 }
 
@@ -2167,6 +2719,8 @@ if (logoutBtn) {
                         null;
                 }
 
+                fjmcStopVideoWatermark();
+
                 sessionStorage.removeItem(
                     "loggedInStudent"
                 );
@@ -2203,7 +2757,7 @@ if (logoutBtn) {
 
 document.addEventListener(
     "contextmenu",
-    function (event) {
+    function(event) {
 
         event.preventDefault();
 
@@ -2213,7 +2767,7 @@ document.addEventListener(
 
 document.addEventListener(
     "copy",
-    function (event) {
+    function(event) {
 
         event.preventDefault();
 
@@ -2223,7 +2777,7 @@ document.addEventListener(
 
 document.addEventListener(
     "cut",
-    function (event) {
+    function(event) {
 
         event.preventDefault();
 
@@ -2233,7 +2787,7 @@ document.addEventListener(
 
 document.addEventListener(
     "selectstart",
-    function (event) {
+    function(event) {
 
         event.preventDefault();
 
@@ -2243,14 +2797,16 @@ document.addEventListener(
 
 document.addEventListener(
     "keydown",
-    function (event) {
+    function(event) {
 
         const key =
             event.key.toLowerCase();
 
         if (
-            (event.ctrlKey ||
-                event.metaKey) &&
+            (
+                event.ctrlKey ||
+                event.metaKey
+            ) &&
             (
                 key === "s" ||
                 key === "p" ||
@@ -2273,10 +2829,10 @@ document.addEventListener(
 
 window.addEventListener(
     "load",
-    function () {
+    function() {
 
         setTimeout(
-            function () {
+            function() {
 
                 if (
                     currentUser &&
