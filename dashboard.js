@@ -41,118 +41,45 @@ function studentDocId(email) {
 }
 
 async function loadDashboardData(email, uid) {
-
-    const normalizedEmail =
-        String(email || "")
-            .trim()
-            .toLowerCase();
+    const normalizedEmail = String(email || "").trim().toLowerCase();
 
     if (!normalizedEmail) return null;
 
-    const emailId =
-        studentDocId(normalizedEmail);
-
-    let studentSnap =
-        await getDoc(
-            doc(
-                db,
-                "students",
-                emailId
-            )
-        );
+    const emailId = studentDocId(normalizedEmail);
+    let studentSnap = await getDoc(doc(db, "students", emailId));
 
     if (!studentSnap.exists() && uid) {
-
-        const legacySnap =
-            await getDoc(
-                doc(
-                    db,
-                    "students",
-                    uid
-                )
-            );
-
-        if (legacySnap.exists()) {
-            studentSnap = legacySnap;
-        }
+        const legacySnap = await getDoc(doc(db, "students", uid));
+        if (legacySnap.exists()) studentSnap = legacySnap;
     }
 
     if (!studentSnap.exists()) {
-
-        const emailQuery =
-            query(
-                collection(
-                    db,
-                    "students"
-                ),
-                where(
-                    "email",
-                    "==",
-                    normalizedEmail
-                )
-            );
-
-        const result =
-            await getDocs(
-                emailQuery
-            );
-
-        if (!result.empty) {
-            studentSnap =
-                result.docs[0];
-        }
-    }
-
-    if (!studentSnap.exists()) {
-        return null;
-    }
-
-    const student =
-        studentSnap.data();
-
-    const courseIds =
-        Array.isArray(student.courses)
-            ? student.courses
-            : [];
-
-    const courseEntries =
-        await Promise.all(
-            courseIds.map(
-                async courseId => {
-
-                    const snap =
-                        await getDoc(
-                            doc(
-                                db,
-                                "courses",
-                                courseId
-                            )
-                        );
-
-                    return snap.exists()
-                        ? [courseId, snap.data()]
-                        : null;
-                }
-            )
+        const emailQuery = query(
+            collection(db, "students"),
+            where("email", "==", normalizedEmail)
         );
+        const result = await getDocs(emailQuery);
+        if (!result.empty) studentSnap = result.docs[0];
+    }
+
+    if (!studentSnap.exists()) return null;
+
+    const student = studentSnap.data();
+    const courseIds = Array.isArray(student.courses) ? student.courses : [];
+
+    const courseEntries = await Promise.all(
+        courseIds.map(async courseId => {
+            const snap = await getDoc(doc(db, "courses", courseId));
+            return snap.exists() ? [courseId, snap.data()] : null;
+        })
+    );
 
     COURSES = {};
+    courseEntries.filter(Boolean).forEach(([id, course]) => {
+        COURSES[id] = course;
+    });
 
-    courseEntries
-        .filter(Boolean)
-        .forEach(
-            ([id, course]) => {
-
-                COURSES[id] =
-                    course;
-
-            }
-        );
-
-    STUDENTS = {
-        [normalizedEmail]: student
-    };
-
+    STUDENTS = { [normalizedEmail]: student };
     return student;
 }
 
@@ -198,7 +125,6 @@ function getDeviceId() {
                 Math.random()
                     .toString(36)
                     .substring(2);
-
         }
 
         localStorage.setItem(
@@ -210,6 +136,7 @@ function getDeviceId() {
     return id;
 }
 
+
 const deviceId =
     getDeviceId();
 
@@ -220,71 +147,31 @@ const deviceId =
 
 function getDeviceType() {
 
-    const userAgent =
-        String(
-            navigator.userAgent ||
-            navigator.vendor ||
-            window.opera ||
-            ""
-        );
+    const userAgent = String(
+        navigator.userAgent ||
+        navigator.vendor ||
+        window.opera ||
+        ""
+    );
 
-    const isAndroid =
-        /Android/i.test(
-            userAgent
-        );
+    const isAndroid = /Android/i.test(userAgent);
+    const isAndroidPhone = isAndroid && /Mobile/i.test(userAgent);
+    const isAndroidTablet = isAndroid && !isAndroidPhone;
 
-    const isAndroidPhone =
-        isAndroid &&
-        /Mobile/i.test(
-            userAgent
-        );
-
-    const isAndroidTablet =
-        isAndroid &&
-        !isAndroidPhone;
-
-    const isIPhoneOrIPod =
-        /iPhone|iPod/i.test(
-            userAgent
-        );
-
-    const isIPadUA =
-        /iPad/i.test(
-            userAgent
-        );
+    const isIPhoneOrIPod = /iPhone|iPod/i.test(userAgent);
+    const isIPadUA = /iPad/i.test(userAgent);
 
     const isTouchMac =
-        /Macintosh/i.test(
-            userAgent
-        ) &&
+        /Macintosh/i.test(userAgent) &&
         typeof navigator.maxTouchPoints === "number" &&
         navigator.maxTouchPoints > 1;
 
-    const maxTouchPoints =
-        Number(
-            navigator.maxTouchPoints || 0
-        );
+    const maxTouchPoints = Number(navigator.maxTouchPoints || 0);
+    const screenWidth = Number(window.screen && window.screen.width || 0);
+    const screenHeight = Number(window.screen && window.screen.height || 0);
+    const shortSide = Math.min(screenWidth || 99999, screenHeight || 99999);
 
-    const screenWidth =
-        Number(
-            window.screen &&
-            window.screen.width || 0
-        );
-
-    const screenHeight =
-        Number(
-            window.screen &&
-            window.screen.height || 0
-        );
-
-    const shortSide =
-        Math.min(
-            screenWidth || 99999,
-            screenHeight || 99999
-        );
-
-    const hasMultiTouch =
-        maxTouchPoints >= 2;
+    const hasMultiTouch = maxTouchPoints >= 2;
 
     const tabletSizedTouchScreen =
         hasMultiTouch &&
@@ -300,16 +187,16 @@ function getDeviceType() {
         tabletSizedTouchScreen ||
         /Tablet|Mobile/i.test(userAgent)
     ) {
-
         return "mobile";
-
     }
 
     return "desktop";
 }
 
+
 const currentDeviceType =
     getDeviceType();
+
 
 console.log(
     "Current device type:",
@@ -322,7 +209,6 @@ console.log(
 ========================================================= */
 
 let currentUser = null;
-
 let deviceHeartbeat = null;
 
 
@@ -424,10 +310,12 @@ const coursesContainer =
         "coursesContainer"
     );
 
+
 const studentName =
     document.getElementById(
         "studentName"
     );
+
 
 const logoutBtn =
     document.getElementById(
@@ -469,10 +357,7 @@ onAuthStateChanged(
             );
 
             const student =
-                await loadDashboardData(
-                    email,
-                    user.uid
-                );
+                await loadDashboardData(email, user.uid);
 
             if (!student) {
 
@@ -493,11 +378,6 @@ onAuthStateChanged(
                 return;
             }
 
-
-            /* =============================================
-               SESSION
-            ============================================= */
-
             sessionStorage.setItem(
                 "loggedInStudent",
                 email
@@ -508,11 +388,6 @@ onAuthStateChanged(
                 user.uid
             );
 
-
-            /* =============================================
-               STUDENT NAME
-            ============================================= */
-
             if (studentName) {
 
                 studentName.textContent =
@@ -520,11 +395,6 @@ onAuthStateChanged(
                     student.name;
 
             }
-
-
-            /* =============================================
-               DEVICE CHECK
-            ============================================= */
 
             const allowed =
                 await registerDevice(
@@ -547,11 +417,6 @@ onAuthStateChanged(
                 return;
             }
 
-
-            /* =============================================
-               SHOW COURSES
-            ============================================= */
-
             showStudentCourses(
                 student
             );
@@ -559,7 +424,6 @@ onAuthStateChanged(
             hidePageLoading();
 
             startDeviceHeartbeat();
-
 
         } catch (error) {
 
@@ -670,6 +534,7 @@ async function countActiveDeviceType(
     );
 
     return count;
+
 }
 
 
@@ -723,17 +588,15 @@ async function countAllActiveDevices(
     );
 
     return count;
+
 }
 
 
 /* =========================================================
-   DEVICE SLOT
+   REGISTER / CHECK DEVICE
 ========================================================= */
 
-function deviceSlotRef(
-    user,
-    type
-) {
+function deviceSlotRef(user, type) {
 
     return doc(
         db,
@@ -742,12 +605,10 @@ function deviceSlotRef(
         "deviceSlots",
         type
     );
+
 }
 
-
-function deviceSlotName(
-    type
-) {
+function deviceSlotName(type) {
 
     return type === "mobile"
         ? "mobile"
@@ -755,22 +616,7 @@ function deviceSlotName(
 
 }
 
-
-/* =========================================================
-   REGISTER / CHECK DEVICE
-
-   1 MOBILE/TABLET SLOT
-   +
-   1 DESKTOP/LAPTOP SLOT
-
-   3-DAY FIXED RESERVATION
-
-   LOGOUT DOES NOT FREE SLOT
-========================================================= */
-
-async function registerDevice(
-    user
-) {
+async function registerDevice(user) {
 
     try {
 
@@ -801,23 +647,17 @@ async function registerDevice(
                     if (slotSnap.exists()) {
 
                         const data =
-                            slotSnap.data() ||
-                            {};
+                            slotSnap.data() || {};
 
                         const reservedUntil =
                             Number(
-                                data.reservedUntil ||
-                                0
+                                data.reservedUntil || 0
                             );
 
                         const reservedDeviceId =
                             String(
-                                data.deviceId ||
-                                ""
+                                data.deviceId || ""
                             );
-
-
-                        /* SAME DEVICE */
 
                         if (
                             reservedDeviceId ===
@@ -829,11 +669,8 @@ async function registerDevice(
                                 slotRef,
                                 {
                                     lastSeen: now,
-                                    email:
-                                        user.email ||
-                                        "",
-                                    deviceType:
-                                        type
+                                    email: user.email || "",
+                                    deviceType: type
                                 },
                                 {
                                     merge: true
@@ -843,37 +680,28 @@ async function registerDevice(
                             return {
                                 allowed: true
                             };
+
                         }
 
-
-                        /* DIFFERENT DEVICE */
-
                         if (
-                            reservedUntil > now
+                            reservedUntil >
+                            now
                         ) {
 
                             return {
                                 allowed: false,
-                                reason:
-                                    "reserved"
+                                reason: "reserved"
                             };
 
                         }
 
                     }
 
-
-                    /* =====================================
-                       EXPIRED SLOT
-                       NEW 3-DAY RESERVATION
-                    ===================================== */
-
                     transaction.set(
                         slotRef,
                         {
                             email:
-                                user.email ||
-                                "",
+                                user.email || "",
 
                             deviceId:
                                 deviceId,
@@ -893,7 +721,6 @@ async function registerDevice(
 
                             active:
                                 true
-
                         },
                         {
                             merge: true
@@ -907,18 +734,13 @@ async function registerDevice(
                 }
             );
 
-
         if (!result.allowed) {
 
             showDeviceLimitMessage();
 
             return false;
+
         }
-
-
-        /* =============================================
-           COMPATIBILITY DEVICE RECORD
-        ============================================= */
 
         const deviceRef =
             doc(
@@ -941,17 +763,14 @@ async function registerDevice(
 
         const existingExpiry =
             Number(
-                existingData.expiresAt ||
-                0
+                existingData.expiresAt || 0
             );
-
 
         await setDoc(
             deviceRef,
             {
                 email:
-                    user.email ||
-                    "",
+                    user.email || "",
 
                 active:
                     true,
@@ -970,13 +789,11 @@ async function registerDevice(
 
                 reserved:
                     true
-
             },
             {
                 merge: true
             }
         );
-
 
         console.log(
             "Fixed 3-day device reservation registered:",
@@ -985,7 +802,6 @@ async function registerDevice(
         );
 
         return true;
-
 
     } catch (error) {
 
@@ -1002,7 +818,9 @@ async function registerDevice(
         );
 
         return false;
+
     }
+
 }
 
 
@@ -1029,11 +847,13 @@ function showDeviceLimitMessage() {
             "block";
 
         return;
+
     }
 
     alert(
         text
     );
+
 }
 
 
@@ -1060,6 +880,7 @@ function startDeviceHeartbeat() {
             updateDeviceHeartbeat,
             2 * 60 * 1000
         );
+
 }
 
 
@@ -1104,25 +925,17 @@ async function updateDeviceHeartbeat() {
         }
 
         const data =
-            slotSnap.data() ||
-            {};
+            slotSnap.data() || {};
 
         const reservedDeviceId =
             String(
-                data.deviceId ||
-                ""
+                data.deviceId || ""
             );
 
         const reservedUntil =
             Number(
-                data.reservedUntil ||
-                0
+                data.reservedUntil || 0
             );
-
-
-        /* =============================================
-           DEVICE REPLACED
-        ============================================= */
 
         if (
             reservedDeviceId !==
@@ -1137,6 +950,7 @@ async function updateDeviceHeartbeat() {
 
                 deviceHeartbeat =
                     null;
+
             }
 
             alert(
@@ -1153,11 +967,6 @@ async function updateDeviceHeartbeat() {
             return;
         }
 
-
-        /* =============================================
-           RESERVATION EXPIRED
-        ============================================= */
-
         if (
             reservedUntil > 0 &&
             reservedUntil <= now
@@ -1171,6 +980,7 @@ async function updateDeviceHeartbeat() {
 
                 deviceHeartbeat =
                     null;
+
             }
 
             alert(
@@ -1187,11 +997,6 @@ async function updateDeviceHeartbeat() {
             return;
         }
 
-
-        /* =============================================
-           ONLY LAST SEEN CHANGES
-        ============================================= */
-
         await updateDoc(
             slotRef,
             {
@@ -1199,7 +1004,6 @@ async function updateDeviceHeartbeat() {
                     now
             }
         );
-
 
         const deviceRef =
             doc(
@@ -1229,6 +1033,7 @@ async function updateDeviceHeartbeat() {
         );
 
     }
+
 }
 
 
@@ -1273,11 +1078,6 @@ function showStudentCourses(
         return;
     }
 
-
-    /* =============================================
-       STUDENT INFORMATION
-    ============================================= */
-
     const studentInfo =
         document.createElement(
             "div"
@@ -1294,19 +1094,9 @@ function showStudentCourses(
             background:rgba(255,255,255,.06);
             border:1px solid rgba(255,255,255,.12);
         ">
-            <h3 style="margin:0 0 12px 0;">
-                ${student.exam || ""}
-            </h3>
-
-            <p style="margin:5px 0;">
-                <strong>Batch:</strong>
-                ${student.batch || ""}
-            </p>
-
-            <p style="margin:5px 0;">
-                <strong>Year:</strong>
-                ${student.year || ""}
-            </p>
+            <h3 style="margin:0 0 12px 0;">${student.exam || ""}</h3>
+            <p style="margin:5px 0;"><strong>Batch:</strong> ${student.batch || ""}</p>
+            <p style="margin:5px 0;"><strong>Year:</strong> ${student.year || ""}</p>
         </div>
     `;
 
@@ -1314,18 +1104,11 @@ function showStudentCourses(
         studentInfo
     );
 
-
-    /* =============================================
-       COURSES
-    ============================================= */
-
     student.courses.forEach(
         function(courseId) {
 
             const course =
-                COURSES[
-                    courseId
-                ];
+                COURSES[courseId];
 
             if (!course) {
 
@@ -1355,7 +1138,6 @@ function showStudentCourses(
                     ? course.contents
                     : [];
 
-
             contents.forEach(
                 function(content) {
 
@@ -1365,15 +1147,12 @@ function showStudentCourses(
                     ) {
 
                         contentHTML += `
-                            <button
-                                class="content-button video-button"
+                            <button class="content-button video-button"
                                 data-type="youtube"
-                                data-url="${encodeURIComponent(content.url || "")}"
-                                data-title="${encodeURIComponent(content.title || "Lecture")}"
-                            >
+                                data-url="${encodeURIComponent(content.url || "")}" 
+                                data-title="${encodeURIComponent(content.title || "Lecture")}">
                                 ▶ ${content.title || "Video"}
-                            </button>
-                        `;
+                            </button>`;
 
                     } else if (
                         content.type ===
@@ -1381,15 +1160,12 @@ function showStudentCourses(
                     ) {
 
                         contentHTML += `
-                            <button
-                                class="content-button video-button"
+                            <button class="content-button video-button"
                                 data-type="local"
-                                data-url="${encodeURIComponent(content.url || "")}"
-                                data-title="${encodeURIComponent(content.title || "Lecture")}"
-                            >
+                                data-url="${encodeURIComponent(content.url || "")}" 
+                                data-title="${encodeURIComponent(content.title || "Lecture")}">
                                 ▶ ${content.title || "Video"}
-                            </button>
-                        `;
+                            </button>`;
 
                     } else if (
                         content.type ===
@@ -1397,15 +1173,12 @@ function showStudentCourses(
                     ) {
 
                         contentHTML += `
-                            <button
-                                class="content-button pdf-button"
+                            <button class="content-button pdf-button"
                                 data-type="pdf"
-                                data-url="${encodeURIComponent(content.url || "")}"
-                                data-title="${encodeURIComponent(content.title || "PDF")}"
-                            >
+                                data-url="${encodeURIComponent(content.url || "")}" 
+                                data-title="${encodeURIComponent(content.title || "PDF")}">
                                 📄 ${content.title || "PDF"}
-                            </button>
-                        `;
+                            </button>`;
 
                     } else if (
                         content.type ===
@@ -1413,90 +1186,41 @@ function showStudentCourses(
                     ) {
 
                         contentHTML += `
-                            <button
-                                class="content-button live-button"
+                            <button class="content-button live-button"
                                 data-type="live"
-                                data-url="${encodeURIComponent(content.url || "")}"
-                            >
+                                data-url="${encodeURIComponent(content.url || "")}">
                                 🔴 ${content.title || "Live Class"}
-                            </button>
-                        `;
+                            </button>`;
 
                     }
 
                 }
             );
 
-
-            /* =============================================
-               COURSE CARD
-            ============================================= */
-
             courseCard.innerHTML = `
-                <button
-                    type="button"
-                    class="course-toggle"
-                    aria-expanded="false"
-                >
-
+                <button type="button" class="course-toggle" aria-expanded="false">
                     <div class="course-title">
-
-                        <div style="
-                            margin-bottom:10px;
-                            font-size:13px;
-                            opacity:.85;
-                        ">
-
+                        <div style="margin-bottom:10px;font-size:13px;opacity:.85;">
                             ${course.exam || student.exam || ""}
-
                             &nbsp;•&nbsp;
-
                             ${course.batch || student.batch || ""}
-
                             &nbsp;•&nbsp;
-
                             ${course.year || student.year || ""}
-
                         </div>
-
-                        <h3>
-                            ${course.title || courseId}
-                        </h3>
-
-                        <p>
-                            ${course.description || ""}
-                        </p>
-
-                        <span class="course-open-hint">
-                            Tap / Click to open course
-                        </span>
-
+                        <h3>${course.title || courseId}</h3>
+                        <p>${course.description || ""}</p>
+                        <span class="course-open-hint">Tap / Click to open course</span>
                     </div>
-
                 </button>
 
-
-                <div
-                    class="course-content"
-                    hidden
-                >
-
-                    ${
-                        contentHTML ||
-                        `
-                        <div class="no-course">
-                            <p>No material added yet.</p>
-                        </div>
-                        `
-                    }
-
+                <div class="course-content" hidden>
+                    ${contentHTML || `<div class="no-course"><p>No material added yet.</p></div>`}
 
                     <div style="
                         margin-top:15px;
                         padding-top:15px;
                         border-top:1px solid rgba(0,0,0,.12);
                     ">
-
                         <button
                             type="button"
                             class="fjmc-test-button"
@@ -1504,12 +1228,9 @@ function showStudentCourses(
                         >
                             📝 ${course.title || "Course"} Test
                         </button>
-
                     </div>
-
                 </div>
             `;
-
 
             coursesContainer.appendChild(
                 courseCard
@@ -1518,17 +1239,12 @@ function showStudentCourses(
         }
     );
 
-
-    /* =============================================
-       COURSE TOGGLE
-    ============================================= */
-
     coursesContainer
         .querySelectorAll(
             ".course-toggle"
         )
         .forEach(
-            button => {
+            function(button) {
 
                 button.addEventListener(
                     "click",
@@ -1544,9 +1260,8 @@ function showStudentCourses(
                                 ".course-content"
                             );
 
-                        if (!content) {
+                        if (!content)
                             return;
-                        }
 
                         const isOpen =
                             !content.hidden;
@@ -1572,17 +1287,12 @@ function showStudentCourses(
             }
         );
 
-
-    /* =============================================
-       TEST BUTTONS
-    ============================================= */
-
     coursesContainer
         .querySelectorAll(
             ".fjmc-test-button"
         )
         .forEach(
-            button => {
+            function(button) {
 
                 button.addEventListener(
                     "click",
@@ -1591,7 +1301,8 @@ function showStudentCourses(
                         event.stopPropagation();
 
                         const courseId =
-                            button.dataset.testCourse;
+                            button.dataset
+                                .testCourse;
 
                         window.location.href =
                             "test.html?course=" +
@@ -1605,17 +1316,12 @@ function showStudentCourses(
             }
         );
 
-
-    /* =============================================
-       CONTENT BUTTONS
-    ============================================= */
-
     coursesContainer
         .querySelectorAll(
             ".content-button"
         )
         .forEach(
-            button => {
+            function(button) {
 
                 button.addEventListener(
                     "click",
@@ -1686,8 +1392,8 @@ function showStudentCourses(
             }
         );
 
-
     hidePageLoading();
+
 }
 
 
@@ -1777,7 +1483,6 @@ function createModal() {
 
                 </div>
 
-
                 <div
                     id="fjmcModalBody"
                     style="
@@ -1797,7 +1502,6 @@ function createModal() {
         modal
     );
 
-
     document
         .getElementById(
             "fjmcModalClose"
@@ -1806,7 +1510,6 @@ function createModal() {
             "click",
             closeModal
         );
-
 
     document
         .getElementById(
@@ -1828,8 +1531,8 @@ function createModal() {
             }
         );
 
-
     return modal;
+
 }
 
 
@@ -1839,17 +1542,6 @@ function createModal() {
 
 function closeModal() {
 
-    if (
-        fjmcVideoSecurityCleanup
-    ) {
-
-        fjmcVideoSecurityCleanup();
-
-        fjmcVideoSecurityCleanup =
-            null;
-    }
-
-
     const watermark =
         document.getElementById(
             "fjmcScreenWatermark"
@@ -1858,7 +1550,6 @@ function closeModal() {
     if (watermark) {
         watermark.remove();
     }
-
 
     const modal =
         document.getElementById(
@@ -1873,18 +1564,11 @@ function closeModal() {
 
 
 /* =========================================================
-   VIDEO SECURITY / SCREEN RECORDING DETERRENCE
+   VIDEO WATERMARK
+   RED + HORIZONTAL + NO ROTATION
 ========================================================= */
 
-let fjmcVideoSecurityCleanup =
-    null;
-
-
-/* =========================================================
-   WATERMARK TEXT
-========================================================= */
-
-function fjmcGetStudentWatermarkText() {
+function fjmcGetVideoWatermarkText() {
 
     const name =
         (
@@ -1910,608 +1594,75 @@ function fjmcGetStudentWatermarkText() {
             .toLowerCase();
 
     return (
-        `${name || "Student"}\n` +
-        `${email || "Account"}`
+        (name || "Student") +
+        "\n" +
+        (email || "Account")
     );
+
 }
 
 
-/* =========================================================
-   VIDEO PROTECTION
-   RED + HORIZONTAL WATERMARK
-========================================================= */
-
-function fjmcApplyVideoProtection() {
-
-    const stage =
-        document.getElementById(
-            "fjmcProtectedVideoStage"
-        );
-
-    if (!stage) {
-        return;
-    }
-
-
-    if (
-        fjmcVideoSecurityCleanup
-    ) {
-
-        fjmcVideoSecurityCleanup();
-
-        fjmcVideoSecurityCleanup =
-            null;
-    }
-
-
-    /* =============================================
-       WATERMARK
-    ============================================= */
+function fjmcCreateVideoWatermark() {
 
     const watermark =
         document.createElement(
             "div"
         );
 
-    watermark.id =
-        "fjmcVideoWatermark";
+    watermark.className =
+        "fjmc-video-watermark";
 
     watermark.setAttribute(
         "aria-hidden",
         "true"
     );
 
-
-    /*
-     * IMPORTANT:
-     * RED
-     * HORIZONTAL
-     * NO ROTATION
-     */
+    watermark.textContent =
+        fjmcGetVideoWatermarkText();
 
     watermark.style.cssText = `
         position:absolute;
-        left:12%;
-        top:18%;
-        transform:translate(-50%,-50%);
-        width:92%;
+        left:50%;
+        top:50%;
+        transform:translate(-50%, -50%);
+
+        width:90%;
+
         text-align:center;
-        color:rgba(255,0,0,.68);
+
+        color:rgba(255,0,0,0.55);
+
         text-shadow:
-            0 1px 3px rgba(0,0,0,.90);
-        font-size:clamp(7px,0.75vw,10px);
+            0 1px 3px rgba(0,0,0,0.8);
+
+        font-size:clamp(10px, 1.2vw, 18px);
+
         font-weight:800;
-        letter-spacing:0.4px;
-        line-height:1.1;
+
+        letter-spacing:0.5px;
+
+        line-height:1.2;
+
         white-space:pre-line;
+
         word-break:break-word;
+
         pointer-events:none;
+
         user-select:none;
         -webkit-user-select:none;
         -webkit-touch-callout:none;
-        z-index:30;
 
-        /*
-         * NO ROTATION
-         */
-        rotate:0deg;
-
-        transition:
-            left 1.2s ease,
-            top 1.2s ease,
-            transform 1.2s ease;
+        z-index:9999;
     `;
 
-    stage.appendChild(
-        watermark
-    );
+    return watermark;
 
-
-    /* =============================================
-       CAPTURE / HIDDEN PAGE OVERLAY
-    ============================================= */
-
-    const captureOverlay =
-        document.createElement(
-            "div"
-        );
-
-    captureOverlay.id =
-        "fjmcCaptureGuard";
-
-    captureOverlay.innerHTML = `
-        <div style="
-            text-align:center;
-            color:#fff;
-            padding:24px;
-            max-width:520px;
-            font-family:Arial,Helvetica,sans-serif;
-        ">
-
-            <div style="
-                font-size:42px;
-                margin-bottom:12px;
-            ">
-                🔒
-            </div>
-
-            <div style="
-                font-size:20px;
-                font-weight:800;
-                margin-bottom:8px;
-            ">
-                Video paused for security
-            </div>
-
-            <div style="
-                font-size:14px;
-                line-height:1.6;
-                opacity:.9;
-                margin-bottom:18px;
-            ">
-                The video was paused because the browser page became hidden.
-                Return to this page and tap Resume to continue.
-            </div>
-
-            <button
-                id="fjmcResumeVideo"
-                type="button"
-                style="
-                    border:0;
-                    border-radius:8px;
-                    padding:10px 18px;
-                    font-weight:700;
-                    cursor:pointer;
-                "
-            >
-                Resume Video
-            </button>
-
-        </div>
-    `;
-
-    captureOverlay.style.cssText = `
-        position:absolute;
-        inset:0;
-        display:none;
-        align-items:center;
-        justify-content:center;
-        background:#000;
-        z-index:40;
-    `;
-
-    stage.appendChild(
-        captureOverlay
-    );
-
-
-    let watermarkPosition =
-        0;
-
-
-    /* =============================================
-       WATERMARK POSITION
-       ALL HORIZONTAL
-    ============================================= */
-
-    function updateWatermark() {
-
-        if (
-            document.getElementById(
-                "fjmcVideoWatermark"
-            )
-        ) {
-
-            watermark.textContent =
-                fjmcGetStudentWatermarkText();
-
-
-            const positions = [
-
-                [12, 18],
-                [82, 24],
-                [68, 78],
-                [18, 72],
-                [50, 48]
-
-            ];
-
-
-            const position =
-                positions[
-                    watermarkPosition %
-                    positions.length
-                ];
-
-
-            watermark.style.left =
-                position[0] +
-                "%";
-
-            watermark.style.top =
-                position[1] +
-                "%";
-
-
-            /*
-             * IMPORTANT:
-             * NO rotate()
-             */
-
-            watermark.style.transform =
-                "translate(-50%, -50%)";
-
-
-            watermarkPosition++;
-        }
-    }
-
-
-    /* =============================================
-       PAUSE WHEN PAGE HIDDEN
-    ============================================= */
-
-    function pauseForHiddenPage() {
-
-        if (
-            document.visibilityState !==
-            "hidden"
-        ) {
-
-            return;
-        }
-
-        const video =
-            stage.querySelector(
-                "video"
-            );
-
-        if (video) {
-
-            try {
-
-                video.pause();
-
-            } catch (_) {}
-
-        }
-
-        captureOverlay.style.display =
-            "flex";
-    }
-
-
-    /* =============================================
-       RESUME
-    ============================================= */
-
-    function resumeVideo() {
-
-        captureOverlay.style.display =
-            "none";
-
-        const video =
-            stage.querySelector(
-                "video"
-            );
-
-        if (video) {
-
-            video
-                .play()
-                .catch(
-                    () => {}
-                );
-
-        }
-    }
-
-
-    /* =============================================
-       SHORTCUT PROTECTION
-    ============================================= */
-
-    function blockSensitiveShortcut(
-        event
-    ) {
-
-        const key =
-            String(
-                event.key || ""
-            )
-                .toLowerCase();
-
-        const blocked =
-            key === "printscreen" ||
-            key === "f12" ||
-            (
-                event.ctrlKey &&
-                key === "u"
-            ) ||
-            (
-                event.ctrlKey &&
-                key === "s"
-            ) ||
-            (
-                event.ctrlKey &&
-                event.shiftKey &&
-                [
-                    "i",
-                    "j",
-                    "c",
-                    "s"
-                ].includes(key)
-            ) ||
-            (
-                event.metaKey &&
-                event.shiftKey &&
-                [
-                    "3",
-                    "4",
-                    "5"
-                ].includes(key)
-            );
-
-        if (blocked) {
-
-            event.preventDefault();
-
-            event.stopPropagation();
-
-            captureOverlay.style.display =
-                "flex";
-
-        }
-    }
-
-
-    /* =============================================
-       CONTEXT MENU
-    ============================================= */
-
-    function blockContextMenu(
-        event
-    ) {
-
-        event.preventDefault();
-
-    }
-
-
-    /* =============================================
-       SELECTION
-    ============================================= */
-
-    function blockSelection(
-        event
-    ) {
-
-        event.preventDefault();
-
-    }
-
-
-    /* =============================================
-       INITIAL WATERMARK
-    ============================================= */
-
-    updateWatermark();
-
-
-    const watermarkTimer =
-        window.setInterval(
-            updateWatermark,
-            5000
-        );
-
-
-    /* =============================================
-       EVENT LISTENERS
-    ============================================= */
-
-    document.addEventListener(
-        "visibilitychange",
-        pauseForHiddenPage,
-        true
-    );
-
-
-    document.addEventListener(
-        "keydown",
-        blockSensitiveShortcut,
-        true
-    );
-
-
-    stage.addEventListener(
-        "contextmenu",
-        blockContextMenu,
-        true
-    );
-
-
-    stage.addEventListener(
-        "selectstart",
-        blockSelection,
-        true
-    );
-
-
-    /* =============================================
-       KEEP WATERMARK/STAGE IN FULLSCREEN
-    ============================================= */
-
-    async function keepWatermarkInFullscreen() {
-
-        const fullscreenElement =
-            document.fullscreenElement;
-
-        if (
-            !fullscreenElement ||
-            fullscreenElement === stage
-        ) {
-
-            return;
-        }
-
-
-        if (
-            fullscreenElement ===
-                stage.querySelector("video") ||
-            fullscreenElement ===
-                stage.querySelector("iframe")
-        ) {
-
-            try {
-
-                await document.exitFullscreen();
-
-                await stage.requestFullscreen();
-
-            } catch (error) {
-
-                console.warn(
-                    "Protected fullscreen unavailable:",
-                    error
-                );
-
-            }
-
-        }
-
-    }
-
-
-    document.addEventListener(
-        "fullscreenchange",
-        keepWatermarkInFullscreen,
-        true
-    );
-
-
-    /* =============================================
-       RESUME BUTTON
-    ============================================= */
-
-    const resumeButton =
-        document.getElementById(
-            "fjmcResumeVideo"
-        );
-
-    if (resumeButton) {
-
-        resumeButton.addEventListener(
-            "click",
-            resumeVideo
-        );
-
-    }
-
-
-    /* =============================================
-       CLEANUP
-    ============================================= */
-
-    fjmcVideoSecurityCleanup =
-        function() {
-
-            window.clearInterval(
-                watermarkTimer
-            );
-
-
-            document.removeEventListener(
-                "visibilitychange",
-                pauseForHiddenPage,
-                true
-            );
-
-
-            document.removeEventListener(
-                "keydown",
-                blockSensitiveShortcut,
-                true
-            );
-
-
-            stage.removeEventListener(
-                "contextmenu",
-                blockContextMenu,
-                true
-            );
-
-
-            stage.removeEventListener(
-                "selectstart",
-                blockSelection,
-                true
-            );
-
-
-            document.removeEventListener(
-                "fullscreenchange",
-                keepWatermarkInFullscreen,
-                true
-            );
-
-
-            if (
-                watermark.parentNode
-            ) {
-
-                watermark.remove();
-
-            }
-
-
-            if (
-                captureOverlay.parentNode
-            ) {
-
-                captureOverlay.remove();
-
-            }
-
-        };
-
-}
-
-
-/* =========================================================
-   PREPARE PROTECTED VIDEO STAGE
-========================================================= */
-
-function fjmcPrepareProtectedStage(
-    body
-) {
-
-    body.innerHTML = `
-        <div
-            id="fjmcProtectedVideoStage"
-            style="
-                position:relative;
-                width:100%;
-                aspect-ratio:16/9;
-                background:#000;
-                overflow:hidden;
-            "
-        ></div>
-    `;
-
-    const stage =
-        document.getElementById(
-            "fjmcProtectedVideoStage"
-        );
-
-    fjmcApplyVideoProtection();
-
-    return stage;
 }
 
 
 /* =========================================================
    YOUTUBE VIDEO
-   FULLSCREEN ENABLED
 ========================================================= */
 
 function openYouTubeVideo(
@@ -2535,68 +1686,60 @@ function openYouTubeVideo(
     modalTitle.textContent =
         title;
 
-    const stage =
-        fjmcPrepareProtectedStage(
-            body
-        );
+    body.innerHTML = `
 
+        <div
+            id="fjmcVideoStage"
+            style="
+                position:relative;
+                width:100%;
+                aspect-ratio:16/9;
+                background:#000;
+                overflow:hidden;
+            "
+        >
 
-    const iframe =
-        document.createElement(
-            "iframe"
-        );
+            <iframe
+                src="${url}"
+                title="${title}"
+                style="
+                    width:100%;
+                    height:100%;
+                    border:0;
+                    display:block;
+                "
+                allow="
+                    accelerometer;
+                    autoplay;
+                    encrypted-media;
+                    gyroscope;
+                    picture-in-picture;
+                    fullscreen
+                "
+                allowfullscreen>
+            </iframe>
 
-
-    iframe.src =
-        url;
-
-    iframe.title =
-        title;
-
-
-    iframe.setAttribute(
-        "allow",
-        "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-    );
-
-
-    iframe.setAttribute(
-        "allowfullscreen",
-        ""
-    );
-
-
-    iframe.setAttribute(
-        "webkitallowfullscreen",
-        ""
-    );
-
-
-    iframe.setAttribute(
-        "mozallowfullscreen",
-        ""
-    );
-
-
-    iframe.style.cssText = `
-        position:absolute;
-        inset:0;
-        width:100%;
-        height:100%;
-        border:0;
+        </div>
     `;
 
+    const stage =
+        document.getElementById(
+            "fjmcVideoStage"
+        );
 
-    stage.appendChild(
-        iframe
-    );
+    if (stage) {
+
+        stage.appendChild(
+            fjmcCreateVideoWatermark()
+        );
+
+    }
 
 }
 
 
 /* =========================================================
-   LOCAL MP4 VIDEO
-   CUSTOM FULLSCREEN BUTTON
+   LOCAL VIDEO
 ========================================================= */
 
 function openLocalVideo(
@@ -2620,250 +1763,56 @@ function openLocalVideo(
     modalTitle.textContent =
         title;
 
+    body.innerHTML = `
+
+        <div
+            id="fjmcLocalVideoStage"
+            style="
+                position:relative;
+                width:100%;
+                max-height:80vh;
+                background:#000;
+                overflow:hidden;
+            "
+        >
+
+            <video
+                controls
+                controlsList="nodownload"
+                disablePictureInPicture
+                playsinline
+                style="
+                    width:100%;
+                    max-height:80vh;
+                    display:block;
+                    background:#000;
+                "
+            >
+
+                <source
+                    src="${url}"
+                    type="video/mp4"
+                >
+
+                Your browser does not support video.
+
+            </video>
+
+        </div>
+    `;
 
     const stage =
-        fjmcPrepareProtectedStage(
-            body
+        document.getElementById(
+            "fjmcLocalVideoStage"
         );
 
+    if (stage) {
 
-    const video =
-        document.createElement(
-            "video"
+        stage.appendChild(
+            fjmcCreateVideoWatermark()
         );
-
-
-    video.controls =
-        true;
-
-    video.playsInline =
-        true;
-
-    video.disablePictureInPicture =
-        true;
-
-    video.controlsList =
-        "nodownload noplaybackrate";
-
-    video.preload =
-        "metadata";
-
-
-    video.setAttribute(
-        "webkit-playsinline",
-        "true"
-    );
-
-
-    video.style.cssText = `
-        position:absolute;
-        inset:0;
-        width:100%;
-        height:100%;
-        display:block;
-        background:#000;
-        object-fit:contain;
-    `;
-
-
-    const source =
-        document.createElement(
-            "source"
-        );
-
-
-    source.src =
-        url;
-
-    source.type =
-        "video/mp4";
-
-
-    video.appendChild(
-        source
-    );
-
-
-    stage.appendChild(
-        video
-    );
-
-
-    /* =============================================
-       CUSTOM FULLSCREEN BUTTON
-    ============================================= */
-
-    const fullscreenButton =
-        document.createElement(
-            "button"
-        );
-
-
-    fullscreenButton.type =
-        "button";
-
-
-    fullscreenButton.textContent =
-        "⛶ Fullscreen";
-
-
-    fullscreenButton.setAttribute(
-        "aria-label",
-        "Fullscreen"
-    );
-
-
-    fullscreenButton.style.cssText = `
-        position:absolute;
-        right:15px;
-        bottom:15px;
-        z-index:50;
-        border:0;
-        border-radius:8px;
-        padding:9px 13px;
-        background:rgba(0,0,0,.78);
-        color:#fff;
-        font-size:14px;
-        font-weight:700;
-        cursor:pointer;
-        box-shadow:0 2px 8px rgba(0,0,0,.4);
-    `;
-
-
-    fullscreenButton.addEventListener(
-        "click",
-        async function() {
-
-            try {
-
-                if (
-                    document.fullscreenElement
-                ) {
-
-                    await document.exitFullscreen();
-
-                    return;
-                }
-
-
-                if (
-                    stage.requestFullscreen
-                ) {
-
-                    await stage.requestFullscreen();
-
-                    return;
-                }
-
-
-                /* iPhone/iPad Safari */
-
-                if (
-                    video.webkitEnterFullscreen
-                ) {
-
-                    video.webkitEnterFullscreen();
-
-                    return;
-                }
-
-            } catch (error) {
-
-                console.warn(
-                    "Fullscreen error:",
-                    error
-                );
-
-            }
-
-        }
-    );
-
-
-    stage.appendChild(
-        fullscreenButton
-    );
-
-
-    /* =============================================
-       FULLSCREEN BUTTON TEXT
-    ============================================= */
-
-    function updateFullscreenButton() {
-
-        if (
-            document.fullscreenElement
-        ) {
-
-            fullscreenButton.textContent =
-                "⛶ Exit Fullscreen";
-
-        } else {
-
-            fullscreenButton.textContent =
-                "⛶ Fullscreen";
-
-        }
 
     }
-
-
-    document.addEventListener(
-        "fullscreenchange",
-        updateFullscreenButton
-    );
-
-
-    /* =============================================
-       VIDEO ERROR
-    ============================================= */
-
-    video.addEventListener(
-        "error",
-        function() {
-
-            console.error(
-                "Protected video could not be loaded:",
-                url
-            );
-
-        }
-    );
-
-
-    /* =============================================
-       REMOVE FULLSCREEN LISTENER WHEN MODAL CLOSES
-    ============================================= */
-
-    const oldCleanup =
-        fjmcVideoSecurityCleanup;
-
-
-    fjmcVideoSecurityCleanup =
-        function() {
-
-            document.removeEventListener(
-                "fullscreenchange",
-                updateFullscreenButton
-            );
-
-
-            if (oldCleanup) {
-                oldCleanup();
-            }
-
-        };
-
-
-    /* =============================================
-       AUTOPLAY
-    ============================================= */
-
-    video
-        .play()
-        .catch(
-            () => {}
-        );
 
 }
 
@@ -2888,7 +1837,6 @@ function openLiveClass(
         return;
     }
 
-
     window.open(
         url,
         "_blank",
@@ -2910,22 +1858,18 @@ async function openPDFViewer(
     const modal =
         createModal();
 
-
     const modalTitle =
         document.getElementById(
             "fjmcModalTitle"
         );
-
 
     const body =
         document.getElementById(
             "fjmcModalBody"
         );
 
-
     modalTitle.textContent =
         title;
-
 
     body.innerHTML = `
 
@@ -2940,7 +1884,6 @@ async function openPDFViewer(
             Loading PDF...
         </div>
 
-
         <div
             id="pdfPages"
             style="
@@ -2952,9 +1895,7 @@ async function openPDFViewer(
             "
         >
         </div>
-
     `;
-
 
     try {
 
@@ -2969,130 +1910,95 @@ async function openPDFViewer(
 
         }
 
-
         pdfjsLib
             .GlobalWorkerOptions
             .workerSrc =
             "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-
 
         const pdf =
             await pdfjsLib.getDocument(
                 url
             ).promise;
 
-
         const pages =
             document.getElementById(
                 "pdfPages"
             );
-
 
         const loading =
             document.getElementById(
                 "pdfLoading"
             );
 
-
         if (loading) {
             loading.remove();
         }
-
 
         const oldWatermark =
             document.getElementById(
                 "fjmcScreenWatermark"
             );
 
-
         if (oldWatermark) {
             oldWatermark.remove();
         }
-
-
-        /* =============================================
-           PDF WATERMARK
-           UNCHANGED
-        ============================================= */
 
         const watermark =
             document.createElement(
                 "div"
             );
 
-
         watermark.id =
             "fjmcScreenWatermark";
-
 
         watermark.textContent =
             "FJMC ACADEMY";
 
-
         watermark.style.position =
             "fixed";
-
 
         watermark.style.left =
             "50%";
 
-
         watermark.style.top =
             "50%";
-
 
         watermark.style.transform =
             "translate(-50%, -50%) rotate(-20deg)";
 
-
         watermark.style.color =
             "rgba(0, 0, 0, 1.0)";
-
 
         watermark.style.fontSize =
             "24px";
 
-
         watermark.style.fontWeight =
             "800";
-
 
         watermark.style.letterSpacing =
             "2px";
 
-
         watermark.style.whiteSpace =
             "nowrap";
-
 
         watermark.style.zIndex =
             "1000000";
 
-
         watermark.style.pointerEvents =
             "none";
-
 
         watermark.style.userSelect =
             "none";
 
-
         watermark.style.webkitUserSelect =
             "none";
-
 
         watermark.style.webkitTouchCallout =
             "none";
 
-
         document.body.appendChild(
             watermark
         );
-
-
-        /* =============================================
-           PDF PAGES
-        ============================================= */
 
         for (
             let pageNumber = 1;
@@ -3105,92 +2011,72 @@ async function openPDFViewer(
                     pageNumber
                 );
 
-
             const viewport =
                 page.getViewport({
                     scale: 1.4
                 });
-
 
             const wrapper =
                 document.createElement(
                     "div"
                 );
 
-
             wrapper.style.position =
                 "relative";
-
 
             wrapper.style.display =
                 "inline-block";
 
-
             wrapper.style.margin =
                 "0 auto 20px auto";
-
 
             wrapper.style.maxWidth =
                 "100%";
 
-
             wrapper.style.background =
                 "#ffffff";
 
-
             wrapper.style.overflow =
                 "hidden";
-
 
             const canvas =
                 document.createElement(
                     "canvas"
                 );
 
-
             canvas.width =
                 viewport.width;
-
 
             canvas.height =
                 viewport.height;
 
-
             canvas.style.maxWidth =
                 "100%";
-
 
             canvas.style.height =
                 "auto";
 
-
             canvas.style.display =
                 "block";
-
 
             canvas.style.userSelect =
                 "none";
 
-
             canvas.style.webkitUserSelect =
                 "none";
-
 
             wrapper.appendChild(
                 canvas
             );
 
-
             pages.appendChild(
                 wrapper
             );
-
 
             const context =
                 canvas.getContext(
                     "2d"
                 );
-
 
             await page.render({
 
@@ -3204,18 +2090,14 @@ async function openPDFViewer(
 
         }
 
-
         pages.style.userSelect =
             "none";
-
 
         pages.style.webkitUserSelect =
             "none";
 
-
         pages.style.webkitTouchCallout =
             "none";
-
 
     } catch (error) {
 
@@ -3224,17 +2106,14 @@ async function openPDFViewer(
             error
         );
 
-
         const watermark =
             document.getElementById(
                 "fjmcScreenWatermark"
             );
 
-
         if (watermark) {
             watermark.remove();
         }
-
 
         body.innerHTML = `
 
@@ -3265,7 +2144,6 @@ async function openPDFViewer(
 
 /* =========================================================
    LOGOUT
-
    LOGOUT DOES NOT FREE DEVICE SLOT
 ========================================================= */
 
@@ -3273,7 +2151,7 @@ if (logoutBtn) {
 
     logoutBtn.addEventListener(
         "click",
-        async function() {
+        async function () {
 
             try {
 
@@ -3289,21 +2167,17 @@ if (logoutBtn) {
                         null;
                 }
 
-
                 sessionStorage.removeItem(
                     "loggedInStudent"
                 );
-
 
                 sessionStorage.removeItem(
                     "firebaseUID"
                 );
 
-
                 await signOut(
                     auth
                 );
-
 
             } catch (error) {
 
@@ -3313,7 +2187,6 @@ if (logoutBtn) {
                 );
 
             }
-
 
             window.location.href =
                 "login.html";
@@ -3330,7 +2203,7 @@ if (logoutBtn) {
 
 document.addEventListener(
     "contextmenu",
-    function(event) {
+    function (event) {
 
         event.preventDefault();
 
@@ -3340,7 +2213,7 @@ document.addEventListener(
 
 document.addEventListener(
     "copy",
-    function(event) {
+    function (event) {
 
         event.preventDefault();
 
@@ -3350,7 +2223,7 @@ document.addEventListener(
 
 document.addEventListener(
     "cut",
-    function(event) {
+    function (event) {
 
         event.preventDefault();
 
@@ -3360,7 +2233,7 @@ document.addEventListener(
 
 document.addEventListener(
     "selectstart",
-    function(event) {
+    function (event) {
 
         event.preventDefault();
 
@@ -3370,17 +2243,14 @@ document.addEventListener(
 
 document.addEventListener(
     "keydown",
-    function(event) {
+    function (event) {
 
         const key =
             event.key.toLowerCase();
 
-
         if (
-            (
-                event.ctrlKey ||
-                event.metaKey
-            ) &&
+            (event.ctrlKey ||
+                event.metaKey) &&
             (
                 key === "s" ||
                 key === "p" ||
@@ -3403,10 +2273,10 @@ document.addEventListener(
 
 window.addEventListener(
     "load",
-    function() {
+    function () {
 
         setTimeout(
-            function() {
+            function () {
 
                 if (
                     currentUser &&
