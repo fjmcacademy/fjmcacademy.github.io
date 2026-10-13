@@ -122,10 +122,6 @@ function lower(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
-function studentDocId(email) {
-  return String(email || "").trim().toLowerCase().replaceAll("/", "_");
-}
-
 function normalize(value) {
   return lower(value);
 }
@@ -1398,9 +1394,8 @@ $("studentForm")?.addEventListener(
           );
 
 
-        // IMPORTANT: Student Firestore document is keyed by normalized email,
-        // not Firebase UID. This keeps dashboard lookup email-based.
-        studentId = studentDocId(email);
+        studentId =
+          credential.user.uid;
 
 
         await signOut(secondaryAuth);
@@ -2449,22 +2444,31 @@ function renderTestQuestionsEditor() {
           <button type="button" class="btn danger remove-test-question" data-index="${qi}">Remove</button>
         </div>
         <label style="display:block;margin-top:10px">
-          Question
+          Question (LaTeX supported)
           <textarea data-q-index="${qi}" data-field="question">${esc(q.question || "")}</textarea>
         </label>
+        <div class="math-editor-tools" data-math-tools-for="q-${qi}"></div>
+        <div class="math-preview-label">Live mathematical preview</div>
+        <div class="math-preview" data-math-preview="q-${qi}"></div>
         <div class="grid">
           ${four.map((o, oi) => `
             <div>
-              <label>Option ${String.fromCharCode(65 + oi)}</label>
+              <label>Option ${String.fromCharCode(65 + oi)} (LaTeX supported)</label>
               <input data-q-index="${qi}" data-option-index="${oi}" data-option-field="text" value="${esc(o.text || "")}">
+              <div class="math-editor-tools" data-math-tools-for="o-${qi}-${oi}"></div>
+              <div class="math-preview-label">Option preview</div>
+              <div class="math-preview" data-math-preview="o-${qi}-${oi}"></div>
               <label style="display:block;margin-top:6px">
                 <input type="radio" name="correct_${qi}" data-q-index="${qi}" data-option-index="${oi}" data-option-field="correct" ${correctIndex === oi ? "checked" : ""}>
                 Correct option
               </label>
               <label style="display:block;margin-top:6px">
-                Solution / Explanation
+                Solution / Explanation (LaTeX supported)
                 <textarea data-q-index="${qi}" data-option-index="${oi}" data-option-field="solution">${esc(o.solution || "")}</textarea>
               </label>
+              <div class="math-editor-tools" data-math-tools-for="s-${qi}-${oi}"></div>
+              <div class="math-preview-label">Explanation preview</div>
+              <div class="math-preview" data-math-preview="s-${qi}-${oi}"></div>
             </div>
           `).join("")}
         </div>
@@ -2473,8 +2477,15 @@ function renderTestQuestionsEditor() {
   }).join("");
 
   container.querySelectorAll("[data-q-index]").forEach(el => {
-    el.addEventListener("input", updateTestQuestionFromDOM);
-    el.addEventListener("change", updateTestQuestionFromDOM);
+    el.addEventListener("input", event => {
+      updateTestQuestionFromDOM(event);
+      refreshMathPreviewForField(el);
+    });
+    el.addEventListener("change", event => {
+      updateTestQuestionFromDOM(event);
+      refreshMathPreviewForField(el);
+      if (el.dataset.optionField === "correct") renderTestQuestionsEditor();
+    });
   });
 
   container.querySelectorAll(".remove-test-question").forEach(btn => {
@@ -2483,6 +2494,88 @@ function renderTestQuestionsEditor() {
       renderTestQuestionsEditor();
     });
   });
+
+  container.querySelectorAll("[data-math-tools-for]").forEach(toolbar => {
+    toolbar.innerHTML = `
+      <button type="button" data-insert="\\(\\frac{ }{ }\\)">Fraction</button>
+      <button type="button" data-insert="\\(\\sqrt{ }\\)">Root</button>
+      <button type="button" data-insert="\\(x^{ }\\)">Power</button>
+      <button type="button" data-insert="\\(x_{ }\\)">Subscript</button>
+      <button type="button" data-insert="\\(\\int_{ }^{ } \\)">Integral</button>
+      <button type="button" data-insert="\\(\\sum_{ }^{ } \\)">Summation</button>
+      <button type="button" data-insert="\\(\\pi\\)">π</button>
+      <button type="button" data-insert="\\(\\theta\\)">θ</button>
+      <button type="button" data-insert="\\(\\infty\\)">∞</button>
+      <button type="button" data-insert="\\(\\cdot\\)">·</button>
+      <button type="button" data-insert="\\(\\leq\\)">≤</button>
+      <button type="button" data-insert="\\(\\geq\\)">≥</button>
+    `;
+    toolbar.addEventListener("click", event => {
+      const button = event.target.closest("button[data-insert]");
+      if (!button) return;
+      const key = toolbar.dataset.mathToolsFor;
+      let selector;
+      if (key.startsWith("q-")) selector = `textarea[data-q-index="${key.slice(2)}"][data-field="question"]`;
+      else {
+        const bits = key.split("-");
+        const qi = bits[1], oi = bits[2];
+        selector = key.startsWith("o-")
+          ? `input[data-q-index="${qi}"][data-option-index="${oi}"][data-option-field="text"]`
+          : `textarea[data-q-index="${qi}"][data-option-index="${oi}"][data-option-field="solution"]`;
+      }
+      const field = container.querySelector(selector);
+      if (!field) return;
+      insertMathAtCursor(field, button.dataset.insert);
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+      field.focus();
+    });
+  });
+
+  container.querySelectorAll("[data-math-preview]").forEach(preview => {
+    const key = preview.dataset.mathPreview;
+    let field;
+    if (key.startsWith("q-")) field = container.querySelector(`textarea[data-q-index="${key.slice(2)}"][data-field="question"]`);
+    else {
+      const bits = key.split("-");
+      field = key.startsWith("o-")
+        ? container.querySelector(`input[data-q-index="${bits[1]}"][data-option-index="${bits[2]}"][data-option-field="text"]`)
+        : container.querySelector(`textarea[data-q-index="${bits[1]}"][data-option-index="${bits[2]}"][data-option-field="solution"]`);
+    }
+    preview.textContent = field?.value || "Formula preview will appear here.";
+  });
+  typesetMath(container);
+}
+
+function insertMathAtCursor(field, snippet) {
+  const start = field.selectionStart ?? field.value.length;
+  const end = field.selectionEnd ?? field.value.length;
+  const before = field.value.slice(0, start);
+  const after = field.value.slice(end);
+  field.value = before + snippet + after;
+  const cursor = start + snippet.indexOf(" ");
+  const position = cursor >= start ? cursor : start + snippet.length;
+  field.setSelectionRange(position, position);
+}
+
+function refreshMathPreviewForField(field) {
+  const qi = field.dataset.qIndex;
+  let key;
+  if (field.dataset.field === "question") key = `q-${qi}`;
+  else if (field.dataset.optionField === "text") key = `o-${qi}-${field.dataset.optionIndex}`;
+  else if (field.dataset.optionField === "solution") key = `s-${qi}-${field.dataset.optionIndex}`;
+  if (!key) return;
+  const preview = $("testQuestionsEditor")?.querySelector(`[data-math-preview="${key}"]`);
+  if (preview) {
+    preview.textContent = field.value || "Formula preview will appear here.";
+    typesetMath(preview);
+  }
+}
+
+function typesetMath(target) {
+  if (window.MathJax?.typesetPromise) {
+    window.MathJax.typesetClear?.([target]);
+    window.MathJax.typesetPromise([target]).catch(error => console.warn("MathJax preview error:", error));
+  }
 }
 
 function updateTestQuestionFromDOM(event) {

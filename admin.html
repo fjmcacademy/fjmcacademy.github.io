@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>FJMC Academy | Admin Panel</title>
-    <link rel="manifest" href="./manifest.json">
 
 <style>
 *{
@@ -551,10 +550,31 @@ textarea{
     display:none;
   }
 }
+
+/* Math editor toolbar and live preview */
+.math-editor-tools{display:flex;flex-wrap:wrap;gap:6px;margin:7px 0}
+.math-editor-tools button{border:1px solid #334155;border-radius:7px;background:#172033;color:#f8fafc;padding:6px 10px;cursor:pointer;font-size:13px}
+.math-editor-tools button:hover{background:#26364f}
+.math-preview{min-height:42px;margin:7px 0 14px;padding:10px 12px;border:1px dashed #475569;border-radius:8px;background:#111827;color:#f8fafc;overflow-x:auto}
+.math-preview-label{font-size:12px;color:#94a3b8;margin-top:4px}
+.math-preview mjx-container{color:inherit;max-width:100%;overflow-x:auto;overflow-y:hidden}
+
 </style>
-    <!-- FJMC Academy Logo / Favicon -->
-    <link rel="icon" type="image/png" href="image/favicon">
-    <link rel="apple-touch-icon" href="image/favicon">
+
+<!-- MathJax: renders LaTeX in the admin editor previews -->
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['\\(', '\\)'], ['$', '$']],
+      displayMath: [['\\[', '\\]'], ['$$', '$$']],
+      processEscapes: true
+    },
+    options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] },
+    startup: { typeset: false }
+  };
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
 </head>
 
 <body>
@@ -1198,23 +1218,7 @@ textarea{
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script>
-  if (window.pdfjsLib) {
-    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-  }
-</script>
-<script type="module" src="./admin.js?v=20261003-email-final"></script>
-
-
-<script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./service-worker.js", { scope: "./" })
-      .catch(error => console.error("FJMC PWA service worker error:", error));
-  });
-}
-</script>
+<script type="module" src="./admin.js?v=20261002-filters2"></script>
 
 </body>
 </html>
