@@ -526,7 +526,37 @@ function getStudentName() {
 
 }
 
+/* =========================================================
+   LATEX RENDERING — ONLY NEW ADDITION
+   ========================================================= */
 
+async function renderMath(element) {
+
+    if (!element) return;
+
+    try {
+
+        if (window.MathJax?.startup?.promise) {
+            await window.MathJax.startup.promise;
+        }
+
+        if (window.MathJax?.typesetPromise) {
+
+            await window.MathJax.typesetPromise([
+                element
+            ]);
+
+        }
+
+    } catch (error) {
+
+        console.error(
+            "LaTeX rendering error:",
+            error
+        );
+
+    }
+}
 /* =========================================================
    RENDER TEST
    ========================================================= */
@@ -666,6 +696,7 @@ function renderTest() {
 
     area.innerHTML =
         html;
+   renderMath(area);
 
 
     const form =
@@ -1236,6 +1267,7 @@ async function showResult(
 
     area.innerHTML =
         html;
+   renderMath(area);
 
 
     await calculateRank();
