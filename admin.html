@@ -1098,6 +1098,38 @@ textarea{
         </label>
       </div>
 
+      <h3 style="margin-top:20px">Live Test Schedule</h3>
+      <p class="small">Schedule enable karne par students ko start se pehle countdown aur instructions dikhenge. Date/time India local time (IST) ke hisaab se set karein.</p>
+      <div class="grid3">
+        <label style="display:flex;gap:8px;align-items:center">
+          <input id="tScheduleEnabled" type="checkbox" style="width:auto">
+          Enable scheduled live test
+        </label>
+        <label>
+          Test Date
+          <input id="tScheduleDate" type="date">
+        </label>
+        <label>
+          Start Time
+          <input id="tScheduleStart" type="time" value="11:30">
+        </label>
+        <label>
+          End Time
+          <input id="tScheduleEnd" type="time" value="12:30">
+        </label>
+        <label>
+          Pre-test countdown (minutes)
+          <input id="tCountdownMinutes" type="number" min="0" value="5">
+        </label>
+      </div>
+      <label style="display:block;margin-top:12px">
+        Student Instructions
+        <textarea id="tInstructions" rows="4" placeholder="Read all instructions carefully...">1. Read every question carefully.
+2. Use Next and Previous to navigate.
+3. Save/check your answers before submission.
+4. The test submits automatically when time ends.</textarea>
+      </label>
+
       <h3 style="margin-top:20px">Questions</h3>
       <div id="testQuestionsEditor"></div>
 

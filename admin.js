@@ -2333,6 +2333,12 @@ function clearTestForm() {
   setValue("tTestNumber", "1");
   setValue("tTitle", "");
   setValue("tDuration", "30");
+  if ($("tScheduleEnabled")) $("tScheduleEnabled").checked = false;
+  setValue("tScheduleDate", "");
+  setValue("tScheduleStart", "11:30");
+  setValue("tScheduleEnd", "12:30");
+  setValue("tCountdownMinutes", "5");
+  setValue("tInstructions", "1. Read every question carefully.\\n2. Use Next and Previous to navigate.\\n3. Save/check your answers before submission.\\n4. The test submits automatically when time ends.");
   testQuestions = [];
   renderTestQuestionsEditor();
 }
@@ -3000,6 +3006,13 @@ function editManagedTest(testId, lectureId, testNumber) {
   setValue("tTestNumber", testNumber);
   setValue("tTitle", item.title || "");
   setValue("tDuration", item.duration || 30);
+  const schedule = item.schedule || {};
+  if ($("tScheduleEnabled")) $("tScheduleEnabled").checked = !!schedule.enabled;
+  setValue("tScheduleDate", schedule.date || "");
+  setValue("tScheduleStart", schedule.startTime || "11:30");
+  setValue("tScheduleEnd", schedule.endTime || "12:30");
+  setValue("tCountdownMinutes", schedule.countdownMinutes ?? 5);
+  setValue("tInstructions", schedule.instructions || "1. Read every question carefully.\\n2. Use Next and Previous to navigate.\\n3. Save/check your answers before submission.\\n4. The test submits automatically when time ends.");
   testQuestions = JSON.parse(JSON.stringify(item.questions || []));
   renderTestQuestionsEditor();
   document.querySelector('[data-section="tests"]')?.click();
@@ -3016,6 +3029,23 @@ async function saveManagedTest(event) {
   const testNumber = value("tTestNumber");
   const testTitle2 = value("tTitle");
   const duration = Number(value("tDuration"));
+  const schedule = {
+    enabled: $("tScheduleEnabled")?.checked === true,
+    date: value("tScheduleDate"),
+    startTime: value("tScheduleStart") || "11:30",
+    endTime: value("tScheduleEnd") || "12:30",
+    countdownMinutes: Math.max(0, Number(value("tCountdownMinutes") || 5)),
+    instructions: value("tInstructions") || ""
+  };
+
+  if (schedule.enabled && (!schedule.date || !schedule.startTime || !schedule.endTime)) {
+    alert("Scheduled test ke liye date, start time aur end time required hain.");
+    return;
+  }
+  if (schedule.enabled && schedule.endTime <= schedule.startTime) {
+    alert("End time, start time ke baad hona chahiye. Overnight tests filhaal supported nahi hain.");
+    return;
+  }
 
   if (!testId || !testTitle || !lectureId || !lectureTitle || !testNumber || !testTitle2 || !duration) {
     alert("Test ID, Test title, Lecture, Test number, title aur duration required hain.");
@@ -3041,8 +3071,10 @@ async function saveManagedTest(event) {
   if (!root.lectures[lectureId].tests) root.lectures[lectureId].tests = {};
 
   root.lectures[lectureId].tests[testNumber] = {
+    ...(root.lectures[lectureId].tests[testNumber] || {}),
     title: testTitle2,
     duration,
+    schedule,
     questions: JSON.parse(JSON.stringify(testQuestions))
   };
 

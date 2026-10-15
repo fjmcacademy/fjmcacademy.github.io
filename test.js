@@ -55,6 +55,9 @@ let timerInterval = null;
 let remainingSeconds = 0;
 
 let testSubmitted = false;
+let testDeadline = null;
+let liveTestStarted = false;
+let scheduleTicker = null;
 
 
 /* =========================================================
@@ -221,9 +224,7 @@ onAuthStateChanged(
         }
 
 
-        renderTest();
-
-        startTimer();
+        showScheduleGate();
 
     }
 );
@@ -663,7 +664,7 @@ function renderTest() {
 
             html += `
 
-                <div class="question">
+                <div class="question" id="question-${index}">
 
                     <h3>
                         Q${index + 1}.
@@ -713,6 +714,14 @@ function renderTest() {
 
 
     html += `
+        <div class="question-nav" style="display:grid;gap:12px;margin:18px 0">
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button type="button" class="submit-btn nav-btn" id="previousQuestionBtn" style="flex:1;background:#475569">← Previous</button>
+            <button type="button" class="submit-btn nav-btn" id="nextQuestionBtn" style="flex:1;background:#2563eb">Next →</button>
+            <button type="button" class="submit-btn nav-btn" id="saveAnswerBtn" style="flex:1;background:#047857">Save Answer</button>
+          </div>
+          <div class="question-palette" id="questionPalette" style="display:flex;gap:7px;flex-wrap:wrap"></div>
+        </div>
 
         <button
             type="submit"
@@ -738,15 +747,150 @@ function renderTest() {
         );
 
 
-    if (form) {
+    if (form) form.addEventListener("submit", submitTest);
 
-        form.addEventListener(
-            "submit",
-            submitTest
-        );
+    let currentQuestionIndex = 0;
+    const questions = [...area.querySelectorAll(".question")];
+    const palette = document.getElementById("questionPalette");
 
+    function jumpToQuestion(index) {
+        if (!questions.length) return;
+        currentQuestionIndex = Math.max(0, Math.min(questions.length - 1, index));
+        questions[currentQuestionIndex]?.scrollIntoView({ behavior: "smooth", block: "start" });
+        updatePalette();
+    }
+    function updatePalette() {
+        if (!palette) return;
+        palette.innerHTML = questions.map((card, i) => {
+            const answered = !!card.querySelector("input[type=radio]:checked");
+            const active = i === currentQuestionIndex;
+            return `<button type="button" data-jump="${i}" style="width:40px;height:40px;border-radius:8px;border:2px solid ${active ? "#2563eb" : "#cbd5e1"};background:${answered ? "#bbf7d0" : "#fff"};color:#111827;font-weight:700">${i + 1}</button>`;
+        }).join("");
+    }
+    document.getElementById("previousQuestionBtn")?.addEventListener("click", () => jumpToQuestion(currentQuestionIndex - 1));
+    document.getElementById("nextQuestionBtn")?.addEventListener("click", () => jumpToQuestion(currentQuestionIndex + 1));
+    document.getElementById("saveAnswerBtn")?.addEventListener("click", () => {
+        updatePalette();
+        const btn = document.getElementById("saveAnswerBtn");
+        if (btn) { btn.textContent = "✓ Answer Saved"; setTimeout(() => { if (btn.isConnected) btn.textContent = "Save Answer"; }, 1200); }
+    });
+    palette?.addEventListener("click", event => {
+        const button = event.target.closest("[data-jump]");
+        if (button) jumpToQuestion(Number(button.dataset.jump));
+    });
+    questions.forEach((card, i) => {
+        card.querySelectorAll("input").forEach(input => input.addEventListener("change", updatePalette));
+        card.addEventListener("click", () => { currentQuestionIndex = i; updatePalette(); });
+    });
+    updatePalette();
+}
+
+
+/* =========================================================
+   SCHEDULE / INSTRUCTIONS GATE
+   ========================================================= */
+
+function getSchedule() {
+    return currentTest?.schedule || { enabled: false };
+}
+
+function localDateTime(date, time) {
+    if (!date || !time) return null;
+    const parsed = new Date(`${date}T${time}:00`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function showScheduleGate() {
+    const area = document.getElementById("testArea");
+    if (!area || !currentTest) return;
+    if (scheduleTicker) clearInterval(scheduleTicker);
+    const schedule = getSchedule();
+    const enabled = schedule.enabled === true;
+    const startAt = enabled ? localDateTime(schedule.date, schedule.startTime) : null;
+    const endAt = enabled ? localDateTime(schedule.date, schedule.endTime) : null;
+
+    if (enabled && (!startAt || !endAt || endAt <= startAt)) {
+        showMessage("Test schedule invalid hai. Admin se contact karein.");
+        return;
+    }
+    if (enabled && Date.now() >= endAt.getTime()) {
+        showMessage("Is test ka scheduled time khatam ho chuka hai.");
+        return;
     }
 
+    const instructions = schedule.instructions || "Read all instructions carefully. Test time complete hone par automatically submit ho jayega.";
+    const countdownMinutes = Math.max(0, Number(schedule.countdownMinutes ?? 5));
+    area.innerHTML = `
+      <div class="test-info">
+        <h2>${currentTest.title}</h2>
+        <p><b>Lecture:</b> ${lectureId} &nbsp; <b>Test:</b> ${testNumber}</p>
+        <p><b>Questions:</b> ${currentTest.questions.length}</p>
+        <p><b>Total Marks:</b> ${currentTest.questions.reduce((sum, q) => sum + getQuestionMarks(q), 0)}</p>
+        ${enabled ? `<p><b>Test date:</b> ${schedule.date}</p><p><b>Scheduled time:</b> ${schedule.startTime} – ${schedule.endTime} (IST)</p>` : `<p><b>Duration:</b> ${currentTest.duration} minutes</p>`}
+        <div id="scheduleStatus" class="timer-box" role="status">Checking test schedule…</div>
+      </div>
+      <div class="question">
+        <h3>Instructions before starting</h3>
+        <div style="white-space:pre-wrap;line-height:1.8">${escapeHtml(instructions)}</div>
+        <label style="display:flex;gap:10px;align-items:flex-start;margin-top:18px">
+          <input id="acceptInstructions" type="checkbox" style="width:auto;margin-top:4px">
+          <span>I have read and understood the instructions.</span>
+        </label>
+        <button type="button" id="startLiveTestBtn" class="submit-btn" disabled style="margin-top:15px">Start Test</button>
+      </div>`;
+    const startButton = document.getElementById("startLiveTestBtn");
+    const accept = document.getElementById("acceptInstructions");
+    accept?.addEventListener("change", () => {
+      if (startButton) startButton.disabled = !accept.checked;
+    });
+    startButton?.addEventListener("click", () => {
+      if (!accept?.checked) return;
+      if (enabled && Date.now() < startAt.getTime()) return;
+      if (enabled && Date.now() >= endAt.getTime()) {
+        showMessage("Test ka time khatam ho chuka hai.");
+        return;
+      }
+      liveTestStarted = true;
+      testDeadline = enabled ? endAt.getTime() : Date.now() + Number(currentTest.duration) * 60000;
+      if (scheduleTicker) clearInterval(scheduleTicker);
+      renderTest();
+      startTimer();
+    });
+
+    function refreshScheduleStatus() {
+      const status = document.getElementById("scheduleStatus");
+      if (!status) return;
+      if (!enabled) {
+        status.textContent = `Duration: ${currentTest.duration} minutes. Instructions accept karke Start Test dabayein.`;
+        if (startButton) startButton.disabled = !accept?.checked;
+        return;
+      }
+      const now = Date.now();
+      if (now < startAt.getTime()) {
+        const secondsToStart = Math.ceil((startAt.getTime() - now) / 1000);
+        const mins = Math.floor(secondsToStart / 60);
+        const secs = secondsToStart % 60;
+        if (secondsToStart <= countdownMinutes * 60) {
+          status.textContent = `Test starts in ${String(mins).padStart(2,"0")}:${String(secs).padStart(2,"0")}`;
+        } else {
+          status.textContent = `Test scheduled. Starts at ${schedule.startTime}. Countdown will appear ${countdownMinutes} minutes before.`;
+        }
+        if (startButton) startButton.disabled = true;
+      } else if (now < endAt.getTime()) {
+        const secondsLeft = Math.ceil((endAt.getTime() - now) / 1000);
+        status.textContent = `Test is live • ${String(Math.floor(secondsLeft/60)).padStart(2,"0")}:${String(secondsLeft%60).padStart(2,"0")} remaining`;
+        if (startButton) startButton.disabled = !accept?.checked;
+      } else {
+        status.textContent = "Test time is over.";
+        if (startButton) startButton.disabled = true;
+      }
+    }
+    refreshScheduleStatus();
+    if (enabled) scheduleTicker = setInterval(refreshScheduleStatus, 1000);
+}
+
+function escapeHtml(value) {
+    return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
 
 
@@ -755,73 +899,23 @@ function renderTest() {
    ========================================================= */
 
 function startTimer() {
-
-    if (
-        !currentTest ||
-        !currentTest.duration
-    ) {
-
-        return;
-
-    }
-
-
-    remainingSeconds =
-        Number(
-            currentTest.duration
-        ) * 60;
-
-
+    if (!currentTest || !currentTest.duration) return;
+    if (timerInterval) clearInterval(timerInterval);
+    if (!testDeadline) testDeadline = Date.now() + Number(currentTest.duration) * 60000;
     updateTimer();
-
-
-    timerInterval =
-        setInterval(
-            function() {
-
-                if (testSubmitted) {
-
-                    clearInterval(
-                        timerInterval
-                    );
-
-                    return;
-
-                }
-
-
-                remainingSeconds--;
-
-
-                updateTimer();
-
-
-                if (
-                    remainingSeconds <= 0
-                ) {
-
-                    clearInterval(
-                        timerInterval
-                    );
-
-
-                    alert(
-                        "Time is over. Test will be submitted automatically."
-                    );
-
-
-                    submitTest(
-                        new Event(
-                            "submit"
-                        )
-                    );
-
-                }
-
-            },
-            1000
-        );
-
+    timerInterval = setInterval(function() {
+        if (testSubmitted) {
+            clearInterval(timerInterval);
+            return;
+        }
+        remainingSeconds = Math.max(0, Math.ceil((testDeadline - Date.now()) / 1000));
+        updateTimer();
+        if (remainingSeconds <= 0) {
+            clearInterval(timerInterval);
+            alert("Time is over. Test will be submitted automatically.");
+            submitTest(new Event("submit"));
+        }
+    }, 1000);
 }
 
 
@@ -843,6 +937,10 @@ function updateTimer() {
 
     }
 
+
+    if (testDeadline) {
+        remainingSeconds = Math.max(0, Math.ceil((testDeadline - Date.now()) / 1000));
+    }
 
     const minutes =
         Math.floor(
@@ -885,6 +983,7 @@ async function submitTest(event) {
 
 
     testSubmitted = true;
+    if (scheduleTicker) clearInterval(scheduleTicker);
 
 
     if (timerInterval) {
