@@ -1206,7 +1206,7 @@ async function showResult(
 
                     <h3>
                         Q${qIndex + 1}.
-                        ${question.question}
+                        <span class="question-text">${question.question}</span>
                         <span style="font-size:0.9em;color:#64748b;white-space:nowrap">(${getQuestionMarks(question)} ${getQuestionMarks(question) === 1 ? "mark" : "marks"}; earned: ${Number(answer.marksEarned ?? (answer.selectedIndex === answer.correctIndex ? getQuestionMarks(question) : 0))})</span>
                     </h3>
 
@@ -1252,7 +1252,7 @@ async function showResult(
                         >
 
                             <strong>
-                                ${option.text}
+                                <strong class="question-text">${option.text}</strong>
                             </strong>
 
                             <p>
@@ -1273,7 +1273,7 @@ async function showResult(
                                     Explanation:
                                 </strong>
 
-                                ${option.solution}
+                                <span class="question-text">${option.solution || ""}</span>
 
                             </p>
 
