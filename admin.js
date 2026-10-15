@@ -1315,72 +1315,119 @@ function renderCourseChecklist() {
 }
 
 
- // =====================================================
- // STUDENT FORM
- // =====================================================
+// =====================================================
+// STUDENT FORM
+// =====================================================
 
 $("studentForm")?.addEventListener(
   "submit",
   async event => {
+
     event.preventDefault();
 
-    const email = value("sEmail").trim().toLowerCase();
-    const password = $("sPassword")?.value || "";
-    const name = value("sName");
-    const exam = value("sExam");
-    const batch = value("sBatch");
-    const year = value("sYear");
+
+    const email =
+      value("sEmail").toLowerCase();
+
+    const password =
+      $("sPassword")?.value || "";
+
+    const name =
+      value("sName");
+
+    const exam =
+      value("sExam");
+
+    const batch =
+      value("sBatch");
+
+    const year =
+      value("sYear");
+
 
     if (!email || !name || !exam || !batch || !year) {
-      alert("Email, Name, Exam, Batch aur Year required hain.");
+
+      alert(
+        "Email, Name, Exam, Batch aur Year required hain."
+      );
+
       return;
     }
 
-    const button = $("studentForm")
-      .querySelector("button[type='submit']");
+
+    const button =
+      $("studentForm")
+        .querySelector("button[type='submit']");
 
     if (button) {
       button.disabled = true;
       button.textContent = "Saving...";
     }
 
+
     try {
+
       let studentId = editingStudentId;
 
-      // CREATE NEW STUDENT AUTH ACCOUNT
+
+      // ---------------------------------------------
+      // CREATE NEW AUTH USER
+      // ---------------------------------------------
+
       if (!studentId) {
+
         if (!password || password.length < 6) {
+
           alert(
             "New student ke liye password minimum 6 characters ka hona chahiye."
           );
+
           return;
         }
 
-        await createUserWithEmailAndPassword(
-          secondaryAuth,
-          email,
-          password
-        );
 
-        // Firestore Document ID = student email
-        studentId = email;
+        const credential =
+          await createUserWithEmailAndPassword(
+            secondaryAuth,
+            email,
+            password
+          );
+
+
+        // IMPORTANT: Student Firestore document is keyed by normalized email,
+        // not Firebase UID. This keeps dashboard lookup email-based.
+        studentId = studentDocId(email);
+
 
         await signOut(secondaryAuth);
+
       }
+
 
       const studentData = {
+
         email,
+
         name,
+
         exam,
+
         batch,
+
         year,
+
         courses: [...assignedCourseIds],
+
         updatedAt: new Date().toISOString()
+
       };
 
+
       if (!editingStudentId) {
-        studentData.createdAt = new Date().toISOString();
+        studentData.createdAt =
+          new Date().toISOString();
       }
+
 
       await setDoc(
         doc(db, "students", studentId),
@@ -1388,35 +1435,207 @@ $("studentForm")?.addEventListener(
         { merge: true }
       );
 
+
       alert(
         editingStudentId
           ? "Student updated successfully."
           : "Student created successfully."
       );
 
+
       clearStudentForm();
+
       await loadAllData();
 
+
     } catch (error) {
-      console.error("STUDENT SAVE ERROR:", error);
 
-      let message = error.message || "Student save failed.";
+      console.error(
+        "STUDENT SAVE ERROR:",
+        error
+      );
 
-      if (error.code === "auth/email-already-in-use") {
+
+      let message =
+        error.message ||
+        "Student save failed.";
+
+
+      if (
+        error.code ===
+        "auth/email-already-in-use"
+      ) {
         message =
-          "Ye email Firebase Authentication mein already registered hai.";
+          "Ye email Firebase Authentication me already registered hai.";
       }
+
 
       alert(message);
 
+
     } finally {
+
       if (button) {
+
         button.disabled = false;
-        button.textContent = "Save Student";
+        button.textContent =
+          "Save Student";
+
       }
+
     }
+
   }
 );
+
+
+// =====================================================
+// CLEAR STUDENT
+// =====================================================
+
+function clearStudentForm() {
+
+  editingStudentId = null;
+
+  assignedCourseIds =
+    new Set();
+
+
+  setValue("sEmail", "");
+  setValue("sPassword", "");
+  setValue("sName", "");
+  setValue("sExam", "");
+  setValue("sBatch", "");
+  setValue("sYear", "");
+
+
+  renderCourseChecklist();
+
+}
+
+
+$("newStudentBtn")?.addEventListener(
+  "click",
+  clearStudentForm
+);
+
+
+// =====================================================
+// EDIT STUDENT
+// =====================================================
+
+window.editStudent = function(id) {
+
+  const student =
+    students.find(s => s.id === id);
+
+  if (!student) return;
+
+
+  editingStudentId = id;
+
+
+  setValue(
+    "sEmail",
+    student.email
+  );
+
+  setValue(
+    "sName",
+    student.name
+  );
+
+  setValue(
+    "sExam",
+    student.exam
+  );
+
+  setValue(
+    "sBatch",
+    student.batch
+  );
+
+  setValue(
+    "sYear",
+    student.year
+  );
+
+  setValue(
+    "sPassword",
+    ""
+  );
+
+
+  assignedCourseIds =
+    new Set(
+      Array.isArray(student.courses)
+        ? student.courses
+        : []
+    );
+
+
+  renderCourseChecklist();
+
+
+  document
+    .querySelector('[data-section="students"]')
+    ?.click();
+
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+
+};
+
+
+// =====================================================
+// DELETE STUDENT
+// =====================================================
+
+window.deleteStudent = async function(id) {
+
+  const student =
+    students.find(s => s.id === id);
+
+  if (!student) return;
+
+
+  const ok =
+    confirm(
+      `Student "${student.name || student.email}" ko delete karna hai?`
+    );
+
+
+  if (!ok) return;
+
+
+  try {
+
+    await deleteDoc(
+      doc(db, "students", id)
+    );
+
+
+    alert("Student profile deleted.");
+
+    await loadAllData();
+
+
+  } catch (error) {
+
+    console.error(error);
+
+    alert(
+      error.message ||
+      "Student delete failed."
+    );
+
+  }
+
+};
+
 
 // =====================================================
 // SELECT VISIBLE COURSES
