@@ -1546,7 +1546,9 @@ alert(
   "Student delete failed."  
 );
 
+}
 
+};
 
 // =====================================================
 // SELECT VISIBLE COURSES
