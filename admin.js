@@ -1314,7 +1314,9 @@ function renderCourseChecklist() {
 
 }
 
-
+function studentDocId(email) {
+  return email.trim().toLowerCase().replace(/\//g, "_");
+}
 
 // =====================================================
 // STUDENT FORM
