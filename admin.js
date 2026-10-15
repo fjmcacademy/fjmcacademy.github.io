@@ -2447,11 +2447,6 @@ function renderTestQuestionsEditor() {
           Question (LaTeX supported)
           <textarea data-q-index="${qi}" data-field="question">${esc(q.question || "")}</textarea>
         </label>
-        <label style="display:block;margin-top:10px;max-width:220px">
-          Marks for this question
-          <input type="number" min="0" step="0.25" data-q-index="${qi}" data-field="marks" value="${Number.isFinite(Number(q.marks)) ? Number(q.marks) : 1}" required>
-        </label>
-        <div class="small">Set the marks awarded for a correct answer. Default: 1 mark.</div>
         <div class="math-editor-tools" data-math-tools-for="q-${qi}"></div>
         <div class="math-preview-label">Live mathematical preview</div>
         <div class="math-preview" data-math-preview="q-${qi}"></div>
@@ -2590,12 +2585,7 @@ function updateTestQuestionFromDOM(event) {
   if (!testQuestions[qi]) return;
 
   if (oi === null) {
-    if (el.dataset.field === "marks") {
-      const marks = Number(el.value);
-      testQuestions[qi].marks = Number.isFinite(marks) && marks >= 0 ? marks : 0;
-    } else {
-      testQuestions[qi].question = el.value;
-    }
+    testQuestions[qi].question = el.value;
     return;
   }
 
@@ -3151,7 +3141,6 @@ $("testForm")?.addEventListener("submit", saveManagedTest);
 $("addTestQuestionBtn")?.addEventListener("click", () => {
   testQuestions.push({
     question: "",
-    marks: 1,
     options: [0,1,2,3].map(() => ({ text: "", correct: false, solution: "" }))
   });
   renderTestQuestionsEditor();
