@@ -1315,6 +1315,109 @@ function renderCourseChecklist() {
 }
 
 
+ // =====================================================
+ // STUDENT FORM
+ // =====================================================
+
+$("studentForm")?.addEventListener(
+  "submit",
+  async event => {
+    event.preventDefault();
+
+    const email = value("sEmail").trim().toLowerCase();
+    const password = $("sPassword")?.value || "";
+    const name = value("sName");
+    const exam = value("sExam");
+    const batch = value("sBatch");
+    const year = value("sYear");
+
+    if (!email || !name || !exam || !batch || !year) {
+      alert("Email, Name, Exam, Batch aur Year required hain.");
+      return;
+    }
+
+    const button = $("studentForm")
+      .querySelector("button[type='submit']");
+
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Saving...";
+    }
+
+    try {
+      let studentId = editingStudentId;
+
+      // CREATE NEW STUDENT AUTH ACCOUNT
+      if (!studentId) {
+        if (!password || password.length < 6) {
+          alert(
+            "New student ke liye password minimum 6 characters ka hona chahiye."
+          );
+          return;
+        }
+
+        await createUserWithEmailAndPassword(
+          secondaryAuth,
+          email,
+          password
+        );
+
+        // Firestore Document ID = student email
+        studentId = email;
+
+        await signOut(secondaryAuth);
+      }
+
+      const studentData = {
+        email,
+        name,
+        exam,
+        batch,
+        year,
+        courses: [...assignedCourseIds],
+        updatedAt: new Date().toISOString()
+      };
+
+      if (!editingStudentId) {
+        studentData.createdAt = new Date().toISOString();
+      }
+
+      await setDoc(
+        doc(db, "students", studentId),
+        studentData,
+        { merge: true }
+      );
+
+      alert(
+        editingStudentId
+          ? "Student updated successfully."
+          : "Student created successfully."
+      );
+
+      clearStudentForm();
+      await loadAllData();
+
+    } catch (error) {
+      console.error("STUDENT SAVE ERROR:", error);
+
+      let message = error.message || "Student save failed.";
+
+      if (error.code === "auth/email-already-in-use") {
+        message =
+          "Ye email Firebase Authentication mein already registered hai.";
+      }
+
+      alert(message);
+
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Save Student";
+      }
+    }
+  }
+);
+
 // =====================================================
 // SELECT VISIBLE COURSES
 // =====================================================
