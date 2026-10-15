@@ -667,7 +667,7 @@ function renderTest() {
 
                     <h3>
                         Q${index + 1}.
-                        ${question.question}
+                        <span class="question-text">${question.question}</span>
                         <span style="font-size:0.9em;color:#64748b;white-space:nowrap">(${getQuestionMarks(question)} ${getQuestionMarks(question) === 1 ? "mark" : "marks"})</span>
                     </h3>
 
@@ -692,7 +692,7 @@ function renderTest() {
                                 value="${optionIndex}"
                             >
 
-                            ${option.text}
+                            <span class="question-text">${option.text}</span>
 
                         </label>
 
