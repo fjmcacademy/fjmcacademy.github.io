@@ -1327,7 +1327,7 @@ $("studentForm")?.addEventListener(
 
 
     const email =
-      value("sEmail").toLowerCase();
+  studentDocId(value("sEmail").trim().toLowerCase());
 
     const password =
       $("sPassword")?.value || "";
