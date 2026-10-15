@@ -1540,100 +1540,109 @@ window.editStudent = function(id) {
   );
 
   setValue(
-    "sName",
-    student.name
-  );
 
-  setValue(
-    "sExam",
-    student.exam
-  );
+ // =====================================================
+ // STUDENT FORM
+ // =====================================================
 
-  setValue(
-    "sBatch",
-    student.batch
-  );
+$("studentForm")?.addEventListener(
+  "submit",
+  async event => {
+    event.preventDefault();
 
-  setValue(
-    "sYear",
-    student.year
-  );
+    const email = value("sEmail").trim().toLowerCase();
+    const password = $("sPassword")?.value || "";
+    const name = value("sName");
+    const exam = value("sExam");
+    const batch = value("sBatch");
+    const year = value("sYear");
 
-  setValue(
-    "sPassword",
-    ""
-  );
+    if (!email || !name || !exam || !batch || !year) {
+      alert("Email, Name, Exam, Batch aur Year required hain.");
+      return;
+    }
 
+    const button = $("studentForm")
+      .querySelector("button[type='submit']");
 
-  assignedCourseIds =
-    new Set(
-      Array.isArray(student.courses)
-        ? student.courses
-        : []
-    );
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Saving...";
+    }
 
+    try {
+      let studentId = editingStudentId;
 
-  renderCourseChecklist();
+      // CREATE NEW STUDENT AUTH ACCOUNT
+      if (!studentId) {
+        if (!password || password.length < 6) {
+          alert(
+            "New student ke liye password minimum 6 characters ka hona chahiye."
+          );
+          return;
+        }
 
+        await createUserWithEmailAndPassword(
+          secondaryAuth,
+          email,
+          password
+        );
 
-  document
-    .querySelector('[data-section="students"]')
-    ?.click();
+        // Firestore Document ID = student email
+        studentId = email;
 
+        await signOut(secondaryAuth);
+      }
 
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
+      const studentData = {
+        email,
+        name,
+        exam,
+        batch,
+        year,
+        courses: [...assignedCourseIds],
+        updatedAt: new Date().toISOString()
+      };
 
-};
+      if (!editingStudentId) {
+        studentData.createdAt = new Date().toISOString();
+      }
 
+      await setDoc(
+        doc(db, "students", studentId),
+        studentData,
+        { merge: true }
+      );
 
-// =====================================================
-// DELETE STUDENT
-// =====================================================
+      alert(
+        editingStudentId
+          ? "Student updated successfully."
+          : "Student created successfully."
+      );
 
-window.deleteStudent = async function(id) {
+      clearStudentForm();
+      await loadAllData();
 
-  const student =
-    students.find(s => s.id === id);
+    } catch (error) {
+      console.error("STUDENT SAVE ERROR:", error);
 
-  if (!student) return;
+      let message = error.message || "Student save failed.";
 
+      if (error.code === "auth/email-already-in-use") {
+        message =
+          "Ye email Firebase Authentication mein already registered hai.";
+      }
 
-  const ok =
-    confirm(
-      `Student "${student.name || student.email}" ko delete karna hai?`
-    );
+      alert(message);
 
-
-  if (!ok) return;
-
-
-  try {
-
-    await deleteDoc(
-      doc(db, "students", id)
-    );
-
-
-    alert("Student profile deleted.");
-
-    await loadAllData();
-
-
-  } catch (error) {
-
-    console.error(error);
-
-    alert(
-      error.message ||
-      "Student delete failed."
-    );
-
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Save Student";
+      }
+    }
   }
-
-};
+);
 
 
 // =====================================================
