@@ -527,34 +527,52 @@ function getStudentName() {
 }
 
 /* =========================================================
-   LATEX RENDERING — ONLY NEW ADDITION
+   LATEX RENDERING — SPACING AND NEWLINE SUPPORT
    ========================================================= */
 
 async function renderMath(element) {
-
     if (!element) return;
 
     try {
+        // Preserve ordinary spaces and new lines.
+        if (!document.getElementById("test-math-spacing-style")) {
+            const style = document.createElement("style");
+            style.id = "test-math-spacing-style";
+            style.textContent = `
+                .question-text {
+                    white-space: pre-wrap;
+                    overflow-wrap: anywhere;
+                    line-height: 1.8;
+                }
 
+                .question h3 {
+                    line-height: 1.8;
+                }
+
+                .option {
+                    white-space: pre-wrap;
+                    overflow-wrap: anywhere;
+                }
+
+                .solution p {
+                    line-height: 1.8;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // Wait until MathJax is ready.
         if (window.MathJax?.startup?.promise) {
             await window.MathJax.startup.promise;
         }
 
+        // Render LaTeX in the supplied element.
         if (window.MathJax?.typesetPromise) {
-
-            await window.MathJax.typesetPromise([
-                element
-            ]);
-
+            await window.MathJax.typesetPromise([element]);
         }
 
     } catch (error) {
-
-        console.error(
-            "LaTeX rendering error:",
-            error
-        );
-
+        console.error("LaTeX rendering error:", error);
     }
 }
 /* =========================================================
