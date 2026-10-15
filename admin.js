@@ -2428,13 +2428,16 @@ function renderTestQuestionsEditor() {
   if (!container) return;
 
   if (!testQuestions.length) {
-    container.innerHTML = `<div class="small">No questions. Click + Add Question.</div>`;
+    container.innerHTML =
+      `<div class="small">No questions. Click + Add Question.</div>`;
     return;
   }
 
   container.innerHTML = testQuestions.map((q, qi) => {
     const opts = Array.isArray(q.options) ? q.options : [];
-    const four = [0,1,2,3].map(i => opts[i] || {text:"", correct:false, solution:""});
+    const four = [0, 1, 2, 3].map(
+      i => opts[i] || { text: "", correct: false, solution: "" }
+    );
     const correctIndex = four.findIndex(o => o.correct);
 
     return `
@@ -2443,34 +2446,48 @@ function renderTestQuestionsEditor() {
           <strong>Question ${qi + 1}</strong>
           <button type="button" class="btn danger remove-test-question" data-index="${qi}">Remove</button>
         </div>
+
         <label style="display:block;margin-top:10px">
           Question (LaTeX supported)
           <textarea data-q-index="${qi}" data-field="question">${esc(q.question || "")}</textarea>
         </label>
+
         <label style="display:block;margin-top:10px;max-width:220px">
           Marks for this question
-          <input type="number" min="0" step="0.25" data-q-index="${qi}" data-field="marks" value="${Number.isFinite(Number(q.marks)) ? Number(q.marks) : 1}" required>
+          <input type="number" min="0" step="0.25"
+            data-q-index="${qi}" data-field="marks"
+            value="${Number.isFinite(Number(q.marks)) ? Number(q.marks) : 1}" required>
         </label>
+
         <div class="small">Set the marks awarded for a correct answer. Default: 1 mark.</div>
         <div class="math-editor-tools" data-math-tools-for="q-${qi}"></div>
         <div class="math-preview-label">Live mathematical preview</div>
         <div class="math-preview" data-math-preview="q-${qi}"></div>
+
         <div class="grid">
           ${four.map((o, oi) => `
             <div>
               <label>Option ${String.fromCharCode(65 + oi)} (LaTeX supported)</label>
-              <input data-q-index="${qi}" data-option-index="${oi}" data-option-field="text" value="${esc(o.text || "")}">
+              <input data-q-index="${qi}" data-option-index="${oi}"
+                data-option-field="text" value="${esc(o.text || "")}">
+
               <div class="math-editor-tools" data-math-tools-for="o-${qi}-${oi}"></div>
               <div class="math-preview-label">Option preview</div>
               <div class="math-preview" data-math-preview="o-${qi}-${oi}"></div>
+
               <label style="display:block;margin-top:6px">
-                <input type="radio" name="correct_${qi}" data-q-index="${qi}" data-option-index="${oi}" data-option-field="correct" ${correctIndex === oi ? "checked" : ""}>
+                <input type="radio" name="correct_${qi}"
+                  data-q-index="${qi}" data-option-index="${oi}"
+                  data-option-field="correct" ${correctIndex === oi ? "checked" : ""}>
                 Correct option
               </label>
+
               <label style="display:block;margin-top:6px">
                 Solution / Explanation (LaTeX supported)
-                <textarea data-q-index="${qi}" data-option-index="${oi}" data-option-field="solution">${esc(o.solution || "")}</textarea>
+                <textarea data-q-index="${qi}" data-option-index="${oi}"
+                  data-option-field="solution">${esc(o.solution || "")}</textarea>
               </label>
+
               <div class="math-editor-tools" data-math-tools-for="s-${qi}-${oi}"></div>
               <div class="math-preview-label">Explanation preview</div>
               <div class="math-preview" data-math-preview="s-${qi}-${oi}"></div>
@@ -2481,18 +2498,24 @@ function renderTestQuestionsEditor() {
     `;
   }).join("");
 
+  // Update question data and refresh preview on editing.
   container.querySelectorAll("[data-q-index]").forEach(el => {
     el.addEventListener("input", event => {
       updateTestQuestionFromDOM(event);
       refreshMathPreviewForField(el);
     });
+
     el.addEventListener("change", event => {
       updateTestQuestionFromDOM(event);
       refreshMathPreviewForField(el);
-      if (el.dataset.optionField === "correct") renderTestQuestionsEditor();
+
+      if (el.dataset.optionField === "correct") {
+        renderTestQuestionsEditor();
+      }
     });
   });
 
+  // Remove question.
   container.querySelectorAll(".remove-test-question").forEach(btn => {
     btn.addEventListener("click", () => {
       testQuestions.splice(Number(btn.dataset.index), 1);
@@ -2500,14 +2523,15 @@ function renderTestQuestionsEditor() {
     });
   });
 
+  // Mathematical editor toolbar.
   container.querySelectorAll("[data-math-tools-for]").forEach(toolbar => {
     toolbar.innerHTML = `
       <button type="button" data-insert="\\(\\frac{ }{ }\\)">Fraction</button>
       <button type="button" data-insert="\\(\\sqrt{ }\\)">Root</button>
       <button type="button" data-insert="\\(x^{ }\\)">Power</button>
       <button type="button" data-insert="\\(x_{ }\\)">Subscript</button>
-      <button type="button" data-insert="\\(\\int_{ }^{ } \\)">Integral</button>
-      <button type="button" data-insert="\\(\\sum_{ }^{ } \\)">Summation</button>
+      <button type="button" data-insert="\\(\\int_{ }^{ }\\)">Integral</button>
+      <button type="button" data-insert="\\(\\sum_{ }^{ }\\)">Summation</button>
       <button type="button" data-insert="\\(\\pi\\)">π</button>
       <button type="button" data-insert="\\(\\theta\\)">θ</button>
       <button type="button" data-insert="\\(\\infty\\)">∞</button>
@@ -2515,41 +2539,63 @@ function renderTestQuestionsEditor() {
       <button type="button" data-insert="\\(\\leq\\)">≤</button>
       <button type="button" data-insert="\\(\\geq\\)">≥</button>
     `;
+
     toolbar.addEventListener("click", event => {
       const button = event.target.closest("button[data-insert]");
       if (!button) return;
+
       const key = toolbar.dataset.mathToolsFor;
       let selector;
-      if (key.startsWith("q-")) selector = `textarea[data-q-index="${key.slice(2)}"][data-field="question"]`;
-      else {
+
+      if (key.startsWith("q-")) {
+        selector =
+          `textarea[data-q-index="${key.slice(2)}"][data-field="question"]`;
+      } else {
         const bits = key.split("-");
-        const qi = bits[1], oi = bits[2];
+        const qi = bits[1];
+        const oi = bits[2];
+
         selector = key.startsWith("o-")
           ? `input[data-q-index="${qi}"][data-option-index="${oi}"][data-option-field="text"]`
           : `textarea[data-q-index="${qi}"][data-option-index="${oi}"][data-option-field="solution"]`;
       }
+
       const field = container.querySelector(selector);
       if (!field) return;
+
       insertMathAtCursor(field, button.dataset.insert);
       field.dispatchEvent(new Event("input", { bubbles: true }));
       field.focus();
     });
   });
 
+  // Render previews while preserving ordinary spaces and line breaks.
   container.querySelectorAll("[data-math-preview]").forEach(preview => {
     const key = preview.dataset.mathPreview;
     let field;
-    if (key.startsWith("q-")) field = container.querySelector(`textarea[data-q-index="${key.slice(2)}"][data-field="question"]`);
-    else {
+
+    if (key.startsWith("q-")) {
+      field = container.querySelector(
+        `textarea[data-q-index="${key.slice(2)}"][data-field="question"]`
+      );
+    } else {
       const bits = key.split("-");
+
       field = key.startsWith("o-")
-        ? container.querySelector(`input[data-q-index="${bits[1]}"][data-option-index="${bits[2]}"][data-option-field="text"]`)
-        : container.querySelector(`textarea[data-q-index="${bits[1]}"][data-option-index="${bits[2]}"][data-option-field="solution"]`);
+        ? container.querySelector(
+            `input[data-q-index="${bits[1]}"][data-option-index="${bits[2]}"][data-option-field="text"]`
+          )
+        : container.querySelector(
+            `textarea[data-q-index="${bits[1]}"][data-option-index="${bits[2]}"][data-option-field="solution"]`
+          );
     }
-    preview.textContent = field?.value || "Formula preview will appear here.";
+
+    preview.textContent =
+      field?.value || "Formula preview will appear here.";
   });
+
   typesetMath(container);
-}
+        }
 
 function insertMathAtCursor(field, snippet) {
   const start = field.selectionStart ?? field.value.length;
