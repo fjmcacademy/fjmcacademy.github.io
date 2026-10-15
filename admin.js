@@ -1314,13 +1314,13 @@ function renderCourseChecklist() {
 
 }
 
+// =====================================================
+// STUDENT DOCUMENT ID
+// =====================================================
+
 function studentDocId(email) {
   return email.trim().toLowerCase().replace(/\//g, "_");
 }
-
-// =====================================================
-// STUDENT FORM
-// =====================================================
 
 $("studentForm")?.addEventListener(
   "submit",
