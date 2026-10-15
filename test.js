@@ -558,6 +558,15 @@ async function renderMath(element) {
     }
 }
 /* =========================================================
+   QUESTION MARKS
+   Old tests without a marks field remain worth 1 mark per question.
+   ========================================================= */
+function getQuestionMarks(question) {
+    const marks = Number(question?.marks);
+    return Number.isFinite(marks) && marks >= 0 ? marks : 1;
+}
+
+/* =========================================================
    RENDER TEST
    ========================================================= */
 
@@ -600,7 +609,12 @@ function renderTest() {
             </p>
 
             <p>
-                Each correct answer = 1 mark
+                Total Marks:
+                ${currentTest.questions.reduce((sum, question) => sum + getQuestionMarks(question), 0)}
+            </p>
+
+            <p>
+                Marks for each question are shown below.
             </p>
 
             <div
@@ -636,6 +650,7 @@ function renderTest() {
                     <h3>
                         Q${index + 1}.
                         ${question.question}
+                        <span style="font-size:0.9em;color:#64748b;white-space:nowrap">(${getQuestionMarks(question)} ${getQuestionMarks(question) === 1 ? "mark" : "marks"})</span>
                     </h3>
 
             `;
@@ -915,35 +930,31 @@ async function submitTest(event) {
                 );
 
 
-            if (
-                selectedIndex ===
-                correctIndex
-            ) {
+            const questionMarks = getQuestionMarks(question);
+            const marksEarned = selectedIndex === correctIndex ? questionMarks : 0;
 
-                score++;
-
+            if (selectedIndex === correctIndex) {
+                score += questionMarks;
             }
 
-
             answers.push({
-
-                questionIndex:
-                    index,
-
-                selectedIndex:
-                    selectedIndex,
-
-                correctIndex:
-                    correctIndex
-
+                questionIndex: index,
+                selectedIndex: selectedIndex,
+                correctIndex: correctIndex,
+                marksAvailable: questionMarks,
+                marksEarned: marksEarned
             });
 
         }
     );
 
 
-    const total =
-        currentTest.questions.length;
+    const total = currentTest.questions.reduce(
+        function(sum, question) {
+            return sum + getQuestionMarks(question);
+        },
+        0
+    );
 
 
     const percentage =
@@ -1178,6 +1189,7 @@ async function showResult(
                     <h3>
                         Q${qIndex + 1}.
                         ${question.question}
+                        <span style="font-size:0.9em;color:#64748b;white-space:nowrap">(${getQuestionMarks(question)} ${getQuestionMarks(question) === 1 ? "mark" : "marks"}; earned: ${Number(answer.marksEarned ?? (answer.selectedIndex === answer.correctIndex ? getQuestionMarks(question) : 0))})</span>
                     </h3>
 
             `;
