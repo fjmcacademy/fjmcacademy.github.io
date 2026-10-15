@@ -1521,7 +1521,7 @@ if (!student) return;
 
 const ok =
 confirm(
-Student "${student.name || student.email}" ko delete karna hai?
+'Student "${student.name || student.email}" ko delete karna hai?'
 );
 
 if (!ok) return;
