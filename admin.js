@@ -1315,6 +1315,7 @@ function renderCourseChecklist() {
 }
 
 
+
 // =====================================================
 // STUDENT FORM
 // =====================================================
@@ -1325,10 +1326,8 @@ $("studentForm")?.addEventListener(
 
     event.preventDefault();
 
-
-    
     const email =
-      value("sEmail").toLowerCase()
+      value("sEmail").trim().toLowerCase();
 
     const password =
       $("sPassword")?.value || "";
@@ -1345,16 +1344,12 @@ $("studentForm")?.addEventListener(
     const year =
       value("sYear");
 
-
     if (!email || !name || !exam || !batch || !year) {
-
       alert(
         "Email, Name, Exam, Batch aur Year required hain."
       );
-
       return;
     }
-
 
     const button =
       $("studentForm")
@@ -1365,11 +1360,9 @@ $("studentForm")?.addEventListener(
       button.textContent = "Saving...";
     }
 
-
     try {
 
       let studentId = editingStudentId;
-
 
       // ---------------------------------------------
       // CREATE NEW AUTH USER
@@ -1378,57 +1371,38 @@ $("studentForm")?.addEventListener(
       if (!studentId) {
 
         if (!password || password.length < 6) {
-
           alert(
             "New student ke liye password minimum 6 characters ka hona chahiye."
           );
-
           return;
         }
 
+        await createUserWithEmailAndPassword(
+          secondaryAuth,
+          email,
+          password
+        );
 
-        const credential =
-          await createUserWithEmailAndPassword(
-            secondaryAuth,
-            email,
-            password
-          );
-
-
-        // IMPORTANT: Student Firestore document is keyed by normalized email,
-        // not Firebase UID. This keeps dashboard lookup email-based.
+        // Firestore document ID = normalized email
         studentId = studentDocId(email);
 
-
         await signOut(secondaryAuth);
-
       }
 
-
       const studentData = {
-
         email,
-
         name,
-
         exam,
-
         batch,
-
         year,
-
         courses: [...assignedCourseIds],
-
         updatedAt: new Date().toISOString()
-
       };
-
 
       if (!editingStudentId) {
         studentData.createdAt =
           new Date().toISOString();
       }
-
 
       await setDoc(
         doc(db, "students", studentId),
@@ -1436,18 +1410,15 @@ $("studentForm")?.addEventListener(
         { merge: true }
       );
 
-
       alert(
         editingStudentId
           ? "Student updated successfully."
           : "Student created successfully."
       );
 
-
       clearStudentForm();
 
       await loadAllData();
-
 
     } catch (error) {
 
@@ -1456,11 +1427,9 @@ $("studentForm")?.addEventListener(
         error
       );
 
-
       let message =
         error.message ||
         "Student save failed.";
-
 
       if (
         error.code ===
@@ -1470,18 +1439,13 @@ $("studentForm")?.addEventListener(
           "Ye email Firebase Authentication me already registered hai.";
       }
 
-
       alert(message);
-
 
     } finally {
 
       if (button) {
-
         button.disabled = false;
-        button.textContent =
-          "Save Student";
-
+        button.textContent = "Save Student";
       }
 
     }
@@ -1501,14 +1465,12 @@ function clearStudentForm() {
   assignedCourseIds =
     new Set();
 
-
   setValue("sEmail", "");
   setValue("sPassword", "");
   setValue("sName", "");
   setValue("sExam", "");
   setValue("sBatch", "");
   setValue("sYear", "");
-
 
   renderCourseChecklist();
 
@@ -1532,40 +1494,14 @@ window.editStudent = function(id) {
 
   if (!student) return;
 
-
   editingStudentId = id;
 
-
-  setValue(
-    "sEmail",
-    student.email
-  );
-
-  setValue(
-    "sName",
-    student.name
-  );
-
-  setValue(
-    "sExam",
-    student.exam
-  );
-
-  setValue(
-    "sBatch",
-    student.batch
-  );
-
-  setValue(
-    "sYear",
-    student.year
-  );
-
-  setValue(
-    "sPassword",
-    ""
-  );
-
+  setValue("sEmail", student.email);
+  setValue("sName", student.name);
+  setValue("sExam", student.exam);
+  setValue("sBatch", student.batch);
+  setValue("sYear", student.year);
+  setValue("sPassword", "");
 
   assignedCourseIds =
     new Set(
@@ -1574,14 +1510,11 @@ window.editStudent = function(id) {
         : []
     );
 
-
   renderCourseChecklist();
-
 
   document
     .querySelector('[data-section="students"]')
     ?.click();
-
 
   window.scrollTo({
     top: 0,
@@ -1602,15 +1535,12 @@ window.deleteStudent = async function(id) {
 
   if (!student) return;
 
-
   const ok =
     confirm(
       `Student "${student.name || student.email}" ko delete karna hai?`
     );
 
-
   if (!ok) return;
-
 
   try {
 
@@ -1618,11 +1548,9 @@ window.deleteStudent = async function(id) {
       doc(db, "students", id)
     );
 
-
     alert("Student profile deleted.");
 
     await loadAllData();
-
 
   } catch (error) {
 
@@ -1636,7 +1564,6 @@ window.deleteStudent = async function(id) {
   }
 
 };
-
 
 // =====================================================
 // SELECT VISIBLE COURSES
