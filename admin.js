@@ -1395,7 +1395,7 @@ $("studentForm")?.addEventListener(
 
 
         studentId =
-          credential.user.uid;
+          email;
 
 
         await signOut(secondaryAuth);
