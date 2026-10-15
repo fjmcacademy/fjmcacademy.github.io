@@ -561,19 +561,58 @@ textarea{
 
 </style>
 
-<!-- MathJax: renders LaTeX in the admin editor previews -->
+<!-- MathJax: LaTeX rendering with spacing and multiline support -->
 <script>
   window.MathJax = {
     tex: {
       inlineMath: [['\\(', '\\)'], ['$', '$']],
       displayMath: [['\\[', '\\]'], ['$$', '$$']],
-      processEscapes: true
+      processEscapes: true,
+      packages: { '[+]': ['ams'] }
     },
-    options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'] },
-    startup: { typeset: false }
+
+    options: {
+      skipHtmlTags: [
+        'script', 'noscript', 'style',
+        'textarea', 'pre', 'code'
+      ]
+    },
+
+    chtml: {
+      linebreaks: {
+        automatic: true,
+        width: 'container'
+      }
+    },
+
+    startup: {
+      typeset: false
+    }
   };
 </script>
-<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+<script
+  defer
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+</script>
+
+<style>
+  /* Preserve spaces and new lines in ordinary preview text */
+  .math-preview {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.8;
+    min-height: 24px;
+  }
+
+  /* Editor fields */
+  textarea[data-field="question"],
+  textarea[data-option-field="solution"] {
+    white-space: pre-wrap;
+    line-height: 1.6;
+    min-height: 100px;
+  }
+</style>
 
 </head>
 
