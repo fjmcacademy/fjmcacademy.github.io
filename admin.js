@@ -2379,7 +2379,14 @@ function renderTestQuestionsEditor() {
             value="${Number.isFinite(Number(q.marks)) ? Number(q.marks) : 1}" required>
         </label>
 
-        <div class="small">Set the marks awarded for a correct answer. Default: 1 mark.</div>
+        <label style="display:block;margin-top:10px;max-width:260px">
+          Question type
+          <select data-q-index="${qi}" data-field="type">
+            <option value="mcq" ${(q.type || "mcq") !== "msq" ? "selected" : ""}>MCQ — one correct option</option>
+            <option value="msq" ${q.type === "msq" ? "selected" : ""}>MSQ — multiple correct options</option>
+          </select>
+        </label>
+        <div class="small">Set the marks awarded only when the answer is fully correct. Default: 1 mark.</div>
         <div class="math-editor-tools" data-math-tools-for="q-${qi}"></div>
         <div class="math-preview-label">Live mathematical preview</div>
         <div class="math-preview" data-math-preview="q-${qi}"></div>
@@ -2396,10 +2403,10 @@ function renderTestQuestionsEditor() {
               <div class="math-preview" data-math-preview="o-${qi}-${oi}"></div>
 
               <label style="display:block;margin-top:6px">
-                <input type="radio" name="correct_${qi}"
+                <input type="${q.type === "msq" ? "checkbox" : "radio"}" name="correct_${qi}"
                   data-q-index="${qi}" data-option-index="${oi}"
-                  data-option-field="correct" ${correctIndex === oi ? "checked" : ""}>
-                Correct option
+                  data-option-field="correct" ${o.correct ? "checked" : ""}>
+                ${q.type === "msq" ? "Correct option (select all that apply)" : "Correct option"}
               </label>
 
               <label style="display:block;margin-top:6px">
@@ -2429,7 +2436,7 @@ function renderTestQuestionsEditor() {
       updateTestQuestionFromDOM(event);
       refreshMathPreviewForField(el);
 
-      if (el.dataset.optionField === "correct") {
+      if (el.dataset.optionField === "correct" || el.dataset.field === "type") {
         renderTestQuestionsEditor();
       }
     });
@@ -2559,6 +2566,15 @@ function updateTestQuestionFromDOM(event) {
     if (el.dataset.field === "marks") {
       const marks = Number(el.value);
       testQuestions[qi].marks = Number.isFinite(marks) && marks >= 0 ? marks : 0;
+    } else if (el.dataset.field === "type") {
+      testQuestions[qi].type = el.value === "msq" ? "msq" : "mcq";
+      if (testQuestions[qi].type === "mcq") {
+        let kept = false;
+        testQuestions[qi].options.forEach(option => {
+          if (option.correct && !kept) kept = true;
+          else option.correct = false;
+        });
+      }
     } else {
       testQuestions[qi].question = el.value;
     }
@@ -2571,7 +2587,11 @@ function updateTestQuestionFromDOM(event) {
   }
 
   if (el.dataset.optionField === "correct") {
-    testQuestions[qi].options.forEach((o, index) => o.correct = index === oi);
+    if (testQuestions[qi].type === "msq") {
+      testQuestions[qi].options[oi].correct = el.checked;
+    } else {
+      testQuestions[qi].options.forEach((o, index) => o.correct = index === oi);
+    }
   } else {
     testQuestions[qi].options[oi][el.dataset.optionField] = el.value;
   }
@@ -3143,6 +3163,7 @@ $("testForm")?.addEventListener("submit", saveManagedTest);
 $("addTestQuestionBtn")?.addEventListener("click", () => {
   testQuestions.push({
     question: "",
+    type: "mcq",
     marks: 1,
     options: [0,1,2,3].map(() => ({ text: "", correct: false, solution: "" }))
   });

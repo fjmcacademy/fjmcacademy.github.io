@@ -55,7 +55,9 @@ let timerInterval = null;
 let remainingSeconds = 0;
 
 let testSubmitted = false;
-let currentQuestionIndex = 0;
+let testDeadline = null;
+let liveTestStarted = false;
+let scheduleTicker = null;
 
 
 /* =========================================================
@@ -222,9 +224,7 @@ onAuthStateChanged(
         }
 
 
-        renderTest();
-
-        startTimer();
+        showScheduleGate();
 
     }
 );
@@ -528,34 +528,52 @@ function getStudentName() {
 }
 
 /* =========================================================
-   LATEX RENDERING — ONLY NEW ADDITION
+   LATEX RENDERING — SPACING AND NEWLINE SUPPORT
    ========================================================= */
 
 async function renderMath(element) {
-
     if (!element) return;
 
     try {
+        // Preserve ordinary spaces and new lines.
+        if (!document.getElementById("test-math-spacing-style")) {
+            const style = document.createElement("style");
+            style.id = "test-math-spacing-style";
+            style.textContent = `
+                .question-text {
+                    white-space: pre-wrap;
+                    overflow-wrap: anywhere;
+                    line-height: 1.8;
+                }
 
+                .question h3 {
+                    line-height: 1.8;
+                }
+
+                .option {
+                    white-space: pre-wrap;
+                    overflow-wrap: anywhere;
+                }
+
+                .solution p {
+                    line-height: 1.8;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // Wait until MathJax is ready.
         if (window.MathJax?.startup?.promise) {
             await window.MathJax.startup.promise;
         }
 
+        // Render LaTeX in the supplied element.
         if (window.MathJax?.typesetPromise) {
-
-            await window.MathJax.typesetPromise([
-                element
-            ]);
-
+            await window.MathJax.typesetPromise([element]);
         }
 
     } catch (error) {
-
-        console.error(
-            "LaTeX rendering error:",
-            error
-        );
-
+        console.error("LaTeX rendering error:", error);
     }
 }
 /* =========================================================
@@ -575,8 +593,6 @@ function renderTest() {
     const area = document.getElementById("testArea");
     if (!area) return;
 
-    currentQuestionIndex = 0;
-
     let html = `
         <div class="test-info">
             <h2>${currentTest.title}</h2>
@@ -584,94 +600,197 @@ function renderTest() {
             <p>Test: ${testNumber}</p>
             <p>Total Questions: ${currentTest.questions.length}</p>
             <p>Total Marks: ${currentTest.questions.reduce((sum, question) => sum + getQuestionMarks(question), 0)}</p>
+            <p>Marks for each question are shown below.</p>
             <div id="timerBox" class="timer-box">
                 Time Left: <strong id="timer">00:00</strong>
             </div>
-            <p id="questionProgress" style="font-weight:700;margin-bottom:0">Question 1 of ${currentTest.questions.length}</p>
+            <p id="questionProgress" style="font-weight:700;margin:12px 0 0">Question 1 of ${currentTest.questions.length}</p>
         </div>
         <form id="testForm">
     `;
 
     currentTest.questions.forEach(function(question, index) {
         html += `
-            <div class="question single-test-question" data-question-index="${index}"
+            <div class="question single-test-question" id="question-${index}"
                  style="display:${index === 0 ? "block" : "none"};">
-                <h3>Q${index + 1}. ${question.question}
-                    <span style="font-size:.9em;color:#64748b;white-space:nowrap">(${getQuestionMarks(question)} ${getQuestionMarks(question) === 1 ? "mark" : "marks"})</span>
+                <h3>
+                    Q${index + 1}.
+                    <span class="question-text">${question.question}</span>
+                    <span style="font-size:0.9em;color:#64748b;white-space:nowrap">(${getQuestionMarks(question)} ${getQuestionMarks(question) === 1 ? "mark" : "marks"})</span>
                 </h3>
         `;
 
         question.options.forEach(function(option, optionIndex) {
             html += `
                 <label class="option">
-                    <input type="radio" name="q${index}" value="${optionIndex}">
-                    ${option.text}
+                    <input type="${question.type === "msq" ? "checkbox" : "radio"}" name="q${index}" value="${optionIndex}">
+                    <span class="question-text">${option.text}</span>
                 </label>
             `;
         });
+
         html += `</div>`;
     });
 
     html += `
-        <div id="questionNavigation" style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:16px">
-            <button type="button" id="previousQuestionBtn" class="submit-btn" style="width:auto;flex:1;min-width:100px;background:#475569" disabled>Previous</button>
-            <button type="button" id="nextQuestionBtn" class="submit-btn" style="width:auto;flex:1;min-width:100px;background:#2563eb">Next</button>
-            <button type="submit" class="submit-btn" id="submitBtn" style="width:auto;flex:1;min-width:100px;background:#15803d">Submit Test</button>
+        <div class="question-nav" style="display:flex;gap:10px;flex-wrap:wrap;margin:18px 0">
+            <button type="button" class="submit-btn nav-btn" id="previousQuestionBtn"
+                style="flex:1;background:#475569" disabled>← Previous</button>
+            <button type="button" class="submit-btn nav-btn" id="nextQuestionBtn"
+                style="flex:1;background:#2563eb">Next →</button>
         </div>
+        <button type="submit" class="submit-btn" id="submitBtn">Submit Test</button>
         </form>
     `;
 
     area.innerHTML = html;
+
+    // Keep the existing MathJax/LaTeX rendering and spacing behavior.
     renderMath(area);
 
     const form = document.getElementById("testForm");
+    if (form) form.addEventListener("submit", submitTest);
+
+    let currentQuestionIndex = 0;
+    const questions = [...area.querySelectorAll(".single-test-question")];
     const previousBtn = document.getElementById("previousQuestionBtn");
     const nextBtn = document.getElementById("nextQuestionBtn");
+    const progress = document.getElementById("questionProgress");
+
+    function showQuestion(index) {
+        if (!questions.length) return;
+        currentQuestionIndex = Math.max(0, Math.min(questions.length - 1, index));
+
+        questions.forEach(function(question, questionIndex) {
+            question.style.display = questionIndex === currentQuestionIndex ? "block" : "none";
+        });
+
+        if (progress) {
+            progress.textContent = `Question ${currentQuestionIndex + 1} of ${questions.length}`;
+        }
+        if (previousBtn) previousBtn.disabled = currentQuestionIndex === 0;
+        if (nextBtn) nextBtn.disabled = currentQuestionIndex === questions.length - 1;
+
+        // Re-typeset the newly visible question without changing its text or LaTeX.
+        renderMath(questions[currentQuestionIndex]);
+    }
 
     previousBtn?.addEventListener("click", function() {
-        if (currentQuestionIndex > 0) {
-            currentQuestionIndex--;
-            updateQuestionDisplay();
-        }
+        showQuestion(currentQuestionIndex - 1);
     });
 
     nextBtn?.addEventListener("click", function() {
-        if (currentQuestionIndex < currentTest.questions.length - 1) {
-            currentQuestionIndex++;
-            updateQuestionDisplay();
-        }
+        showQuestion(currentQuestionIndex + 1);
     });
 
-    if (form) {
-        form.addEventListener("submit", function(event) {
-            event.preventDefault();
-            if (testSubmitted) return;
-            const unanswered = currentTest.questions.reduce(function(count, question, index) {
-                return count + (document.querySelector(`input[name="q${index}"]:checked`) ? 0 : 1);
-            }, 0);
-            const message = unanswered
-                ? `You have ${unanswered} unanswered question(s). Submit the test anyway?`
-                : "Are you sure you want to submit the test? You cannot change answers afterward.";
-            if (window.confirm(message)) submitTest(event);
-        });
-    }
-
-    updateQuestionDisplay();
+    showQuestion(0);
 }
 
-function updateQuestionDisplay() {
-    const questions = document.querySelectorAll(".single-test-question");
-    questions.forEach(function(question, index) {
-        question.style.display = index === currentQuestionIndex ? "block" : "none";
+/* =========================================================
+   SCHEDULE / INSTRUCTIONS GATE
+   ========================================================= */
+
+function getSchedule() {
+    return currentTest?.schedule || { enabled: false };
+}
+
+function localDateTime(date, time) {
+    if (!date || !time) return null;
+    const parsed = new Date(`${date}T${time}:00`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function showScheduleGate() {
+    const area = document.getElementById("testArea");
+    if (!area || !currentTest) return;
+    if (scheduleTicker) clearInterval(scheduleTicker);
+    const schedule = getSchedule();
+    const enabled = schedule.enabled === true;
+    const startAt = enabled ? localDateTime(schedule.date, schedule.startTime) : null;
+    const endAt = enabled ? localDateTime(schedule.date, schedule.endTime) : null;
+
+    if (enabled && (!startAt || !endAt || endAt <= startAt)) {
+        showMessage("Test schedule invalid hai. Admin se contact karein.");
+        return;
+    }
+    if (enabled && Date.now() >= endAt.getTime()) {
+        showMessage("Is test ka scheduled time khatam ho chuka hai.");
+        return;
+    }
+
+    const instructions = schedule.instructions || "Read all instructions carefully. Test time complete hone par automatically submit ho jayega.";
+    const countdownMinutes = Math.max(0, Number(schedule.countdownMinutes ?? 5));
+    area.innerHTML = `
+      <div class="test-info">
+        <h2>${currentTest.title}</h2>
+        <p><b>Lecture:</b> ${lectureId} &nbsp; <b>Test:</b> ${testNumber}</p>
+        <p><b>Questions:</b> ${currentTest.questions.length}</p>
+        <p><b>Total Marks:</b> ${currentTest.questions.reduce((sum, q) => sum + getQuestionMarks(q), 0)}</p>
+        ${enabled ? `<p><b>Test date:</b> ${schedule.date}</p><p><b>Scheduled time:</b> ${schedule.startTime} – ${schedule.endTime} (IST)</p>` : `<p><b>Duration:</b> ${currentTest.duration} minutes</p>`}
+        <div id="scheduleStatus" class="timer-box" role="status">Checking test schedule…</div>
+      </div>
+      <div class="question">
+        <h3>Instructions before starting</h3>
+        <div style="white-space:pre-wrap;line-height:1.8">${escapeHtml(instructions)}</div>
+        <label style="display:flex;gap:10px;align-items:flex-start;margin-top:18px">
+          <input id="acceptInstructions" type="checkbox" style="width:auto;margin-top:4px">
+          <span>I have read and understood the instructions.</span>
+        </label>
+        <button type="button" id="startLiveTestBtn" class="submit-btn" disabled style="margin-top:15px">Start Test</button>
+      </div>`;
+    const startButton = document.getElementById("startLiveTestBtn");
+    const accept = document.getElementById("acceptInstructions");
+    accept?.addEventListener("change", () => {
+      if (startButton) startButton.disabled = !accept.checked;
+    });
+    startButton?.addEventListener("click", () => {
+      if (!accept?.checked) return;
+      if (enabled && Date.now() < startAt.getTime()) return;
+      if (enabled && Date.now() >= endAt.getTime()) {
+        showMessage("Test ka time khatam ho chuka hai.");
+        return;
+      }
+      liveTestStarted = true;
+      testDeadline = enabled ? endAt.getTime() : Date.now() + Number(currentTest.duration) * 60000;
+      if (scheduleTicker) clearInterval(scheduleTicker);
+      renderTest();
+      startTimer();
     });
 
-    const progress = document.getElementById("questionProgress");
-    if (progress) progress.textContent = `Question ${currentQuestionIndex + 1} of ${currentTest.questions.length}`;
+    function refreshScheduleStatus() {
+      const status = document.getElementById("scheduleStatus");
+      if (!status) return;
+      if (!enabled) {
+        status.textContent = `Duration: ${currentTest.duration} minutes. Instructions accept karke Start Test dabayein.`;
+        if (startButton) startButton.disabled = !accept?.checked;
+        return;
+      }
+      const now = Date.now();
+      if (now < startAt.getTime()) {
+        const secondsToStart = Math.ceil((startAt.getTime() - now) / 1000);
+        const mins = Math.floor(secondsToStart / 60);
+        const secs = secondsToStart % 60;
+        if (secondsToStart <= countdownMinutes * 60) {
+          status.textContent = `Test starts in ${String(mins).padStart(2,"0")}:${String(secs).padStart(2,"0")}`;
+        } else {
+          status.textContent = `Test scheduled. Starts at ${schedule.startTime}. Countdown will appear ${countdownMinutes} minutes before.`;
+        }
+        if (startButton) startButton.disabled = true;
+      } else if (now < endAt.getTime()) {
+        const secondsLeft = Math.ceil((endAt.getTime() - now) / 1000);
+        status.textContent = `Test is live • ${String(Math.floor(secondsLeft/60)).padStart(2,"0")}:${String(secondsLeft%60).padStart(2,"0")} remaining`;
+        if (startButton) startButton.disabled = !accept?.checked;
+      } else {
+        status.textContent = "Test time is over.";
+        if (startButton) startButton.disabled = true;
+      }
+    }
+    refreshScheduleStatus();
+    if (enabled) scheduleTicker = setInterval(refreshScheduleStatus, 1000);
+}
 
-    const previousBtn = document.getElementById("previousQuestionBtn");
-    const nextBtn = document.getElementById("nextQuestionBtn");
-    if (previousBtn) previousBtn.disabled = currentQuestionIndex === 0;
-    if (nextBtn) nextBtn.disabled = currentQuestionIndex === currentTest.questions.length - 1;
+function escapeHtml(value) {
+    return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
 
 
@@ -680,73 +799,23 @@ function updateQuestionDisplay() {
    ========================================================= */
 
 function startTimer() {
-
-    if (
-        !currentTest ||
-        !currentTest.duration
-    ) {
-
-        return;
-
-    }
-
-
-    remainingSeconds =
-        Number(
-            currentTest.duration
-        ) * 60;
-
-
+    if (!currentTest || !currentTest.duration) return;
+    if (timerInterval) clearInterval(timerInterval);
+    if (!testDeadline) testDeadline = Date.now() + Number(currentTest.duration) * 60000;
     updateTimer();
-
-
-    timerInterval =
-        setInterval(
-            function() {
-
-                if (testSubmitted) {
-
-                    clearInterval(
-                        timerInterval
-                    );
-
-                    return;
-
-                }
-
-
-                remainingSeconds--;
-
-
-                updateTimer();
-
-
-                if (
-                    remainingSeconds <= 0
-                ) {
-
-                    clearInterval(
-                        timerInterval
-                    );
-
-
-                    alert(
-                        "Time is over. Test will be submitted automatically."
-                    );
-
-
-                    submitTest(
-                        new Event(
-                            "submit"
-                        )
-                    );
-
-                }
-
-            },
-            1000
-        );
-
+    timerInterval = setInterval(function() {
+        if (testSubmitted) {
+            clearInterval(timerInterval);
+            return;
+        }
+        remainingSeconds = Math.max(0, Math.ceil((testDeadline - Date.now()) / 1000));
+        updateTimer();
+        if (remainingSeconds <= 0) {
+            clearInterval(timerInterval);
+            alert("Time is over. Test will be submitted automatically.");
+            submitTest(new Event("submit"));
+        }
+    }, 1000);
 }
 
 
@@ -768,6 +837,10 @@ function updateTimer() {
 
     }
 
+
+    if (testDeadline) {
+        remainingSeconds = Math.max(0, Math.ceil((testDeadline - Date.now()) / 1000));
+    }
 
     const minutes =
         Math.floor(
@@ -810,6 +883,7 @@ async function submitTest(event) {
 
 
     testSubmitted = true;
+    if (scheduleTicker) clearInterval(scheduleTicker);
 
 
     if (timerInterval) {
@@ -846,44 +920,31 @@ async function submitTest(event) {
             index
         ) {
 
-            const selected =
-                document.querySelector(
-                    `input[name="q${index}"]:checked`
-                );
-
-
-            const selectedIndex =
-                selected
-                    ? Number(
-                        selected.value
-                    )
-                    : -1;
-
-
-            const correctIndex =
-                question.options.findIndex(
-                    function(option) {
-
-                        return (
-                            option.correct ===
-                            true
-                        );
-
-                    }
-                );
-
-
+            const selected = Array.from(
+                document.querySelectorAll(`input[name="q${index}"]:checked`)
+            );
+            const selectedIndices = selected.map(input => Number(input.value)).sort((a, b) => a - b);
+            const correctIndices = question.options
+                .map((option, optionIndex) => option.correct === true ? optionIndex : -1)
+                .filter(optionIndex => optionIndex >= 0)
+                .sort((a, b) => a - b);
+            const isMSQ = question.type === "msq";
+            const isCorrect = isMSQ
+                ? correctIndices.length > 0 && selectedIndices.length === correctIndices.length && selectedIndices.every((value, i) => value === correctIndices[i])
+                : selectedIndices.length === 1 && selectedIndices[0] === (correctIndices[0] ?? -1);
+            const selectedIndex = selectedIndices.length ? selectedIndices[0] : -1;
+            const correctIndex = correctIndices.length ? correctIndices[0] : -1;
             const questionMarks = getQuestionMarks(question);
-            const marksEarned = selectedIndex === correctIndex ? questionMarks : 0;
-
-            if (selectedIndex === correctIndex) {
-                score += questionMarks;
-            }
+            const marksEarned = isCorrect ? questionMarks : 0;
+            if (isCorrect) score += questionMarks;
 
             answers.push({
                 questionIndex: index,
+                questionType: isMSQ ? "msq" : "mcq",
                 selectedIndex: selectedIndex,
+                selectedIndices: selectedIndices,
                 correctIndex: correctIndex,
+                correctIndices: correctIndices,
                 marksAvailable: questionMarks,
                 marksEarned: marksEarned
             });
@@ -1131,7 +1192,7 @@ async function showResult(
 
                     <h3>
                         Q${qIndex + 1}.
-                        ${question.question}
+                        <span class="question-text">${question.question}</span>
                         <span style="font-size:0.9em;color:#64748b;white-space:nowrap">(${getQuestionMarks(question)} ${getQuestionMarks(question) === 1 ? "mark" : "marks"}; earned: ${Number(answer.marksEarned ?? (answer.selectedIndex === answer.correctIndex ? getQuestionMarks(question) : 0))})</span>
                     </h3>
 
@@ -1148,9 +1209,9 @@ async function showResult(
                         option.correct === true;
 
 
-                    const isSelected =
-                        answer.selectedIndex ===
-                        optionIndex;
+                    const isSelected = Array.isArray(answer.selectedIndices)
+                        ? answer.selectedIndices.includes(optionIndex)
+                        : answer.selectedIndex === optionIndex;
 
 
                     let className =
@@ -1177,7 +1238,7 @@ async function showResult(
                         >
 
                             <strong>
-                                ${option.text}
+                                <strong class="question-text">${option.text}</strong>
                             </strong>
 
                             <p>
@@ -1198,7 +1259,7 @@ async function showResult(
                                     Explanation:
                                 </strong>
 
-                                ${option.solution}
+                                <span class="question-text">${option.solution || ""}</span>
 
                             </p>
 
