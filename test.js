@@ -1293,32 +1293,23 @@ async function showResult(
 
 /* =========================================================
    RANK + LEADERBOARD
+   DENSE RANKING: 1, 1, 2, 3
+   SAME MARKS = SAME RANK
    ========================================================= */
 
 async function calculateRank() {
 
     const rankBox =
-        document.getElementById(
-            "rankBox"
-        );
-
+        document.getElementById("rankBox");
 
     const leaderboardList =
-        document.getElementById(
-            "leaderboardList"
-        );
-
+        document.getElementById("leaderboardList");
 
     try {
 
-        const snapshot =
-            await getDocs(
-                collection(
-                    db,
-                    "testResults"
-                )
-            );
-
+        const snapshot = await getDocs(
+            collection(db, "testResults")
+        );
 
         const currentTestId =
             courseId +
@@ -1327,225 +1318,149 @@ async function calculateRank() {
             "-test-" +
             testNumber;
 
-
         const results = [];
 
+        snapshot.forEach(function(resultDoc) {
 
-        snapshot.forEach(
-            function(resultDoc) {
+            const data = resultDoc.data();
 
-                const data =
-                    resultDoc.data();
-
-
-                if (
-                    data.testId ===
-                    currentTestId
-                ) {
-
-                    results.push(
-                        data
-                    );
-
-                }
-
+            if (data.testId === currentTestId) {
+                results.push(data);
             }
-        );
 
+        });
 
-        results.sort(
-            function(a, b) {
+        /* =========================================
+           SORT BY MARKS
+           Highest marks first.
+           Equal marks receive the same rank.
+           ========================================= */
 
-                const difference =
-                    Number(b.score) -
-                    Number(a.score);
+        results.sort(function(a, b) {
+            return Number(b.score) - Number(a.score);
+        });
 
+        /* =========================================
+           DENSE RANKING
+           Example: 18, 18, 15, 12
+           Rank:       1,  1,  2,  3
+           ========================================= */
 
-                if (
-                    difference !== 0
-                ) {
+        let previousScore = null;
+        let currentRank = 0;
 
-                    return difference;
+        results.forEach(function(result) {
 
-                }
+            const score = Number(result.score);
 
-
-                return (
-                    Number(
-                        a.submittedAt || 0
-                    ) -
-                    Number(
-                        b.submittedAt || 0
-                    )
-                );
-
+            if (
+                previousScore === null ||
+                score !== previousScore
+            ) {
+                currentRank++;
             }
-        );
 
+            result.calculatedRank = currentRank;
+            previousScore = score;
 
-        const myIndex =
-            results.findIndex(
-                function(result) {
+        });
 
-                    return (
-                        result.uid ===
-                        currentUser.uid
-                    );
+        /* =========================================
+           CURRENT STUDENT RANK
+           ========================================= */
 
-                }
-            );
+        const myResult = results.find(function(result) {
+            return result.uid === currentUser.uid;
+        });
 
-
-        const rank =
-            myIndex >= 0
-                ? myIndex + 1
-                : "-";
-
+        const myRank = myResult
+            ? myResult.calculatedRank
+            : "-";
 
         if (rankBox) {
 
             rankBox.innerHTML = `
-
                 🏆 Your First Attempt Rank:
-
-                <strong>
-                    #${rank}
-                </strong>
-
+                <strong>#${myRank}</strong>
             `;
 
         }
 
+        /* =========================================
+           LEADERBOARD
+           ========================================= */
 
         let html = "";
 
+        results.forEach(function(result) {
 
-        results.forEach(
-            function(
-                result,
-                index
-            ) {
+            const name =
+                result.name ||
+                (
+                    result.email
+                        ? result.email.split("@")[0]
+                        : "Student"
+                );
 
-                const name =
-                    result.name ||
-                    (
-                        result.email
-                            ? result.email
-                                .split("@")[0]
-                            : "Student"
-                    );
+            const rank = result.calculatedRank;
 
+            let rankText = "#" + rank;
 
-                let rankText =
-                    "#" +
-                    (
-                        index + 1
-                    );
-
-
-                if (index === 0) {
-
-                    rankText =
-                        "🥇 #1";
-
-                } else if (index === 1) {
-
-                    rankText =
-                        "🥈 #2";
-
-                } else if (index === 2) {
-
-                    rankText =
-                        "🥉 #3";
-
-                }
-
-
-                const isMe =
-                    result.uid ===
-                    currentUser.uid;
-
-
-                html += `
-
-                    <div
-                        class="
-                            leaderboard-row
-                            ${
-                                isMe
-                                    ? "my-rank"
-                                    : ""
-                            }
-                        "
-                    >
-
-                        <span
-                            class="lb-rank"
-                        >
-                            ${rankText}
-                        </span>
-
-                        <span
-                            class="lb-name"
-                        >
-                            ${name}
-                            ${
-                                isMe
-                                    ? " 👈"
-                                    : ""
-                            }
-                        </span>
-
-                        <span
-                            class="lb-score"
-                        >
-                            ${result.score}/${result.total}
-                        </span>
-
-                    </div>
-
-                `;
-
+            if (rank === 1) {
+                rankText = "🥇 #1";
+            } else if (rank === 2) {
+                rankText = "🥈 #2";
+            } else if (rank === 3) {
+                rankText = "🥉 #3";
             }
-        );
 
+            const isMe =
+                result.uid === currentUser.uid;
+
+            html += `
+                <div class="leaderboard-row ${isMe ? "my-rank" : ""}">
+
+                    <span class="lb-rank">
+                        ${rankText}
+                    </span>
+
+                    <span class="lb-name">
+                        ${escapeHtml(name)}
+                        ${isMe ? " 👈" : ""}
+                    </span>
+
+                    <span class="lb-score">
+                        ${result.score}/${result.total}
+                    </span>
+
+                </div>
+            `;
+
+        });
 
         if (leaderboardList) {
 
             leaderboardList.innerHTML =
-                html ||
-                "<p>No results yet.</p>";
+                html || "<p>No results yet.</p>";
 
         }
-
 
     } catch (error) {
 
-        console.error(
-            "Leaderboard error:",
-            error
-        );
-
+        console.error("Leaderboard error:", error);
 
         if (rankBox) {
-
-            rankBox.textContent =
-                "Rank unavailable";
-
+            rankBox.textContent = "Rank unavailable";
         }
 
-
         if (leaderboardList) {
-
             leaderboardList.textContent =
                 "Leaderboard unavailable.";
-
         }
 
     }
 
 }
-
 
 /* =========================================================
    SCREEN CAPTURE / RECORDING DETERRENCE
