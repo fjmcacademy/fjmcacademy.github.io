@@ -1546,6 +1546,16 @@ function showStudentCourses(
                                 title
                             );
 
+
+                        } else if (
+    type === "document"
+) {
+
+    openDocumentViewer(
+        url,
+        title
+    );   
+
                         } else if (
                             type ===
                             "live"
