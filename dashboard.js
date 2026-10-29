@@ -2432,300 +2432,409 @@ function openLiveClass(
 
 
 /* =========================================================
-   PDF VIEWER
+   DOCUMENT VIEWER
+   DIRECT PDF + GOOGLE DRIVE + GOOGLE DOCS + ONEDRIVE
+   OPENS INSIDE EXISTING MODAL
 ========================================================= */
 
-async function openPDFViewer(
-    url,
-    title
-) {
+function getDocumentProvider(url) {
+    try {
+        const parsed = new URL(url);
+        const host = parsed.hostname.toLowerCase();
 
-    const modal =
-        createModal();
+        if (
+            host === "docs.google.com" &&
+            parsed.pathname.includes("/document/")
+        ) {
+            return "google-docs";
+        }
+
+        if (
+            host === "drive.google.com" ||
+            host === "drive.googleusercontent.com"
+        ) {
+            return "google-drive";
+        }
+
+        if (
+            host === "1drv.ms" ||
+            host.endsWith(".1drv.com") ||
+            host === "onedrive.live.com" ||
+            host.endsWith(".sharepoint.com")
+        ) {
+            return "onedrive";
+        }
+
+        return "direct";
+    } catch {
+        return "direct";
+    }
+}
+
+function getGoogleDriveFileId(url) {
+    try {
+        const parsed = new URL(url);
+
+        const fileMatch =
+            parsed.pathname.match(/\/file\/d\/([^/]+)/);
+
+        if (fileMatch) {
+            return fileMatch[1];
+        }
+
+        const documentMatch =
+            parsed.pathname.match(/\/document\/d\/([^/]+)/);
+
+        if (documentMatch) {
+            return documentMatch[1];
+        }
+
+        return parsed.searchParams.get("id") || "";
+    } catch {
+        return "";
+    }
+}
+
+function showDocumentFrame(url, title) {
+    const modal = createModal();
 
     const modalTitle =
-        document.getElementById(
-            "fjmcModalTitle"
-        );
+        document.getElementById("fjmcModalTitle");
 
     const body =
-        document.getElementById(
-            "fjmcModalBody"
-        );
+        document.getElementById("fjmcModalBody");
 
-    modalTitle.textContent =
-        title;
+    modalTitle.textContent = title || "Document";
 
     body.innerHTML = `
+        <div style="
+            position:relative;
+            width:100%;
+            height:80vh;
+            min-height:400px;
+            background:#fff;
+        ">
+            <div id="fjmcDocumentLoading" style="
+                position:absolute;
+                inset:0;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                background:#fff;
+                color:#222;
+                z-index:1;
+            ">
+                Loading document...
+            </div>
 
-        <div
-            id="pdfLoading"
-            style="
-                color:white;
-                text-align:center;
-                padding:30px;
-            "
-        >
-            Loading PDF...
-        </div>
-
-        <div
-            id="pdfPages"
-            style="
-                padding:15px;
-                text-align:center;
-                user-select:none;
-                -webkit-user-select:none;
-                -webkit-touch-callout:none;
-            "
-        >
+            <iframe
+                id="fjmcDocumentFrame"
+                title="FJMC Academy document viewer"
+                src="${url}"
+                style="
+                    position:relative;
+                    width:100%;
+                    height:100%;
+                    border:0;
+                    background:#fff;
+                "
+                allow="fullscreen"
+                referrerpolicy="strict-origin-when-cross-origin"
+            ></iframe>
         </div>
     `;
 
-    try {
+    const frame =
+        document.getElementById("fjmcDocumentFrame");
 
-        if (
-            typeof pdfjsLib ===
-            "undefined"
-        ) {
+    const loading =
+        document.getElementById("fjmcDocumentLoading");
 
-            throw new Error(
-                "PDF.js is not loaded."
+    frame.addEventListener("load", function () {
+        if (loading) {
+            loading.style.display = "none";
+        }
+    });
+
+    return modal;
+}
+
+async function openDocumentViewer(url, title) {
+    if (!url || url === "#") {
+        alert("Document link is not available yet.");
+        return;
+    }
+
+    const provider = getDocumentProvider(url);
+
+    if (provider === "google-drive") {
+        const fileId = getGoogleDriveFileId(url);
+
+        if (!fileId) {
+            alert(
+                "Google Drive file ID could not be detected. " +
+                "Please use a valid Drive sharing link."
             );
-
+            return;
         }
 
-        pdfjsLib
-            .GlobalWorkerOptions
-            .workerSrc =
+        showDocumentFrame(
+            "https://drive.google.com/file/d/" +
+                encodeURIComponent(fileId) +
+                "/preview",
+            title || "Google Drive PDF"
+        );
+
+        return;
+    }
+
+    if (provider === "google-docs") {
+        const fileId = getGoogleDriveFileId(url);
+
+        if (!fileId) {
+            alert("Google Docs document ID could not be detected.");
+            return;
+        }
+
+        showDocumentFrame(
+            "https://docs.google.com/document/d/" +
+                encodeURIComponent(fileId) +
+                "/preview",
+            title || "Google Docs"
+        );
+
+        return;
+    }
+
+    if (provider === "onedrive") {
+        const embedUrl =
+            "https://view.officeapps.live.com/op/embed.aspx?src=" +
+            encodeURIComponent(url);
+
+        showDocumentFrame(
+            embedUrl,
+            title || "OneDrive Document"
+        );
+
+        return;
+    }
+
+    await openPDFViewer(url, title);
+}
+
+
+/* =========================================================
+   PDF VIEWER
+   DIRECT PDF USES PDF.JS + FJMC WATERMARK
+========================================================= */
+
+async function openPDFViewer(url, title) {
+    if (!url || url === "#") {
+        alert("PDF link is not available yet.");
+        return;
+    }
+
+    const provider = getDocumentProvider(url);
+
+    if (
+        provider === "google-drive" ||
+        provider === "google-docs" ||
+        provider === "onedrive"
+    ) {
+        await openDocumentViewer(url, title);
+        return;
+    }
+
+    const modal = createModal();
+
+    const modalTitle =
+        document.getElementById("fjmcModalTitle");
+
+    const body =
+        document.getElementById("fjmcModalBody");
+
+    modalTitle.textContent = title || "PDF";
+
+    body.innerHTML = `
+        <div id="pdfLoading" style="
+            color:white;
+            text-align:center;
+            padding:30px;
+        ">
+            Loading PDF...
+        </div>
+
+        <div id="pdfPages" style="
+            padding:15px;
+            text-align:center;
+            user-select:none;
+            -webkit-user-select:none;
+            -webkit-touch-callout:none;
+        "></div>
+    `;
+
+    try {
+        if (typeof pdfjsLib === "undefined") {
+            throw new Error(
+                "PDF.js is not loaded. Check that the PDF.js script is included in dashboard.html."
+            );
+        }
+
+        pdfjsLib.GlobalWorkerOptions.workerSrc =
             "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
         const pdf =
-            await pdfjsLib.getDocument(
-                url
-            ).promise;
+            await pdfjsLib.getDocument(url).promise;
 
         const pages =
-            document.getElementById(
-                "pdfPages"
-            );
+            document.getElementById("pdfPages");
 
         const loading =
-            document.getElementById(
-                "pdfLoading"
-            );
+            document.getElementById("pdfLoading");
+
+        if (!pages || !document.getElementById("fjmcContentModal")) {
+            return;
+        }
 
         if (loading) {
             loading.remove();
         }
 
         const oldWatermark =
-            document.getElementById(
-                "fjmcScreenWatermark"
-            );
+            document.getElementById("fjmcScreenWatermark");
 
         if (oldWatermark) {
             oldWatermark.remove();
         }
 
         const watermark =
-            document.createElement(
-                "div"
-            );
+            document.createElement("div");
 
-        watermark.id =
-            "fjmcScreenWatermark";
+        watermark.id = "fjmcScreenWatermark";
+        watermark.textContent = "FJMC ACADEMY";
 
-        watermark.textContent =
-            "FJMC ACADEMY";
+        watermark.style.cssText = `
+            position:fixed;
+            left:50%;
+            top:50%;
+            transform:translate(-50%,-50%) rotate(-20deg);
+            color:rgba(0,0,0,.35);
+            font-size:24px;
+            font-weight:800;
+            letter-spacing:2px;
+            white-space:nowrap;
+            z-index:1000000;
+            pointer-events:none;
+            user-select:none;
+            -webkit-user-select:none;
+            -webkit-touch-callout:none;
+        `;
 
-        watermark.style.position =
-            "fixed";
-
-        watermark.style.left =
-            "50%";
-
-        watermark.style.top =
-            "50%";
-
-        watermark.style.transform =
-            "translate(-50%, -50%) rotate(-20deg)";
-
-        watermark.style.color =
-            "rgba(0, 0, 0, 1.0)";
-
-        watermark.style.fontSize =
-            "24px";
-
-        watermark.style.fontWeight =
-            "800";
-
-        watermark.style.letterSpacing =
-            "2px";
-
-        watermark.style.whiteSpace =
-            "nowrap";
-
-        watermark.style.zIndex =
-            "1000000";
-
-        watermark.style.pointerEvents =
-            "none";
-
-        watermark.style.userSelect =
-            "none";
-
-        watermark.style.webkitUserSelect =
-            "none";
-
-        watermark.style.webkitTouchCallout =
-            "none";
-
-        document.body.appendChild(
-            watermark
-        );
+        document.body.appendChild(watermark);
 
         for (
             let pageNumber = 1;
             pageNumber <= pdf.numPages;
             pageNumber++
         ) {
-
             const page =
-                await pdf.getPage(
-                    pageNumber
+                await pdf.getPage(pageNumber);
+
+            const baseViewport =
+                page.getViewport({ scale: 1.4 });
+
+            const maxWidth =
+                Math.min(
+                    window.innerWidth - 40,
+                    1000
+                );
+
+            const scale =
+                Math.min(
+                    1.4,
+                    maxWidth / baseViewport.width
                 );
 
             const viewport =
-                page.getViewport({
-                    scale: 1.4
-                });
+                page.getViewport({ scale });
 
             const wrapper =
-                document.createElement(
-                    "div"
-                );
+                document.createElement("div");
 
-            wrapper.style.position =
-                "relative";
-
-            wrapper.style.display =
-                "inline-block";
-
-            wrapper.style.margin =
-                "0 auto 20px auto";
-
-            wrapper.style.maxWidth =
-                "100%";
-
-            wrapper.style.background =
-                "#ffffff";
-
-            wrapper.style.overflow =
-                "hidden";
+            wrapper.style.cssText = `
+                position:relative;
+                display:inline-block;
+                margin:0 auto 20px;
+                max-width:100%;
+                background:#fff;
+                overflow:hidden;
+            `;
 
             const canvas =
-                document.createElement(
-                    "canvas"
-                );
+                document.createElement("canvas");
 
-            canvas.width =
-                viewport.width;
+            canvas.width = Math.ceil(viewport.width);
+            canvas.height = Math.ceil(viewport.height);
 
-            canvas.height =
-                viewport.height;
+            canvas.style.cssText = `
+                max-width:100%;
+                height:auto;
+                display:block;
+                user-select:none;
+                -webkit-user-select:none;
+            `;
 
-            canvas.style.maxWidth =
-                "100%";
-
-            canvas.style.height =
-                "auto";
-
-            canvas.style.display =
-                "block";
-
-            canvas.style.userSelect =
-                "none";
-
-            canvas.style.webkitUserSelect =
-                "none";
-
-            wrapper.appendChild(
-                canvas
-            );
-
-            pages.appendChild(
-                wrapper
-            );
+            wrapper.appendChild(canvas);
+            pages.appendChild(wrapper);
 
             const context =
-                canvas.getContext(
-                    "2d"
-                );
+                canvas.getContext("2d");
 
             await page.render({
-
-                canvasContext:
-                    context,
-
-                viewport:
-                    viewport
-
+                canvasContext: context,
+                viewport: viewport
             }).promise;
-
         }
 
-        pages.style.userSelect =
-            "none";
-
-        pages.style.webkitUserSelect =
-            "none";
-
-        pages.style.webkitTouchCallout =
-            "none";
+        pages.style.userSelect = "none";
+        pages.style.webkitUserSelect = "none";
+        pages.style.webkitTouchCallout = "none";
 
     } catch (error) {
-
-        console.error(
-            "PDF error:",
-            error
-        );
+        console.error("PDF error:", error);
 
         const watermark =
-            document.getElementById(
-                "fjmcScreenWatermark"
-            );
+            document.getElementById("fjmcScreenWatermark");
 
         if (watermark) {
             watermark.remove();
         }
 
-        body.innerHTML = `
+        const bodyNow =
+            document.getElementById("fjmcModalBody");
 
-            <div
-                style="
+        if (bodyNow) {
+            bodyNow.innerHTML = `
+                <div style="
                     color:white;
                     padding:30px;
                     text-align:center;
-                "
-            >
-
-                <h3>
-                    PDF could not be opened
-                </h3>
-
-                <p>
-                    ${error.message || ""}
-                </p>
-
-            </div>
-
-        `;
-
+                ">
+                    <h3>PDF could not be opened</h3>
+                    <p>${String(error.message || "Unknown PDF error")
+                        .replace(/&/g, "&amp;")
+                        .replace(/</g, "&lt;")
+                        .replace(/>/g, "&gt;")}</p>
+                    <p>
+                        If this is a Google Drive or OneDrive link,
+                        add it in the course using the appropriate document type.
+                        Make sure its sharing permission allows students to view it.
+                    </p>
+                </div>
+            `;
+        }
     }
-
 }
-
 
 /* =========================================================
    LOGOUT
