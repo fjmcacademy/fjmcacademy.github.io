@@ -2507,42 +2507,73 @@ function showDocumentFrame(url, title) {
     modalTitle.textContent = title || "Document";
 
     body.innerHTML = `
-        <div style="
-            position:relative;
-            width:100%;
-            height:80vh;
-            min-height:400px;
+    <div style="
+        position:relative;
+        width:100%;
+        height:80vh;
+        min-height:400px;
+        background:#fff;
+    ">
+
+        <div id="fjmcDocumentLoading" style="
+            position:absolute;
+            inset:0;
+            display:flex;
+            align-items:center;
+            justify-content:center;
             background:#fff;
+            color:#222;
+            z-index:1;
         ">
-            <div id="fjmcDocumentLoading" style="
+            Loading document...
+        </div>
+
+        <iframe
+            id="fjmcDocumentFrame"
+            title="FJMC Academy document viewer"
+            src="${url}"
+            style="
+                position:relative;
+                width:100%;
+                height:100%;
+                border:0;
+                background:#fff;
+            "
+            allow="fullscreen"
+            referrerpolicy="strict-origin-when-cross-origin"
+        ></iframe>
+
+        <!-- WATERMARK YAHAN PASTE KARO -->
+        <div
+            id="fjmcDocumentWatermark"
+            style="
                 position:absolute;
                 inset:0;
                 display:flex;
                 align-items:center;
                 justify-content:center;
-                background:#fff;
-                color:#222;
-                z-index:1;
+                pointer-events:none;
+                user-select:none;
+                -webkit-user-select:none;
+                z-index:5;
+                overflow:hidden;
+            "
+        >
+            <div style="
+                color:rgba(220,0,0,0.35);
+                font-size:clamp(20px,4vw,42px);
+                font-weight:900;
+                letter-spacing:3px;
+                transform:rotate(-25deg);
+                text-align:center;
+                white-space:nowrap;
             ">
-                Loading document...
+                FJMC ACADEMY
             </div>
-
-            <iframe
-                id="fjmcDocumentFrame"
-                title="FJMC Academy document viewer"
-                src="${url}"
-                style="
-                    position:relative;
-                    width:100%;
-                    height:100%;
-                    border:0;
-                    background:#fff;
-                "
-                allow="fullscreen"
-                referrerpolicy="strict-origin-when-cross-origin"
-            ></iframe>
         </div>
-    `;
+
+    </div>
+`;
 
     const frame =
         document.getElementById("fjmcDocumentFrame");
