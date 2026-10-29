@@ -1290,6 +1290,29 @@ function showStudentCourses(
                             </button>
                         `;
 
+                     } else if (
+    [
+        "word",
+        "doc",
+        "docx",
+        "onedrive",
+        "document",
+        "google-docs",
+        "google-drive"
+    ].includes(String(content.type || "").toLowerCase())
+) {
+
+    contentHTML += `
+        <button
+            type="button"
+            class="content-button pdf-button"
+            data-type="document"
+            data-url="${encodeURIComponent(content.url || "")}"
+            data-title="${encodeURIComponent(content.title || "Document")}"
+        >
+            📄 ${content.title || "Document"}
+        </button>
+    `;
                     } else if (
                         content.type ===
                         "live"
