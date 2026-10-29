@@ -2594,21 +2594,6 @@ frame.addEventListener("load", function () {
 });
 
 return modal;
-  
-
-    const frame =
-        document.getElementById("fjmcDocumentFrame");
-
-    const loading =
-        document.getElementById("fjmcDocumentLoading");
-
-    frame.addEventListener("load", function () {
-        if (loading) {
-            loading.style.display = "none";
-        }
-    });
-
-    return modal;
 }
 
 async function openDocumentViewer(url, title) {
