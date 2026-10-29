@@ -2506,13 +2506,16 @@ function showDocumentFrame(url, title) {
 
     modalTitle.textContent = title || "Document";
 
-    body.innerHTML = `
+  
+body.innerHTML = `
     <div style="
         position:relative;
+        isolation:isolate;
         width:100%;
         height:80vh;
         min-height:400px;
         background:#fff;
+        overflow:hidden;
     ">
 
         <div id="fjmcDocumentLoading" style="
@@ -2523,50 +2526,53 @@ function showDocumentFrame(url, title) {
             justify-content:center;
             background:#fff;
             color:#222;
-            z-index:1;
+            z-index:20;
         ">
             Loading document...
         </div>
 
         <iframe
             id="fjmcDocumentFrame"
-            title="FJMC Academy document viewer"
+            title="FJMC Academy Document"
             src="${url}"
             style="
-                position:relative;
+                position:absolute;
+                inset:0;
                 width:100%;
                 height:100%;
                 border:0;
+                z-index:1;
                 background:#fff;
             "
             allow="fullscreen"
             referrerpolicy="strict-origin-when-cross-origin"
         ></iframe>
 
-        <!-- WATERMARK YAHAN PASTE KARO -->
         <div
             id="fjmcDocumentWatermark"
+            aria-hidden="true"
             style="
                 position:absolute;
                 inset:0;
+                z-index:10;
                 display:flex;
                 align-items:center;
                 justify-content:center;
+                overflow:hidden;
                 pointer-events:none;
                 user-select:none;
                 -webkit-user-select:none;
-                z-index:5;
-                overflow:hidden;
             "
         >
             <div style="
-                color:rgba(220,0,0,0.35);
-                font-size:clamp(20px,4vw,42px);
+                color:rgba(220,0,0,0.32);
+                font-size:clamp(24px,5vw,52px);
                 font-weight:900;
                 letter-spacing:3px;
                 transform:rotate(-25deg);
                 text-align:center;
                 white-space:nowrap;
+                text-shadow:0 1px 2px rgba(255,255,255,.25);
             ">
                 FJMC ACADEMY
             </div>
@@ -2574,6 +2580,21 @@ function showDocumentFrame(url, title) {
 
     </div>
 `;
+
+const frame =
+    document.getElementById("fjmcDocumentFrame");
+
+const loading =
+    document.getElementById("fjmcDocumentLoading");
+
+frame.addEventListener("load", function () {
+    if (loading) {
+        loading.style.display = "none";
+    }
+});
+
+return modal;
+  
 
     const frame =
         document.getElementById("fjmcDocumentFrame");
