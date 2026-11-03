@@ -19,7 +19,120 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="FJMC Academy">
+    
+<!-- GLOBAL WEBSITE PROTECTION -->
+<style>
+@media print {
+  body {
+    display: none !important;
+  }
+}
 
+.protected-content {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+html, body {
+  overflow: auto !important;
+  touch-action: pan-x pan-y pinch-zoom;
+}
+</style>
+
+<script>
+(function () {
+  "use strict";
+
+  let hidden = false;
+
+  // Hide entire website
+  function hideWebsite() {
+    if (hidden) return;
+
+    hidden = true;
+    document.documentElement.style.setProperty(
+      "visibility", "hidden", "important"
+    );
+    document.documentElement.style.setProperty(
+      "background", "#fff", "important"
+    );
+  }
+
+  // Restore website after print
+  function restoreWebsite() {
+    hidden = false;
+    document.documentElement.style.removeProperty("visibility");
+    document.documentElement.style.removeProperty("background");
+  }
+
+  // Block right click
+  document.addEventListener("contextmenu", function(e) {
+    e.preventDefault();
+  }, true);
+
+  // Block keyboard shortcuts
+  document.addEventListener("keydown", function(e) {
+    const key = e.key.toLowerCase();
+    const ctrl = e.ctrlKey || e.metaKey;
+
+    // Allow browser zoom
+    if (ctrl && ["+", "-", "=", "0"].includes(key)) return;
+
+    // Allow scrolling
+    if ([
+      "arrowup", "arrowdown", "arrowleft",
+      "arrowright", "pageup", "pagedown",
+      "home", "end", " "
+    ].includes(key)) return;
+
+    // Save, download, print, source
+    if (
+      (ctrl && ["s", "p", "u", "c", "x", "a"].includes(key)) ||
+      (ctrl && e.shiftKey &&
+        ["s", "p", "i", "j", "c"].includes(key)) ||
+      key === "printscreen" ||
+      key === "f12"
+    ) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
+      // Hide page for save / print attempts
+      if (
+        (ctrl && ["s", "p"].includes(key)) ||
+        (ctrl && e.shiftKey && key === "s") ||
+        key === "printscreen"
+      ) {
+        hideWebsite();
+      }
+
+      return false;
+    }
+  }, true);
+
+  // Print detection
+  window.addEventListener("beforeprint", hideWebsite);
+  window.addEventListener("afterprint", restoreWebsite);
+
+  // Block text copying
+  document.addEventListener("copy", function(e) {
+    e.preventDefault();
+  }, true);
+
+  document.addEventListener("cut", function(e) {
+    e.preventDefault();
+  }, true);
+
+  // Block image dragging
+  document.addEventListener("dragstart", function(e) {
+    if (e.target.closest("img")) {
+      e.preventDefault();
+    }
+  }, true);
+
+  console.log("Global protection enabled");
+})();
+      </script>
+    
 <script>
 if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
