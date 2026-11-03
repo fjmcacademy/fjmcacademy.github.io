@@ -2593,6 +2593,58 @@ frame.addEventListener("load", function () {
     }
 });
 
+/* =========================================
+   FJMC DOC VIEWER PROTECTION
+========================================= */
+
+(function () {
+
+    const viewer = document.getElementById("fjmcDocumentFrame");
+
+    if (!viewer) return;
+
+    // Blank the parent document on supported shortcuts
+    function protectDocument(e) {
+
+        const key = e.key.toLowerCase();
+        const ctrl = e.ctrlKey || e.metaKey;
+
+        const blocked =
+            (ctrl && ["s", "p"].includes(key)) ||
+            (ctrl && e.shiftKey && key === "s");
+
+        if (blocked) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+
+            document.body.style.visibility = "hidden";
+            document.body.style.background = "#fff";
+        }
+    }
+
+    document.addEventListener(
+        "keydown",
+        protectDocument,
+        true
+    );
+
+    // Print attempt
+    window.addEventListener("beforeprint", function () {
+        document.body.style.visibility = "hidden";
+    });
+
+    window.addEventListener("afterprint", function () {
+        document.body.style.visibility = "";
+    });
+
+    // Right-click on parent viewer
+    document.getElementById("fjmcDocViewer")
+        ?.addEventListener("contextmenu", function(e) {
+            e.preventDefault();
+        });
+
+})();
+   
 return modal;
 }
 
