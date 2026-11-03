@@ -20,120 +20,132 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="FJMC Academy">
     
-<!-- GLOBAL WEBSITE PROTECTION -->
+<!-- FJMC GLOBAL PROTECTION -->
+
 <style>
+#fjmc-blank-screen {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    background: #fff;
+}
+
+body.fjmc-protected #fjmc-blank-screen {
+    display: block;
+}
+
+body.fjmc-protected > * {
+    visibility: hidden !important;
+}
+
 @media print {
-  body {
-    display: none !important;
-  }
+    html, body {
+        visibility: hidden !important;
+    }
 }
 
-.protected-content {
-  -webkit-user-select: none !important;
-  user-select: none !important;
-}
-
+/* Scrolling and zoom remain enabled */
 html, body {
-  overflow: auto !important;
-  touch-action: pan-x pan-y pinch-zoom;
+    overflow: auto !important;
+    touch-action: pan-x pan-y pinch-zoom;
 }
 </style>
 
+<div id="fjmc-blank-screen"></div>
+
 <script>
 (function () {
-  "use strict";
+    "use strict";
 
-  let hidden = false;
+    let isHidden = false;
 
-  // Hide entire website
-  function hideWebsite() {
-    if (hidden) return;
+    function blankPage() {
+        if (isHidden) return;
 
-    hidden = true;
-    document.documentElement.style.setProperty(
-      "visibility", "hidden", "important"
-    );
-    document.documentElement.style.setProperty(
-      "background", "#fff", "important"
-    );
-  }
-
-  // Restore website after print
-  function restoreWebsite() {
-    hidden = false;
-    document.documentElement.style.removeProperty("visibility");
-    document.documentElement.style.removeProperty("background");
-  }
-
-  // Block right click
-  document.addEventListener("contextmenu", function(e) {
-    e.preventDefault();
-  }, true);
-
-  // Block keyboard shortcuts
-  document.addEventListener("keydown", function(e) {
-    const key = e.key.toLowerCase();
-    const ctrl = e.ctrlKey || e.metaKey;
-
-    // Allow browser zoom
-    if (ctrl && ["+", "-", "=", "0"].includes(key)) return;
-
-    // Allow scrolling
-    if ([
-      "arrowup", "arrowdown", "arrowleft",
-      "arrowright", "pageup", "pagedown",
-      "home", "end", " "
-    ].includes(key)) return;
-
-    // Save, download, print, source
-    if (
-      (ctrl && ["s", "p", "u", "c", "x", "a"].includes(key)) ||
-      (ctrl && e.shiftKey &&
-        ["s", "p", "i", "j", "c"].includes(key)) ||
-      key === "printscreen" ||
-      key === "f12"
-    ) {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-
-      // Hide page for save / print attempts
-      if (
-        (ctrl && ["s", "p"].includes(key)) ||
-        (ctrl && e.shiftKey && key === "s") ||
-        key === "printscreen"
-      ) {
-        hideWebsite();
-      }
-
-      return false;
+        isHidden = true;
+        document.body.classList.add("fjmc-protected");
     }
-  }, true);
 
-  // Print detection
-  window.addEventListener("beforeprint", hideWebsite);
-  window.addEventListener("afterprint", restoreWebsite);
-
-  // Block text copying
-  document.addEventListener("copy", function(e) {
-    e.preventDefault();
-  }, true);
-
-  document.addEventListener("cut", function(e) {
-    e.preventDefault();
-  }, true);
-
-  // Block image dragging
-  document.addEventListener("dragstart", function(e) {
-    if (e.target.closest("img")) {
-      e.preventDefault();
+    function restorePage() {
+        isHidden = false;
+        document.body.classList.remove("fjmc-protected");
     }
-  }, true);
 
-  console.log("Global protection enabled");
+    // Block right click
+    document.addEventListener("contextmenu", e => {
+        e.preventDefault();
+        blankPage();
+    }, true);
+
+    // Block copying and cutting
+    ["copy", "cut"].forEach(type => {
+        document.addEventListener(type, e => {
+            e.preventDefault();
+            blankPage();
+        }, true);
+    });
+
+    // Block text selection
+    document.addEventListener("selectstart", e => {
+        e.preventDefault();
+        blankPage();
+    }, true);
+
+    // Keyboard protection
+    document.addEventListener("keydown", function(e) {
+        const key = e.key.toLowerCase();
+        const ctrl = e.ctrlKey || e.metaKey;
+
+        // Allow zoom
+        if (ctrl && ["+", "-", "=", "0"].includes(key)) {
+            return;
+        }
+
+        // Allow scrolling
+        if ([
+            "arrowup", "arrowdown",
+            "arrowleft", "arrowright",
+            "pageup", "pagedown",
+            "home", "end", " "
+        ].includes(key)) {
+            return;
+        }
+
+        const blocked =
+            (ctrl && ["s", "p", "u", "c", "x", "a"].includes(key)) ||
+            (ctrl && e.shiftKey &&
+                ["s", "i", "j", "c"].includes(key)) ||
+            key === "f12" ||
+            key === "printscreen";
+
+        if (blocked) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            blankPage();
+        }
+    }, true);
+
+    // Print detection
+    window.addEventListener("beforeprint", blankPage);
+    window.addEventListener("afterprint", restorePage);
+
+    // Block image dragging
+    document.addEventListener("dragstart", e => {
+        if (e.target.closest("img")) {
+            e.preventDefault();
+            blankPage();
+        }
+    }, true);
+
+    console.log("FJMC protection enabled");
+
 })();
-      </script>
+    </script>
     
-<script>
+      
+ 
+    <script>
 if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
         navigator.serviceWorker.register("./service-worker.js")
